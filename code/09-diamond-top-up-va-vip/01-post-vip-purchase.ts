@@ -1,606 +1,68 @@
+// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/economy/vip/purchase
 //  Trừ Diamond và gia hạn VIP trong một transaction của sổ kép: idempotent theo key, khóa ví FOR UPDATE, ghi outbox.
-//  Step 1: Request qua middleware, guard, interceptor và pipe áp dụng; đọc user/đầu vào theo decorator, validate rồi gọi xử lý: Nhận request (user từ JWT, planId trong body, Idempotency-Key từ header)
-//  Step 2: Đọc giá và số ngày của gói từ catalog server
-//  Step 3: Dựng bút toán Nợ ví / Có system_revenue, gọi LedgerService.record
-//  Step 4: Kiểm sổ kép: mỗi currency tổng Nợ phải bằng tổng Có
-//  Step 5: Băm request; key đã có thì trả kết quả cũ, không mở transaction
-//  Step 6: Trong transaction, chèn giao dịch (trùng key là replay)
-//  Step 7: Tạo hoặc lấy tài khoản sổ, khóa ví FOR UPDATE theo thứ tự userId
-//  Step 8: Ghi bút toán, trừ số dư (kiểm đủ tiền) và ghi outbox
-//  Step 9: Phần việc riêng của VIP cùng transaction: gia hạn, ghi outbox
-//  Step 10: Thua race cùng key: đọc lại dòng của bên thắng, trả như replay
-//  Step 11: Service trả hạng và hạn VIP (replay thì không gia hạn lần 2)
-//  Step 12: Worker nền: khóa lô outbox chưa gửi, gửi sang Kafka
+// ════════════════════════════════════════════════════════════════════════════
+//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [WORKER] → [KAFKA]
+//
+//  Vai trò từng tầng
+//    [CONTROLLER] Nhận yêu cầu mua gói VIP kèm header Idempotency-Key bắt buộc; user
+//                 lấy từ JWT, planId từ body.
+//    [SERVICE]    EconomyService đọc giá gói từ catalog rồi dựng bút toán Nợ ví / Có
+//                 system_revenue kèm phần gia hạn VIP; LedgerService là nơi duy nhất
+//                 được ghi vào sổ cái và ví.
+//    [POSTGRES]   Một transaction làm tất cả: chèn giao dịch (unique idempotency_key),
+//                 khóa ví FOR UPDATE, ghi bút toán, trừ số dư, gia hạn VIP, ghi outbox.
+//    [WORKER]     OutboxRelayService (bật bằng ECONOMY_OUTBOX_RELAY_ENABLED, mặc định
+//                 tắt) quét outbox_events chưa gửi theo lô (FOR UPDATE SKIP LOCKED) rồi
+//                 chuyển cho EventBus.
+//    [KAFKA]      Topic litmatch.economy.events nhận event economy.vip.purchased và
+//                 economy.diamond.debited.
+//
+//  Bảng       transactions — 1 dòng cho mỗi giao dịch: type vip_purchase, key
+//               idempotency unique, request_hash, snapshot giá gói trong metadata.
+//             ledger_entries — bút toán sổ kép chỉ thêm, không sửa (trigger chặn UPDATE
+//               và DELETE): Nợ user_wallet, Có system_revenue.
+//             ledger_accounts — tài khoản nội bộ tạo khi cần: ví của user và
+//               system_revenue.
+//             wallets — số dư Diamond và hạn VIP của user; bị khóa FOR UPDATE; gia hạn
+//               cộng dồn.
+//             vip_plans — catalog gói VIP: hạng, số ngày, giá Diamond (chỉ đọc).
+//             outbox_events — event economy.diamond.debited và economy.vip.purchased,
+//               ghi cùng transaction để relay gửi Kafka sau.
+//  Liên quan  Kafka (litmatch.economy.events) — hiện chưa có module nào subscribe topic
+//               này; khi relay tắt thì outbox_events chỉ tích lũy dòng chưa gửi.
+//             Các luồng Diamond khác — speed-up, quà, nạp IAP, payOS, hoàn tiền đều ghi
+//               sổ qua LedgerService.record ở trên (các trang kia chỉ nhắc tới nó).
+//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
+//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
+//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
+//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
+//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
+//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
+//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
+//             repo.
 
-// [CONTROLLER] EconomyController.purchaseVip · economy/economy.controller.ts
+// [CONTROLLER] EconomyController.purchaseVip  ·  economy.controller.ts L48–49, L134–151
 @Controller('economy')
 export class EconomyController {
-  // RedisThrottlerStorage
-  private readonly logger = new Logger(RedisThrottlerStorage.name);
-  private readonly fallback = new ThrottlerStorageService();
-  private redisRetryAt = 0;
-  private lastWarnAt = 0;
-  // JwtAuthGuard
-  private readonly previousSecret: string | undefined;
-  // GlobalExceptionFilter
-  private readonly logger = new Logger(GlobalExceptionFilter.name);
-  // OutboxRelayService
-  private readonly logger = new Logger(OutboxRelayService.name);
-  private readonly job = new ManagedInterval();
-  // KafkaEventBusAdapter
-  private readonly logger = new Logger(KafkaEventBusAdapter.name);
-  private readonly kafka: Kafka;
-  private producer: Producer | null = null;
-  private producerConnect: Promise<Producer> | null = null;
-  private readonly publishTotal;
-  private readonly publishFailureTotal;
-  private readonly consumerFailureTotal;
-  private readonly deadLetterTotal;
-  // ManagedInterval
-  private running = false;
   constructor(
-    // RedisThrottlerStorage
-    private readonly redis: Redis,
-    private readonly now: () => number = Date.now,
-    // JwtAuthGuard
-    private readonly jwtService: JwtService,
-    private readonly reflector: Reflector,
-    config: ConfigService<CoreApiEnv, true>,
+    private readonly economyService: EconomyService,
     // EconomyService
     @InjectRepository(Wallet) private readonly walletRepo: Repository<Wallet>,
     @InjectRepository(VipPlan) private readonly planRepo: Repository<VipPlan>,
+    private readonly ledger: LedgerPersistencePort,
     // LedgerService
     @InjectDataSource() private readonly dataSource: DataSource,
-    // OutboxRelayService
-    private readonly config: ConfigService<CoreApiEnv, true>,
-    // KafkaEventBusAdapter
-    @Inject(METRICS_METER) meter: Meter,
-  ) {
-    // JwtAuthGuard
-    this.previousSecret =
-      config.get('JWT_SECRET_PREVIOUS', { infer: true }) || undefined;
-    // LedgerService
-    super();
-    // KafkaEventBusAdapter
-    super();
-    const brokers = this.config
-      .getOrThrow('KAFKA_BROKERS', { infer: true })
-      .split(',')
-      .map((broker) => broker.trim())
-      .filter(Boolean);
-    this.kafka = new Kafka({
-      clientId: EVENT_BUS_CLIENT_ID,
-      brokers,
-      connectionTimeout: this.config.getOrThrow(
-        'EVENT_BUS_KAFKA_REQUEST_TIMEOUT_MS',
-        {
-          infer: true,
-        },
-      ),
-      requestTimeout: this.config.getOrThrow(
-        'EVENT_BUS_KAFKA_REQUEST_TIMEOUT_MS',
-        {
-          infer: true,
-        },
-      ),
-      retry: {
-        retries: this.config.getOrThrow('EVENT_BUS_KAFKA_RETRIES', {
-          infer: true,
-        }),
-      },
-    });
+    private readonly metrics: EconomyMetrics,
+  ) {}
 
-    this.publishTotal = meter.createCounter('event_bus_publish_total', {
-      description: 'Events sent to the broker by outcome and topic.',
-    });
-    this.publishFailureTotal = meter.createCounter(
-      'event_bus_publish_failure_total',
-      {
-        description: 'Event publish failures handed back to the outbox relay.',
-      },
-    );
-    this.consumerFailureTotal = meter.createCounter(
-      'event_bus_consumer_failure_total',
-      {
-        description:
-          'Consumer handler failures before retry or dead-letter handling.',
-      },
-    );
-    this.deadLetterTotal = meter.createCounter('event_bus_dead_letter_total', {
-      description: 'Events moved to a broker dead-letter topic.',
-    });
-  }
-
-  // Step 1: Request qua middleware, guard, interceptor và pipe áp dụng; đọc user/đầu vào theo
-  // decorator, validate rồi gọi xử lý: Nhận request (user từ JWT, planId trong body,
-  // Idempotency-Key từ header)
-
-  // [CONTROLLER] Bootstrap request configuration · main.ts
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-      bufferLogs: true,
-      rawBody: true,
-      bodyParser: false,
-    });
-
-  // [CONTROLLER] app.useBodyParser
-  app.useBodyParser('json');
-
-  // [CONTROLLER] app.useBodyParser
-  app.useBodyParser('urlencoded', { extended: true });
-
-  // [CONTROLLER] app.useBodyParser
-  app.useBodyParser('json', { type: 'application/webhook+json' });
-
-  // [CONTROLLER] app.set
-  app.set(
-      'trust proxy',
-      config.getOrThrow('HTTP_TRUST_PROXY_HOPS', { infer: true }),
-    );
-
-  // [CONTROLLER] app.use
-  app.use(helmet());
-
-  // [CONTROLLER] app.use
-  app.use(cookieParser());
-
-  // [CONTROLLER] app.use
-  app.use(createHttpMetricsMiddleware(app.get<Meter>(METRICS_METER)));
-
-  // [SERVICE] createHttpMetricsMiddleware · libs/observability/src/lib/http-metrics.ts
-  const meter = app.get<Meter>(METRICS_METER);
-  const histogram = meter.createHistogram('http_request_duration_seconds', {
-    description:
-      'Thời gian xử lý HTTP request tính bằng giây, theo method/route/status_code',
-    unit: 's',
-    advice: { explicitBucketBoundaries: DEFAULT_BUCKETS_SECONDS },
-  });
-
-  return function httpMetricsMiddleware(
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): void {
-    const startedAt = process.hrtime.bigint();
-    res.on('finish', () => {
-      const elapsedSeconds =
-        Number(process.hrtime.bigint() - startedAt) / 1_000_000_000;
-      histogram.record(elapsedSeconds, {
-        method: req.method,
-        route: req.route?.path ? String(req.route.path) : 'unmatched',
-        status_code: String(res.statusCode),
-      });
-    });
-    next();
-  };
-
-  // [CONTROLLER] Bootstrap request configuration · main.ts
-  const corsOrigins = parseCorsOrigins(
-      config.getOrThrow('CORS_ORIGINS', { infer: true }),
-    );
-
-  // [SERVICE] parseCorsOrigins · common/cors/cors-origins.ts
-  const raw = config.getOrThrow('CORS_ORIGINS', { infer: true });
-  const origins = raw
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  for (const origin of origins) {
-    let parsed: URL;
-    try {
-      parsed = new URL(origin);
-    } catch {
-      throw new Error(
-        `CORS_ORIGINS có origin không hợp lệ: "${origin}" (phải dạng http(s)://host[:port])`,
-      );
-    }
-    if (!/^https?:$/.test(parsed.protocol)) {
-      throw new Error(`CORS_ORIGINS chỉ chấp nhận http/https: "${origin}"`);
-    }
-    if (parsed.pathname !== '/' || parsed.search !== '' || parsed.hash !== '') {
-      throw new Error(
-        `CORS_ORIGINS phải là origin thuần (không path/query/hash): "${origin}"`,
-      );
-    }
-  }
-
-  return origins;
-
-  // [CONTROLLER] app.enableCors · main.ts
-  app.enableCors({
-      origin: corsOrigins.length > 0 ? corsOrigins : false,
-      credentials: true,
-    });
-
-  // [CONTROLLER] app.useGlobalPipes
-  app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-
-  // [CONTROLLER] app.useGlobalInterceptors
-  app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
-
-  // [CONTROLLER] ThrottlerModule configuration · app/app.module.ts
-  ThrottlerModule.forRootAsync({
-        inject: [ConfigService],
-        useFactory: (config: ConfigService<CoreApiEnv, true>) => {
-          const sharedStorage =
-            config.getOrThrow('THROTTLE_STORAGE', { infer: true }) === 'redis';
-          if (
-            sharedStorage &&
-            config.getOrThrow('NODE_ENV', { infer: true }) === 'production' &&
-            config.getOrThrow('HTTP_TRUST_PROXY_HOPS', { infer: true }) === 0
-          ) {
-            new Logger('ThrottlerConfig').warn(
-              'THROTTLE_STORAGE=redis nhưng HTTP_TRUST_PROXY_HOPS=0: nếu có ingress/LB phía trước thì req.ip là IP proxy và mọi người dùng chung một bucket rate limit. Đặt HTTP_TRUST_PROXY_HOPS đúng số proxy tin cậy.',
-            );
-          }
-          return {
-            throttlers: [
-              {
-                ttl:
-                  config.getOrThrow('THROTTLE_TTL_SECONDS', { infer: true }) *
-                  1000,
-                limit: config.getOrThrow('THROTTLE_LIMIT', { infer: true }),
-              },
-            ],
-            ...(sharedStorage
-              ? {
-                  storage: new RedisThrottlerStorage(
-                    createCoreRedisClient(
-                      config.getOrThrow('REDIS_URL', { infer: true }),
-                    ),
-                  ),
-                }
-              : {}),
-          };
-
-          // [REDIS] createCoreRedisClient · common/redis/core-redis-client.ts
-          const redisUrl = config.getOrThrow('REDIS_URL', { infer: true });
-          const existing = sharedClientsByUrl.get(redisUrl);
-          if (existing && existing.client.status !== 'end') {
-            existing.references += 1;
-            return existing.client;
-          }
-
-          const client = new Redis(redisUrl, {
-            connectTimeout: 1_000,
-            commandTimeout: 1_000,
-            maxRetriesPerRequest: 1,
-            enableOfflineQueue: false,
-            retryStrategy: coreRedisReconnectDelay,
-          });
-          client.on('error', () => undefined);
-          const entry = { client, references: 1 };
-          sharedClientsByUrl.set(redisUrl, entry);
-          sharedEntryByClient.set(client, entry);
-          return client;
-        },
-      })
-
-  // [CONTROLLER] RedisThrottlerStorage.increment · common/throttle/redis-throttler-storage.ts
-  if (this.now() < this.redisRetryAt) {
-    return this.fallback.increment(
-      key,
-      ttl,
-      limit,
-      blockDuration,
-      throttlerName,
-    );
-  }
-
-  try {
-    const slot = `throttle:{${throttlerName}:${key}}`;
-    const [totalHits, windowTtlMs, blocked, blockTtlMs] =
-      (await this.redis.eval(
-        THROTTLE_INCREMENT_LUA,
-        2,
-        `${slot}:hits`,
-        `${slot}:block`,
-        String(ttl),
-        String(limit),
-        String(blockDuration),
-      )) as ThrottleEvalResult;
-    return {
-      totalHits,
-      timeToExpire: Math.ceil(windowTtlMs / 1000),
-      isBlocked: blocked === 1,
-      timeToBlockExpire: Math.ceil(blockTtlMs / 1000),
-    };
-  } catch (error) {
-    this.redisRetryAt = this.now() + REDIS_RETRY_AFTER_MS;
-    this.warnRedisUnavailable(error);
-
-    // [REDIS] RedisThrottlerStorage.warnRedisUnavailable
-    const now = this.now();
-    if (now - this.lastWarnAt < WARN_INTERVAL_MS) return;
-    this.lastWarnAt = now;
-    this.logger.warn(
-      `Redis throttler storage lỗi, dùng bộ đếm trong bộ nhớ của pod này tạm thời: ${String(error)}`,
-    );
-
-    return this.fallback.increment(
-      key,
-      ttl,
-      limit,
-      blockDuration,
-      throttlerName,
-    );
-  }
-
-  // [CONTROLLER] APP_GUARD: ThrottlerGuard · app/app.module.ts
-  { provide: APP_GUARD, useClass: ThrottlerGuard }
-
-  // [CONTROLLER] APP_GUARD: JwtAuthGuard
-  { provide: APP_GUARD, useClass: JwtAuthGuard }
-
-  // [CONTROLLER] JwtAuthGuard.canActivate · common/guards/jwt-auth.guard.ts
-  const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-    context.getHandler(),
-    context.getClass(),
-  ]);
-  if (isPublic) return true;
-
-  const req = context
-    .switchToHttp()
-    .getRequest<Request & { user?: AuthenticatedUser }>();
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) {
-    throw new UnauthorizedException('Thiếu access token');
-  }
-
-  try {
-    const payload = await verifyJwtWithRotation<AccessTokenPayload>(
-      this.jwtService,
-      authHeader.slice('Bearer '.length),
-      this.previousSecret,
-    );
-
-    // [SERVICE] verifyJwtWithRotation · common/guards/jwt-rotation.ts
-    const jwtService = this.jwtService;
-    const token = authHeader.slice('Bearer '.length);
-    const previousSecret = this.previousSecret;
-    try {
-      return await jwtService.verifyAsync<T>(token);
-    } catch (error) {
-
-      // [SERVICE] isInvalidSignature
-      return (
-        error instanceof Error &&
-        error.name === 'JsonWebTokenError' &&
-        error.message === 'invalid signature'
-      );
-
-      if (!previousSecret || !isInvalidSignature(error)) throw error;
-      return jwtService.verifyAsync<T>(token, { secret: previousSecret });
-    }
-
-    req.user = {
-      userId: payload.sub,
-      isGuest: payload.isGuest === true,
-      role: payload.role,
-    };
-    return true;
-  } catch {
-    throw new UnauthorizedException(
-      'Access token không hợp lệ hoặc đã hết hạn',
-    );
-  }
-
-  // [CONTROLLER] APP_GUARD: RolesGuard · app/app.module.ts
-  { provide: APP_GUARD, useClass: RolesGuard }
-
-  // [CONTROLLER] RolesGuard.canActivate · common/guards/roles.guard.ts
-  const requiredRoles = this.reflector.getAllAndOverride<Role[] | undefined>(
-    ROLES_KEY,
-    [context.getHandler(), context.getClass()],
-  );
-  if (requiredRoles === undefined) return true;
-
-  const req = context
-    .switchToHttp()
-    .getRequest<Request & { user?: AuthenticatedUser }>();
-  if (req.user === undefined || !requiredRoles.includes(req.user.role)) {
-    throw new DomainException(
-      CommonErrors.FORBIDDEN,
-      'Không đủ quyền truy cập',
-      HttpStatus.FORBIDDEN,
-    );
-  }
-  return true;
-
-  // [CONTROLLER] APP_INTERCEPTOR: ResponseEnvelopeInterceptor · app/app.module.ts
-  { provide: APP_INTERCEPTOR, useClass: ResponseEnvelopeInterceptor }
-
-  // [CONTROLLER] ResponseEnvelopeInterceptor.intercept · common/interceptors/response-envelope.interceptor.ts
-  const request = context
-    .switchToHttp()
-    .getRequest<{ originalUrl?: string; url?: string }>();
-  markRuntimeActivity(request.originalUrl ?? request.url ?? '');
-
-  // [SERVICE] markRuntimeActivity · common/runtime/runtime-activity.ts
-  const path = request.originalUrl ?? request.url ?? '';
-  // now = Date.now()
-
-  // [SERVICE] isProbePath
-  const pathname = path.split('?', 1)[0] ?? path;
-  return (
-    pathname === '/health' ||
-    pathname.startsWith('/health/') ||
-    pathname.endsWith('/health') ||
-    pathname.includes('/health/') ||
-    pathname === '/metrics' ||
-    pathname.endsWith('/metrics') ||
-    pathname.startsWith('/swagger')
-  );
-
-  if (isProbePath(path)) return;
-  lastMeaningfulRequestAt = now;
-  meaningfulRequestCount += 1;
-
-  return next.handle().pipe(
-    map((value) => {
-      if (value && typeof value === 'object' && 'data' in (value as object)) {
-        return value as unknown as ApiResponse<T>;
-      }
-      return { data: value };
-    }),
-  );
-
-  // [CONTROLLER] APP_FILTER: GlobalExceptionFilter · app/app.module.ts
-  { provide: APP_FILTER, useClass: GlobalExceptionFilter }
-
-  // [CONTROLLER] GlobalExceptionFilter.catch · common/filters/global-exception.filter.ts
-  const ctx = host.switchToHttp();
-  const res = ctx.getResponse<Response>();
-  const req = ctx.getRequest<Request & { id?: string }>();
-  const traceId = req.id ?? 'unknown';
-  const locale = resolveApiLocale(req.headers['accept-language']);
-
-  // [SERVICE] resolveApiLocale · common/i18n/error-message.localizer.ts
-  const acceptLanguage = req.headers['accept-language'];
-  const value = Array.isArray(acceptLanguage)
-    ? acceptLanguage.join(',')
-    : acceptLanguage;
-  if (value === undefined) return DEFAULT_LOCALE;
-
-  for (const item of value.split(',')) {
-    const language = item.trim().split(';', 1)[0]?.toLowerCase();
-    if (language === 'en' || language?.startsWith('en-')) return 'en';
-    if (language === 'vi' || language?.startsWith('vi-')) return 'vi';
-  }
-  return DEFAULT_LOCALE;
-
-  let status: number;
-  let code: string;
-  let message: string;
-  let details: Record<string, unknown> | undefined;
-
-  if (exception instanceof DomainException) {
-    status = exception.httpStatus;
-    code = exception.code;
-    message = exception.message;
-    details = exception.details;
-  } else if (exception instanceof HttpException) {
-    status = exception.getStatus();
-    const body = exception.getResponse();
-    message =
-      typeof body === 'string'
-        ? body
-        : ((body as { message?: string | string[] }).message?.toString() ??
-          exception.message);
-    code = this.mapHttpStatusToCode(status);
-
-    // [SERVICE] GlobalExceptionFilter.mapHttpStatusToCode
-    switch (status) {
-      case HttpStatus.UNAUTHORIZED:
-        return CommonErrors.UNAUTHORIZED;
-      case HttpStatus.FORBIDDEN:
-        return CommonErrors.FORBIDDEN;
-      case HttpStatus.NOT_FOUND:
-        return CommonErrors.ROUTE_NOT_FOUND;
-      case HttpStatus.TOO_MANY_REQUESTS:
-        return CommonErrors.RATE_LIMITED;
-      case HttpStatus.BAD_REQUEST:
-        return CommonErrors.VALIDATION_FAILED;
-      default:
-        return CommonErrors.INTERNAL_ERROR;
-    }
-
-    if (status === HttpStatus.BAD_REQUEST && typeof body === 'object') {
-      const raw = (body as { message?: string | string[] }).message;
-      if (Array.isArray(raw)) {
-        code = CommonErrors.VALIDATION_FAILED;
-        message = 'Dữ liệu đầu vào không hợp lệ';
-        details = { violations: raw };
-      }
-    }
-  } else {
-    status = HttpStatus.INTERNAL_SERVER_ERROR;
-    code = CommonErrors.INTERNAL_ERROR;
-    message = 'Lỗi hệ thống, thử lại sau';
-    this.logger.error(
-      {
-        traceId,
-        err: exception instanceof Error ? exception.stack : String(exception),
-      },
-      'Unhandled exception',
-    );
-    captureSentryException(exception, traceId);
-
-    // [SERVICE] captureSentryException · libs/observability/src/lib/sentry.ts
-    Sentry.withScope((scope) => {
-      scope.setTag('trace_id', traceId);
-      Sentry.captureException(exception);
-    });
-  }
-
-  const payload: ApiErrorBody = {
-    error: {
-      code,
-      message: localizeErrorMessage(code, locale, message),
-      traceId,
-      ...(details ? { details } : {}),
-    },
-  };
-
-  // [SERVICE] localizeErrorMessage · common/i18n/error-message.localizer.ts
-  const vietnameseMessage = message;
-  if (locale === 'vi') return vietnameseMessage;
-  return EN_ERROR_MESSAGES[code] ?? 'The request could not be completed.';
-
-  res.status(status).json(payload);
-
+  // Step 1: Nhận request (user từ JWT, planId trong body, Idempotency-Key từ header)
   @Post('vip/purchase')
   @HttpCode(HttpStatus.OK)
   purchaseVip(
     @CurrentUser() user: AuthenticatedUser,
-
-    // [CONTROLLER] CurrentUser · common/decorators/current-user.decorator.ts
-    export const CurrentUser = createParamDecorator(
-      (_data: unknown, ctx: ExecutionContext): AuthenticatedUser => {
-        const req = ctx.switchToHttp().getRequest<{ user: AuthenticatedUser }>();
-        return req.user;
-      },
-    );
-
     @Body() dto: PurchaseVipDto,
     @IdempotencyKey() idempotencyKey: string,
-
-    // [CONTROLLER] IdempotencyKey · common/decorators/idempotency-key.decorator.ts
-    export const IdempotencyKey = createParamDecorator(
-      (_data: unknown, ctx: ExecutionContext): string => {
-        const request = ctx
-          .switchToHttp()
-          .getRequest<{ headers: Record<string, unknown> }>();
-        return extractIdempotencyKey(request.headers);
-
-        // [SERVICE] extractIdempotencyKey
-        const headers = request.headers;
-        const raw = headers[IDEMPOTENCY_KEY_HEADER];
-        const key = Array.isArray(raw) ? raw[0] : raw;
-        if (typeof key !== 'string' || key.trim() === '') {
-          throw new DomainException(
-            CommonErrors.IDEMPOTENCY_KEY_MISSING,
-            'Thiếu header Idempotency-Key',
-            HttpStatus.BAD_REQUEST,
-          );
-        }
-        if (key.length > MAX_KEY_LENGTH) {
-          throw new DomainException(
-            CommonErrors.IDEMPOTENCY_KEY_INVALID,
-            `Idempotency-Key dài quá ${MAX_KEY_LENGTH} ký tự`,
-            HttpStatus.BAD_REQUEST,
-          );
-        }
-        return key;
-      },
-    );
   ): Promise<VipPurchaseResultDto> {
     return this.economyService.purchaseVip(
       user.userId,
@@ -608,7 +70,7 @@ export class EconomyController {
       idempotencyKey,
     );
 
-    // [SERVICE] EconomyService.purchaseVip · economy/economy.service.ts
+    // [SERVICE] EconomyService.purchaseVip  ·  economy.service.ts L367–460
     const userId = user.userId;
     const planId = dto.planId;
 
@@ -686,16 +148,16 @@ export class EconomyController {
       },
     });
 
-    // [SERVICE] LedgerService.record · economy/services/ledger.service.ts
+    // [SERVICE] LedgerService.record  ·  ledger.service.ts L56–99
     // input = đối số 1 của lời gọi ở trên
 
     // Step 4: Kiểm sổ kép: mỗi currency tổng Nợ phải bằng tổng Có
     this.validateInput(input);
 
-    // [SERVICE] LedgerService.validateInput
+    // [SERVICE] LedgerService.validateInput  ·  ledger.service.ts L313–320
     this.validateEntries(input.entries);
 
-    // [SERVICE] LedgerService.validateEntries
+    // [SERVICE] LedgerService.validateEntries  ·  ledger.service.ts L322–343
     const entries = input.entries;
     if (entries.length < 2)
       throw new Error('Giao dịch double-entry cần tối thiểu 2 bút toán');
@@ -728,7 +190,7 @@ export class EconomyController {
     // Step 5: Băm request; key đã có thì trả kết quả cũ, không mở transaction
     const requestHash = this.hashRequest(input);
 
-    // [SERVICE] LedgerService.hashRequest
+    // [SERVICE] LedgerService.hashRequest  ·  ledger.service.ts L345–361
     // request_hash gồm loại giao dịch, người thực hiện và toàn bộ bút toán: cùng key mà nội dung
     // khác thì bị 409, không được coi là replay.
     const normalized = {
@@ -755,17 +217,6 @@ export class EconomyController {
     if (existing) {
       try {
         const transaction = this.assertSameRequest(existing, requestHash);
-
-        // [SERVICE] LedgerService.assertSameRequest
-        if (existing.requestHash !== requestHash) {
-          throw new DomainException(
-            EconomyErrors.IDEMPOTENCY_CONFLICT,
-            'Idempotency key đã dùng cho 1 request khác nội dung',
-            HttpStatus.CONFLICT,
-          );
-        }
-        return existing;
-
         this.metrics.record(input.type, 'replayed');
         return { transaction, replayed: true };
       } catch (err) {
@@ -779,7 +230,7 @@ export class EconomyController {
         this.recordInManager(manager, input),
       );
 
-      // [SERVICE] LedgerService.recordInManager
+      // [SERVICE] LedgerService.recordInManager  ·  ledger.service.ts L101–181
       this.validateInput(input);
       const requestHash = this.hashRequest(input);
       const existing = await manager.findOne(LedgerTransaction, {
@@ -829,7 +280,7 @@ export class EconomyController {
       for (const entry of input.entries)
         accounts.push(await this.resolveAccount(manager, entry));
 
-        // [SERVICE] LedgerService.resolveAccount
+        // [SERVICE] LedgerService.resolveAccount  ·  ledger.service.ts L377–406
         const isUserAccount = USER_ACCOUNT_KINDS.has(entry.accountKind);
         const where = {
           kind: entry.accountKind,
@@ -860,7 +311,7 @@ export class EconomyController {
       for (const userId of userIds)
         wallets.set(userId, await this.lockWallet(manager, userId));
 
-        // [SERVICE] LedgerService.lockWallet
+        // [SERVICE] LedgerService.lockWallet  ·  ledger.service.ts L408–425
         // [POSTGRES] Ví tạo khi cần rồi khóa FOR UPDATE: đây là điểm tuần tự hóa theo từng user,
         // 2 giao dịch cùng ví không chạy song song.
         await manager.query(
@@ -896,7 +347,7 @@ export class EconomyController {
         input.outboxEventTypeOverride,
       );
 
-      // [SERVICE] LedgerService.applyWalletDeltas
+      // [SERVICE] LedgerService.applyWalletDeltas  ·  ledger.service.ts L427–499
       // entries = input.entries
       const outboxEventTypeOverride = input.outboxEventTypeOverride;
       for (const [userId, wallet] of wallets) {
@@ -975,21 +426,6 @@ export class EconomyController {
       this.metrics.record(input.type, result.replayed ? 'replayed' : 'success');
       return result;
     } catch (err) {
-
-      // [SERVICE] isUniqueViolation · database/postgres-errors.ts
-      const e = err as { code?: string; driverError?: { code?: string } };
-      return (e.driverError?.code ?? e.code) === PG_UNIQUE_VIOLATION;
-
-      // [SERVICE] violatedConstraint
-      const constraint = UQ_TRANSACTIONS_IDEMPOTENCY_KEY;
-      const e = err as {
-        driverError?: { constraint?: string };
-        constraint?: string;
-        message?: string;
-      };
-      const name = e.driverError?.constraint ?? e.constraint;
-      return name === constraint || (e.message?.includes(constraint) ?? false);
-
       if (
         isUniqueViolation(err) &&
         violatedConstraint(err, UQ_TRANSACTIONS_IDEMPOTENCY_KEY)
@@ -1035,11 +471,18 @@ export class EconomyController {
   }
 }
 
-// [WORKER] OutboxRelayService.flushOnce · economy/jobs/outbox-relay.service.ts
+// [WORKER] OutboxRelayService.flushOnce  ·  outbox-relay.service.ts L28–31, L65–107
 @Injectable()
 export class OutboxRelayService
   implements OnApplicationBootstrap, OnApplicationShutdown
 {
+  private readonly logger = new Logger(OutboxRelayService.name);
+  private readonly job = new ManagedInterval();
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly eventBus: EventBusPort,
+  ) {}
+
   async flushOnce(): Promise<number> {
     return this.job.runExclusive(async () => {
       return await this.dataSource.transaction(async (manager) => {
@@ -1065,100 +508,11 @@ export class OutboxRelayService
             // chừng thì event được gửi lại ở vòng sau: giao kiểu at-least-once, consumer phải
             // chịu được trùng.
             await this.eventBus.publish(toEventEnvelope(event));
-
-            // [WORKER] toEventEnvelope
-            return {
-              id: event.id,
-              topic: event.topic,
-              type: event.eventType,
-              version: eventVersion(event.payload),
-              key: orderingKey(event),
-              payload: event.payload,
-            };
-
-            // [WORKER] eventVersion
-            const payload = event.payload;
-            const version = payload['version'];
-            return typeof version === 'number' && Number.isInteger(version)
-              ? version
-              : DEFAULT_EVENT_VERSION;
-
-            // [WORKER] orderingKey
-            for (const field of ORDERING_KEY_FIELDS) {
-              const value = event.payload[field];
-              if (typeof value === 'string' && value.length > 0) return value;
-            }
-            return event.id;
-
-            // [KAFKA] KafkaEventBusAdapter.publish · common/events/kafka-event-bus.adapter.ts
-            // event = toEventEnvelope(event)
-            try {
-              const producer = await this.getProducer();
-
-              // [KAFKA] KafkaEventBusAdapter.getProducer
-              if (this.producer !== null) return this.producer;
-              if (this.producerConnect !== null) return this.producerConnect;
-
-              const producer = this.kafka.producer({
-                idempotent: true,
-                maxInFlightRequests: 1,
-                retry: {
-                  retries: this.config.getOrThrow('EVENT_BUS_KAFKA_RETRIES', {
-                    infer: true,
-                  }),
-                },
-              });
-              this.producerConnect = producer
-                .connect()
-                .then(() => {
-                  this.producer = producer;
-                  return producer;
-                })
-                .catch((error: unknown) => {
-                  this.producerConnect = null;
-                  throw error;
-                });
-              return this.producerConnect;
-
-              await producer.send({
-                topic: event.topic,
-                messages: [
-                  {
-                    key: event.key,
-                    value: JSON.stringify(event),
-                  },
-                ],
-              });
-              this.publishTotal.add(1, {
-                topic: event.topic,
-                type: event.type,
-                outcome: 'success',
-              });
-            } catch (error) {
-              this.publishFailureTotal.add(1, { topic: event.topic, type: event.type });
-              this.logger.error(
-                { eventId: event.id, topic: event.topic, err: errorMessage(error) },
-                'Event publish failed; caller must retain the outbox row',
-              );
-
-              // [KAFKA] errorMessage
-              const message = error instanceof Error ? error.message : String(error);
-              return message.slice(0, MAX_ERROR_LENGTH);
-
-              throw error;
-            }
-
             event.publishedAt = new Date();
             event.lastError = null;
           } catch (err) {
             event.attempts += 1;
             event.lastError = stringifyError(err);
-
-            // [SERVICE] stringifyError
-            const error = err;
-            const message = error instanceof Error ? error.message : String(error);
-            return message.slice(0, MAX_ERROR_LENGTH);
-
             this.logger.error(
               {
                 eventId: event.id,
@@ -1169,43 +523,16 @@ export class OutboxRelayService
               },
               'Outbox event publish failed',
             );
-
-            // [WORKER] OutboxRelayService.maxAttempts
-            return this.config.getOrThrow('ECONOMY_OUTBOX_MAX_ATTEMPTS', {
-              infer: true,
-            });
-
             if (event.attempts >= this.maxAttempts()) {
               await this.deadLetter(event);
 
-              // [WORKER] OutboxRelayService.deadLetter
+              // [WORKER] OutboxRelayService.deadLetter  ·  outbox-relay.service.ts L115–146
               try {
                 await this.eventBus.publishDeadLetter(
                   toEventEnvelope(event),
                   event.lastError ?? 'unknown publish failure',
                   event.attempts,
                 );
-
-                // [KAFKA] KafkaEventBusAdapter.publishDeadLetter · common/events/kafka-event-bus.adapter.ts
-                // event = toEventEnvelope(event)
-                // error = event.lastError ?? 'unknown publish failure'
-                const attempts = event.attempts;
-                const dlqEvent: EventEnvelope = {
-                  ...event,
-                  topic: deadLetterTopic(event.topic),
-                  payload: {
-                    original: event.payload,
-                    deadLetter: { error, attempts },
-                  },
-                };
-
-                // [SERVICE] deadLetterTopic · common/events/events.constants.ts
-                const topic = event.topic;
-                return `${topic}${EVENT_BUS_DEAD_LETTER_SUFFIX}`;
-
-                await this.publish(dlqEvent);
-                this.deadLetterTotal.add(1, { topic: event.topic, type: event.type });
-
                 this.logger.error(
                   {
                     eventId: event.id,
@@ -1237,21 +564,10 @@ export class OutboxRelayService
         return events.filter((e) => e.publishedAt).length;
       });
     }, 0);
-
-    // [SERVICE] ManagedInterval.runExclusive · common/scheduling/managed-interval.ts
-    // task = đối số 1 của lời gọi ở trên
-    const busyResult = 0;
-    if (this.running) return busyResult;
-    this.running = true;
-    try {
-      return await task();
-    } finally {
-      this.running = false;
-    }
   }
 }
 
-// [POSTGRES] CREATE TABLE transactions · database/migrations/1752000000000-economy-ledger.ts
+// [POSTGRES] CREATE TABLE transactions  ·  1752000000000-economy-ledger.ts L32–45
 await queryRunner.query(`
   CREATE TABLE transactions (
     id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1267,7 +583,7 @@ await queryRunner.query(`
   )
 `);
 
-// [POSTGRES] CREATE TABLE wallets
+// [POSTGRES] CREATE TABLE wallets  ·  1752000000000-economy-ledger.ts L82–93
 await queryRunner.query(`
   CREATE TABLE wallets (
     user_id         uuid PRIMARY KEY REFERENCES users(id),
