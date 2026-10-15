@@ -1,7 +1,7 @@
 # Các luồng khó của Litmatch: code kèm lời giải thích
 
 Chỉ chọn luồng có nhiều nghiệp vụ hoặc cơ chế kỹ thuật (Redis, transaction DB, idempotency, webhook, worker nền); bỏ CRUD cơ bản.
-Mỗi chức năng là một file: code thật đọc từ trên xuống theo thứ tự chạy, hàm được gọi thụt vào ngay dưới dòng gọi, đánh số Step; nhãn tầng (CONTROLLER, SERVICE, WORKER, POSTGRES, REDIS, KAFKA, BULLMQ, EXTERNAL, GATEWAY) tô màu ở bản Pages; comment chỉ trả lời "vì sao" ở chỗ logic khó.
+Mỗi chức năng là một file: code thật đọc từ trên xuống theo thứ tự chạy, hàm được gọi chép ngay tại dòng gọi, ngang cấp, đánh số Step; nhãn tầng (CONTROLLER, SERVICE, WORKER, POSTGRES, REDIS, KAFKA, BULLMQ, EXTERNAL, GATEWAY) tô màu ở bản Pages; comment chỉ trả lời "vì sao" ở chỗ logic khó.
 
 ## 02 · Soul Match
 

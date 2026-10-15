@@ -6,11 +6,11 @@
 <title>Movie Match / Movie Night: code theo từng endpoint</title>
 <style>
 :root{color-scheme:light;--bg:#fff;--fg:#1f2328;--muted:#59636e;--border:#d1d9e0;--subtle:#f6f8fa;--accent:#0969da;--lnum:#818b98;--target:#fff8c5;--sec:#ddf4ff;--secfg:#0550ae;
---pl-c:#6e7781;--pl-k:#cf222e;--pl-en:#8250df;--pl-c1:#0550ae;--pl-s:#0a3069;--ok:#1a7f37;--info:#0969da;--warn:#bc4c00;--t-controller:#1a7f37;--t-service:#bc4c00;--t-worker:#8250df;--t-postgres:#0969da;--t-redis:#cf222e;--t-kafka:#57606a;--t-bullmq:#bf3989;--t-external:#0a7a6b;--t-gateway:#9a6700;--on-t:#fff}
+--pl-c:#6e7781;--pl-k:#cf222e;--pl-en:#8250df;--pl-c1:#0550ae;--pl-s:#0a3069;--ok:#1a7f37;--info:#0969da;--warn:#bc4c00;--t-controller:#1a7f37;--t-service:#bc4c00;--t-worker:#8250df;--t-postgres:#0969da;--t-redis:#cf222e;--t-kafka:#57606a;--t-bullmq:#bf3989;--t-external:#0a7a6b;--t-gateway:#9a6700;--on-t:#fff;--guide:#d8dee4}
 :root[data-theme=dark]{color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--lnum:#6e7681;--target:#3b2e0b;--sec:#10294a;--secfg:#79c0ff;
---pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341;--on-t:#0d1117}
+--pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341;--on-t:#0d1117;--guide:#3d444d}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--lnum:#6e7681;--target:#3b2e0b;--sec:#10294a;--secfg:#79c0ff;
---pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341;--on-t:#0d1117}}
+--pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341;--on-t:#0d1117;--guide:#3d444d}}
 *{box-sizing:border-box}html,body{margin:0}
 body{background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}
 main{max-width:1180px;margin:0 auto;padding:24px 16px 48px}
@@ -29,7 +29,10 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .ln{display:flex;min-width:max-content;border-left:3px solid transparent}
 .ln .n{flex:none;width:56px;padding:0 16px 0 0;text-align:right;color:var(--lnum);user-select:none;text-decoration:none}
 .ln .n::before{content:attr(data-n)}.ln .n:hover{color:var(--fg)}
-.ln .t{white-space:pre;padding-right:24px}
+.ln .t{white-space:pre;padding-right:24px;background:repeating-linear-gradient(to right,var(--guide) 0,var(--guide) 1px,transparent 1px,transparent 2ch) no-repeat;background-size:calc(var(--ind,0) * 1ch) 100%}
+.src.wrap .ln{min-width:0}
+.src.wrap .ln.rule .t{white-space:pre;overflow:hidden;padding-left:0;text-indent:0}
+.src.wrap .ln .t{white-space:pre-wrap;overflow-wrap:anywhere;padding-left:calc(var(--ind,0) * 1ch);text-indent:calc(var(--ind,0) * -1ch)}
 .ln:target{background:var(--target)}
 .ln.tag{background:var(--subtle);border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-top:2px}
 .ln.sec{background:var(--sec)}.ln.sec .pl-c{color:var(--secfg);font-weight:600}.ln.rule .pl-c{color:var(--border)}
@@ -49,7 +52,23 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .tbl code{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--subtle);border:1px solid var(--border);border-radius:6px;padding:1px 6px}
 .m{display:inline-block;min-width:44px;text-align:center;font:700 11px/18px ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:4px;border:1px solid var(--border);padding:0 6px}
 .m-get{color:var(--ok)}.m-post{color:var(--info)}.m-put{color:var(--warn)}
-@media (max-width:700px){main{padding:12px 8px}.ln .n{width:44px;padding-right:10px}.idx{padding:16px 12px}}
+@media (max-width:760px){
+main{padding:8px 0 32px}
+.box{border-radius:0;border-left:0;border-right:0}
+.bar{padding:8px 12px;gap:6px 8px}
+.path{font-size:13px;overflow-wrap:anywhere}.meta{display:block;margin:2px 0 0}
+.actions{gap:6px}.btn{padding:2px 10px}
+.toc{flex-direction:column;gap:2px;padding:8px 12px}
+.legend{padding:8px 12px}
+.src{font-size:11px;line-height:18px;padding:6px 0}
+.ln{border-left-width:2px}.ln .n{width:34px;padding-right:8px}.ln .t{padding-right:12px}
+.idx{padding:14px 12px}.idx h1{font-size:19px}
+.tbl{table-layout:auto}.tbl thead{display:none}
+.tbl,.tbl tbody,.tbl tr,.tbl td{display:block;width:auto}
+.tbl tr{border-top:1px solid var(--border);padding:8px 0}.tbl td{border:0;padding:2px 0}
+.tbl td.num,.tbl td.tb{display:none}
+.tbl td.lk,.tbl td.ep{white-space:normal}
+}
 </style>
 </head>
 <body>
@@ -61,7 +80,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
   </div>
   <div class="idx">
     <h1>Movie Match / Movie Night: code theo từng endpoint</h1>
-    <p>Mỗi endpoint là một file, đọc từ trên xuống theo thứ tự chạy: code controller, hàm nó gọi thụt vào ngay dưới dòng gọi (chỉ chép thân hàm), cứ thế xuống service, Postgres, Redis, worker. Mỗi khối có dòng tiêu đề [TẦNG] tô màu (CONTROLLER, SERVICE, WORKER, POSTGRES, REDIS, KAFKA, BULLMQ, EXTERNAL, GATEWAY), có đánh số Step, và constructor chỉ gồm các dependency được dùng. Không chép DTO, interface và phần dùng chung (middleware, guard, interceptor, pipe toàn cục, exception filter). Comment chỉ trả lời "vì sao" ở chỗ logic khó.</p>
+    <p>Mỗi endpoint là một file, đọc từ trên xuống theo thứ tự chạy: code controller, hàm nó gọi được chép ngay tại dòng gọi, ngang cấp (chỉ thân hàm; chỉ khối { } của code mới thụt vào), cứ thế xuống service, Postgres, Redis, worker. Mỗi khối có dòng tiêu đề [TẦNG] tô màu (CONTROLLER, SERVICE, WORKER, POSTGRES, REDIS, KAFKA, BULLMQ, EXTERNAL, GATEWAY), có đánh số Step, và một constructor gom hết dependency được dùng ở đầu trang. Không chép DTO, interface và phần dùng chung (middleware, guard, interceptor, pipe toàn cục, exception filter). Comment chỉ trả lời "vì sao" ở chỗ logic khó.</p>
     <table class="tbl"><thead><tr><th>#</th><th>Endpoint</th><th>Làm gì</th><th>Bảng</th><th></th></tr></thead><tbody>
 <tr><td class="num">01</td><td class="ep"><span class="m m-post">POST</span> <code>/api/v1/movie-match/sessions</code></td><td>Tạo phiên xem video chung giữa 2 người bạn, idempotent theo cặp, mỗi user chỉ có 1 phiên đang xem.</td><td class="tb">movie_sessions, movie_session_active_participants</td><td class="lk"><a href="01-post-create-session.html">Xem</a> · <a href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/05-movie-match-movie-night/01-post-create-session.ts">GitHub</a></td></tr>
     </tbody></table>

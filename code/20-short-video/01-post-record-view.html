@@ -6,11 +6,11 @@
 <title>POST /api/v1/videos/:id/views — Short Video</title>
 <style>
 :root{color-scheme:light;--bg:#fff;--fg:#1f2328;--muted:#59636e;--border:#d1d9e0;--subtle:#f6f8fa;--accent:#0969da;--lnum:#818b98;--target:#fff8c5;--sec:#ddf4ff;--secfg:#0550ae;
---pl-c:#6e7781;--pl-k:#cf222e;--pl-en:#8250df;--pl-c1:#0550ae;--pl-s:#0a3069;--ok:#1a7f37;--info:#0969da;--warn:#bc4c00;--t-controller:#1a7f37;--t-service:#bc4c00;--t-worker:#8250df;--t-postgres:#0969da;--t-redis:#cf222e;--t-kafka:#57606a;--t-bullmq:#bf3989;--t-external:#0a7a6b;--t-gateway:#9a6700;--on-t:#fff}
+--pl-c:#6e7781;--pl-k:#cf222e;--pl-en:#8250df;--pl-c1:#0550ae;--pl-s:#0a3069;--ok:#1a7f37;--info:#0969da;--warn:#bc4c00;--t-controller:#1a7f37;--t-service:#bc4c00;--t-worker:#8250df;--t-postgres:#0969da;--t-redis:#cf222e;--t-kafka:#57606a;--t-bullmq:#bf3989;--t-external:#0a7a6b;--t-gateway:#9a6700;--on-t:#fff;--guide:#d8dee4}
 :root[data-theme=dark]{color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--lnum:#6e7681;--target:#3b2e0b;--sec:#10294a;--secfg:#79c0ff;
---pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341;--on-t:#0d1117}
+--pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341;--on-t:#0d1117;--guide:#3d444d}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--lnum:#6e7681;--target:#3b2e0b;--sec:#10294a;--secfg:#79c0ff;
---pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341;--on-t:#0d1117}}
+--pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341;--on-t:#0d1117;--guide:#3d444d}}
 *{box-sizing:border-box}html,body{margin:0}
 body{background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}
 main{max-width:1180px;margin:0 auto;padding:24px 16px 48px}
@@ -29,7 +29,10 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .ln{display:flex;min-width:max-content;border-left:3px solid transparent}
 .ln .n{flex:none;width:56px;padding:0 16px 0 0;text-align:right;color:var(--lnum);user-select:none;text-decoration:none}
 .ln .n::before{content:attr(data-n)}.ln .n:hover{color:var(--fg)}
-.ln .t{white-space:pre;padding-right:24px}
+.ln .t{white-space:pre;padding-right:24px;background:repeating-linear-gradient(to right,var(--guide) 0,var(--guide) 1px,transparent 1px,transparent 2ch) no-repeat;background-size:calc(var(--ind,0) * 1ch) 100%}
+.src.wrap .ln{min-width:0}
+.src.wrap .ln.rule .t{white-space:pre;overflow:hidden;padding-left:0;text-indent:0}
+.src.wrap .ln .t{white-space:pre-wrap;overflow-wrap:anywhere;padding-left:calc(var(--ind,0) * 1ch);text-indent:calc(var(--ind,0) * -1ch)}
 .ln:target{background:var(--target)}
 .ln.tag{background:var(--subtle);border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-top:2px}
 .ln.sec{background:var(--sec)}.ln.sec .pl-c{color:var(--secfg);font-weight:600}.ln.rule .pl-c{color:var(--border)}
@@ -49,14 +52,30 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .tbl code{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--subtle);border:1px solid var(--border);border-radius:6px;padding:1px 6px}
 .m{display:inline-block;min-width:44px;text-align:center;font:700 11px/18px ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:4px;border:1px solid var(--border);padding:0 6px}
 .m-get{color:var(--ok)}.m-post{color:var(--info)}.m-put{color:var(--warn)}
-@media (max-width:700px){main{padding:12px 8px}.ln .n{width:44px;padding-right:10px}.idx{padding:16px 12px}}
+@media (max-width:760px){
+main{padding:8px 0 32px}
+.box{border-radius:0;border-left:0;border-right:0}
+.bar{padding:8px 12px;gap:6px 8px}
+.path{font-size:13px;overflow-wrap:anywhere}.meta{display:block;margin:2px 0 0}
+.actions{gap:6px}.btn{padding:2px 10px}
+.toc{flex-direction:column;gap:2px;padding:8px 12px}
+.legend{padding:8px 12px}
+.src{font-size:11px;line-height:18px;padding:6px 0}
+.ln{border-left-width:2px}.ln .n{width:34px;padding-right:8px}.ln .t{padding-right:12px}
+.idx{padding:14px 12px}.idx h1{font-size:19px}
+.tbl{table-layout:auto}.tbl thead{display:none}
+.tbl,.tbl tbody,.tbl tr,.tbl td{display:block;width:auto}
+.tbl tr{border-top:1px solid var(--border);padding:8px 0}.tbl td{border:0;padding:2px 0}
+.tbl td.num,.tbl td.tb{display:none}
+.tbl td.lk,.tbl td.ep{white-space:normal}
+}
 </style>
 </head>
 <body>
 <main>
 <div class="box">
   <div class="bar">
-    <div class="path"><a href="https://github.com/ducmanh001/litmatch-feature-flows">litmatch-feature-flows</a> / <a href="https://github.com/ducmanh001/litmatch-feature-flows/tree/main/code/20-short-video">20-short-video</a> / <b>01-post-record-view.ts</b><span class="meta">132 dòng · 69 dòng code · litmatch @ d3cb28c</span></div>
+    <div class="path"><a href="https://github.com/ducmanh001/litmatch-feature-flows">litmatch-feature-flows</a> / <a href="https://github.com/ducmanh001/litmatch-feature-flows/tree/main/code/20-short-video">20-short-video</a> / <b>01-post-record-view.ts</b><span class="meta">131 dòng · 67 dòng code · litmatch @ d3cb28c</span></div>
     <div class="actions">
       <a class="btn" href="../index.html">Tổng quan</a>
       <a class="btn" href="index.html">Các endpoint</a>
@@ -64,6 +83,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
       <a class="btn" href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/20-short-video/01-post-record-view.ts">GitHub</a>
       <a class="btn" href="https://raw.githubusercontent.com/ducmanh001/litmatch-feature-flows/main/code/20-short-video/01-post-record-view.ts">Raw</a>
       <button class="btn" id="copy" type="button">Sao chép</button>
+      <button class="btn" id="wrap" type="button" title="Bật/tắt xuống dòng cho dòng dài">Xuống dòng</button>
       <button class="btn" id="theme" type="button" title="Đổi theme">Theme: Tự động</button>
     </div>
   </div>
@@ -92,116 +112,115 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 <div class="ln head" id="L20"><a class="n" href="#L20" data-n="20"></a><span class="t"><span class="pl-c">//  Liên quan  VideoRankingService — job nền tính rankScore từ viewCount, likeCount,</span></span></div>
 <div class="ln head" id="L21"><a class="n" href="#L21" data-n="21"></a><span class="t"><span class="pl-c">//               commentCount, nên đếm đúng 1 lần ảnh hưởng thứ hạng (chưa chép).</span></span></div>
 <div class="ln head" id="L22"><a class="n" href="#L22" data-n="22"></a><span class="t"><span class="pl-c">//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi</span></span></div>
-<div class="ln head" id="L23"><a class="n" href="#L23" data-n="23"></a><span class="t"><span class="pl-c">//             thụt vào ngay dưới dòng gọi nó, không chép class hay chữ ký hàm (tên hàm</span></span></div>
-<div class="ln head" id="L24"><a class="n" href="#L24" data-n="24"></a><span class="t"><span class="pl-c">//             nằm ở dòng tiêu đề // [TẦNG]). Constructor gom ở đầu khối service, chỉ</span></span></div>
-<div class="ln head" id="L25"><a class="n" href="#L25" data-n="25"></a><span class="t"><span class="pl-c">//             gồm các dependency mà code bên dưới dùng (this.xxx); các dòng const là</span></span></div>
-<div class="ln head" id="L26"><a class="n" href="#L26" data-n="26"></a><span class="t"><span class="pl-c">//             tham số truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một</span></span></div>
-<div class="ln head" id="L27"><a class="n" href="#L27" data-n="27"></a><span class="t"><span class="pl-c">//             biểu thức được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên</span></span></div>
-<div class="ln head" id="L28"><a class="n" href="#L28" data-n="28"></a><span class="t"><span class="pl-c">//             văn trong repo.</span></span></div>
-<div class="ln blank" id="L29"><a class="n" href="#L29" data-n="29"></a><span class="t">&nbsp;</span></div>
-<div class="ln nhead tier-controller" id="L30"><a class="n" href="#L30" data-n="30"></a><span class="t"><span class="pl-c">// <b class="tg tg-controller">[CONTROLLER]</b> <span class="ttl">ShortVideoController.recordView</span>  <span class="rf">·  short-video.controller.ts L48–49, L132–141</span></span></span></div>
-<div class="ln code tier-controller" id="L31"><a class="n" href="#L31" data-n="31"></a><span class="t">@<span class="pl-en">Controller</span>(<span class="pl-s">'videos'</span>)</span></div>
-<div class="ln code tier-controller" id="L32"><a class="n" href="#L32" data-n="32"></a><span class="t"><span class="pl-k">export</span> <span class="pl-k">class</span> <span class="pl-en">ShortVideoController</span> {</span></div>
-<div class="ln code tier-controller" id="L33"><a class="n" href="#L33" data-n="33"></a><span class="t">  <span class="pl-en">constructor</span>(</span></div>
-<div class="ln code tier-controller" id="L34"><a class="n" href="#L34" data-n="34"></a><span class="t">    <span class="pl-k">private</span> <span class="pl-k">readonly</span> videoService: <span class="pl-en">ShortVideoService</span>,</span></div>
-<div class="ln code tier-controller" id="L35"><a class="n" href="#L35" data-n="35"></a><span class="t">  ) {}</span></div>
-<div class="ln code tier-controller" id="L36"><a class="n" href="#L36" data-n="36"></a><span class="t">&nbsp;</span></div>
-<div class="ln code tier-controller step" id="L37"><a class="n" href="#L37" data-n="37"></a><span class="t"><span class="pl-c">  // Step 1: Nhận watchTimeMs mà client báo (user từ JWT, id video từ URL), trả 204</span></span></div>
-<div class="ln code tier-controller" id="L38"><a class="n" href="#L38" data-n="38"></a><span class="t">  @<span class="pl-en">Post</span>(<span class="pl-s">':id/views'</span>)</span></div>
-<div class="ln code tier-controller" id="L39"><a class="n" href="#L39" data-n="39"></a><span class="t">  @<span class="pl-en">HttpCode</span>(HttpStatus.<span class="pl-c1">NO_CONTENT</span>)</span></div>
-<div class="ln code tier-controller" id="L40"><a class="n" href="#L40" data-n="40"></a><span class="t">  <span class="pl-k">async</span> <span class="pl-en">recordView</span>(</span></div>
-<div class="ln code tier-controller" id="L41"><a class="n" href="#L41" data-n="41"></a><span class="t">    @<span class="pl-en">CurrentUser</span>() user: <span class="pl-en">AuthenticatedUser</span>,</span></div>
-<div class="ln code tier-controller" id="L42"><a class="n" href="#L42" data-n="42"></a><span class="t">    @<span class="pl-en">Param</span>(<span class="pl-s">'id'</span>, <span class="pl-en">ParseUUIDPipe</span>) id: <span class="pl-c1">string</span>,</span></div>
-<div class="ln code tier-controller" id="L43"><a class="n" href="#L43" data-n="43"></a><span class="t">    @<span class="pl-en">Body</span>() dto: <span class="pl-en">RecordViewDto</span>,</span></div>
-<div class="ln code tier-controller" id="L44"><a class="n" href="#L44" data-n="44"></a><span class="t">  ): <span class="pl-en">Promise</span>&lt;<span class="pl-c1">void</span>&gt; {</span></div>
-<div class="ln code tier-controller" id="L45"><a class="n" href="#L45" data-n="45"></a><span class="t">    <span class="pl-k">await</span> <span class="pl-c1">this</span>.videoService.<span class="pl-en">recordView</span>(user, id, dto.watchTimeMs);</span></div>
-<div class="ln code tier-controller" id="L46"><a class="n" href="#L46" data-n="46"></a><span class="t">&nbsp;</span></div>
-<div class="ln nhead tier-service" id="L47"><a class="n" href="#L47" data-n="47"></a><span class="t">      <span class="pl-c">// <b class="tg tg-service">[SERVICE]</b> <span class="ttl">ShortVideoService.recordView</span>  <span class="rf">·  short-video.service.ts L254–301</span></span></span></div>
-<div class="ln code tier-service" id="L48"><a class="n" href="#L48" data-n="48"></a><span class="t">      <span class="pl-en">constructor</span>(</span></div>
-<div class="ln code tier-service" id="L49"><a class="n" href="#L49" data-n="49"></a><span class="t">        @<span class="pl-en">InjectDataSource</span>() <span class="pl-k">private</span> <span class="pl-k">readonly</span> dataSource: <span class="pl-en">DataSource</span>,</span></div>
-<div class="ln code tier-service" id="L50"><a class="n" href="#L50" data-n="50"></a><span class="t">        <span class="pl-k">private</span> <span class="pl-k">readonly</span> config: <span class="pl-en">ConfigService</span>&lt;<span class="pl-en">CoreApiEnv</span>, <span class="pl-c1">true</span>&gt;,</span></div>
-<div class="ln code tier-service" id="L51"><a class="n" href="#L51" data-n="51"></a><span class="t">      ) {}</span></div>
-<div class="ln code tier-service" id="L52"><a class="n" href="#L52" data-n="52"></a><span class="t">&nbsp;</span></div>
-<div class="ln code tier-service syn synfirst" id="L53"><a class="n" href="#L53" data-n="53"></a><span class="t">      <span class="pl-k">const</span> <span class="pl-c1">videoId</span> = id;</span></div>
-<div class="ln code tier-service syn synfirst" id="L54"><a class="n" href="#L54" data-n="54"></a><span class="t">      <span class="pl-k">const</span> <span class="pl-c1">watchTimeMs</span> = dto.watchTimeMs;</span></div>
-<div class="ln code tier-service" id="L55"><a class="n" href="#L55" data-n="55"></a><span class="t">&nbsp;</span></div>
-<div class="ln code tier-service step" id="L56"><a class="n" href="#L56" data-n="56"></a><span class="t">      <span class="pl-c">// Step 2: Kiểm video xem được (tác giả hoặc đã published)</span></span></div>
-<div class="ln code tier-service" id="L57"><a class="n" href="#L57" data-n="57"></a><span class="t">      <span class="pl-c">// Không tồn tại, removed, rejected, hoặc chưa published (với người không phải tác giả) đều</span></span></div>
-<div class="ln code tier-service" id="L58"><a class="n" href="#L58" data-n="58"></a><span class="t">      <span class="pl-c">// trả CÙNG mã 404.</span></span></div>
-<div class="ln code tier-service" id="L59"><a class="n" href="#L59" data-n="59"></a><span class="t">      <span class="pl-k">const</span> <span class="pl-c1">video</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.<span class="pl-en">getVideoOrThrow</span>(user, videoId);</span></div>
-<div class="ln code tier-service" id="L60"><a class="n" href="#L60" data-n="60"></a><span class="t">&nbsp;</span></div>
-<div class="ln code tier-service step" id="L61"><a class="n" href="#L61" data-n="61"></a><span class="t">      <span class="pl-c">// Step 3: Tác giả tự xem thì không tính lượt xem</span></span></div>
-<div class="ln code tier-service" id="L62"><a class="n" href="#L62" data-n="62"></a><span class="t">      <span class="pl-k">if</span> (video.authorUserId === user.userId) <span class="pl-k">return</span>;</span></div>
-<div class="ln code tier-service" id="L63"><a class="n" href="#L63" data-n="63"></a><span class="t">&nbsp;</span></div>
-<div class="ln code tier-service" id="L64"><a class="n" href="#L64" data-n="64"></a><span class="t">      <span class="pl-k">const</span> <span class="pl-c1">qualifiedMinMs</span> = <span class="pl-c1">this</span>.config.<span class="pl-en">getOrThrow</span>(</span></div>
-<div class="ln code tier-service" id="L65"><a class="n" href="#L65" data-n="65"></a><span class="t">        <span class="pl-s">'VIDEO_QUALIFIED_VIEW_MIN_MS'</span>,</span></div>
-<div class="ln code tier-service" id="L66"><a class="n" href="#L66" data-n="66"></a><span class="t">        { <span class="pl-k">infer</span>: <span class="pl-c1">true</span> },</span></div>
-<div class="ln code tier-service" id="L67"><a class="n" href="#L67" data-n="67"></a><span class="t">      );</span></div>
-<div class="ln code tier-service" id="L68"><a class="n" href="#L68" data-n="68"></a><span class="t">&nbsp;</span></div>
-<div class="ln code tier-service step" id="L69"><a class="n" href="#L69" data-n="69"></a><span class="t">      <span class="pl-c">// Step 4: So watch-time với ngưỡng "xem đủ"</span></span></div>
-<div class="ln code tier-service" id="L70"><a class="n" href="#L70" data-n="70"></a><span class="t">      <span class="pl-k">const</span> <span class="pl-c1">nowQualifies</span> = watchTimeMs &gt;= qualifiedMinMs;</span></div>
-<div class="ln code tier-service" id="L71"><a class="n" href="#L71" data-n="71"></a><span class="t">&nbsp;</span></div>
-<div class="ln code tier-service step" id="L72"><a class="n" href="#L72" data-n="72"></a><span class="t">      <span class="pl-c">// Step 5: Mở transaction DB để đếm đúng 1 lần dưới race</span></span></div>
-<div class="ln code tier-service" id="L73"><a class="n" href="#L73" data-n="73"></a><span class="t">      <span class="pl-k">await</span> <span class="pl-c1">this</span>.dataSource.<span class="pl-en">transaction</span>(<span class="pl-k">async</span> (manager) =&gt; {</span></div>
-<div class="ln code tier-service" id="L74"><a class="n" href="#L74" data-n="74"></a><span class="t">&nbsp;</span></div>
-<div class="ln code tier-service step" id="L75"><a class="n" href="#L75" data-n="75"></a><span class="t">      <span class="pl-c">  // Step 6: Tạo dòng video_views nếu chưa có (INSERT ... ON CONFLICT DO NOTHING)</span></span></div>
-<div class="ln code tier-service" id="L76"><a class="n" href="#L76" data-n="76"></a><span class="t">      <span class="pl-c">  // <b class="tg tg-postgres">[POSTGRES]</b> Tạo dòng bằng INSERT ... ON CONFLICT DO NOTHING: không ném unique violation</span></span></div>
-<div class="ln code tier-service" id="L77"><a class="n" href="#L77" data-n="77"></a><span class="t">      <span class="pl-c">  // nên Postgres không hủy transaction (insert lỗi rồi đọc lại trong cùng transaction sẽ</span></span></div>
-<div class="ln code tier-service" id="L78"><a class="n" href="#L78" data-n="78"></a><span class="t">      <span class="pl-c">  // dính "current transaction is aborted").</span></span></div>
-<div class="ln code tier-service" id="L79"><a class="n" href="#L79" data-n="79"></a><span class="t">        <span class="pl-k">await</span> manager</span></div>
-<div class="ln code tier-service" id="L80"><a class="n" href="#L80" data-n="80"></a><span class="t">          .<span class="pl-en">createQueryBuilder</span>()</span></div>
-<div class="ln code tier-service" id="L81"><a class="n" href="#L81" data-n="81"></a><span class="t">          .<span class="pl-en">insert</span>()</span></div>
-<div class="ln code tier-service" id="L82"><a class="n" href="#L82" data-n="82"></a><span class="t">          .<span class="pl-en">into</span>(<span class="pl-en">VideoView</span>)</span></div>
-<div class="ln code tier-service" id="L83"><a class="n" href="#L83" data-n="83"></a><span class="t">          .<span class="pl-en">values</span>({</span></div>
-<div class="ln code tier-service" id="L84"><a class="n" href="#L84" data-n="84"></a><span class="t">            videoId,</span></div>
-<div class="ln code tier-service" id="L85"><a class="n" href="#L85" data-n="85"></a><span class="t">            viewerId: user.userId,</span></div>
-<div class="ln code tier-service" id="L86"><a class="n" href="#L86" data-n="86"></a><span class="t">            watchTimeMs: <span class="pl-c1">0</span>,</span></div>
-<div class="ln code tier-service" id="L87"><a class="n" href="#L87" data-n="87"></a><span class="t">            qualified: <span class="pl-c1">false</span>,</span></div>
-<div class="ln code tier-service" id="L88"><a class="n" href="#L88" data-n="88"></a><span class="t">          })</span></div>
-<div class="ln code tier-service" id="L89"><a class="n" href="#L89" data-n="89"></a><span class="t">          .<span class="pl-en">orIgnore</span>()</span></div>
-<div class="ln code tier-service" id="L90"><a class="n" href="#L90" data-n="90"></a><span class="t">          .<span class="pl-en">execute</span>();</span></div>
-<div class="ln code tier-service" id="L91"><a class="n" href="#L91" data-n="91"></a><span class="t">&nbsp;</span></div>
-<div class="ln code tier-service step" id="L92"><a class="n" href="#L92" data-n="92"></a><span class="t">      <span class="pl-c">  // Step 7: Khóa dòng (FOR UPDATE) để request song song xếp hàng</span></span></div>
-<div class="ln code tier-service" id="L93"><a class="n" href="#L93" data-n="93"></a><span class="t">      <span class="pl-c">  // Rồi KHÓA dòng (FOR UPDATE): 2 request đồng thời của cùng người xem chạy tuần tự,</span></span></div>
-<div class="ln code tier-service" id="L94"><a class="n" href="#L94" data-n="94"></a><span class="t">      <span class="pl-c">  // request sau thấy qualified = true của request trước nên không cộng viewCount lần nữa.</span></span></div>
-<div class="ln code tier-service" id="L95"><a class="n" href="#L95" data-n="95"></a><span class="t">        <span class="pl-k">const</span> <span class="pl-c1">view</span> = <span class="pl-k">await</span> manager.<span class="pl-en">findOneOrFail</span>(<span class="pl-en">VideoView</span>, {</span></div>
-<div class="ln code tier-service" id="L96"><a class="n" href="#L96" data-n="96"></a><span class="t">          where: { videoId, viewerId: user.userId },</span></div>
-<div class="ln code tier-service" id="L97"><a class="n" href="#L97" data-n="97"></a><span class="t">          lock: { mode: <span class="pl-s">'pessimistic_write'</span> },</span></div>
-<div class="ln code tier-service" id="L98"><a class="n" href="#L98" data-n="98"></a><span class="t">        });</span></div>
-<div class="ln code tier-service" id="L99"><a class="n" href="#L99" data-n="99"></a><span class="t">      <span class="pl-c">  // qualified chỉ chuyển false → true đúng 1 lần; các lần cập nhật watch-time sau không</span></span></div>
-<div class="ln code tier-service" id="L100"><a class="n" href="#L100" data-n="100"></a><span class="t">      <span class="pl-c">  // cộng lại (idempotent theo cờ).</span></span></div>
-<div class="ln code tier-service" id="L101"><a class="n" href="#L101" data-n="101"></a><span class="t">        <span class="pl-k">const</span> <span class="pl-c1">shouldQualifyNow</span> = nowQualifies &amp;&amp; !view.qualified;</span></div>
-<div class="ln code tier-service" id="L102"><a class="n" href="#L102" data-n="102"></a><span class="t">&nbsp;</span></div>
-<div class="ln code tier-service step" id="L103"><a class="n" href="#L103" data-n="103"></a><span class="t">      <span class="pl-c">  // Step 8: Ghi watch-time lớn nhất và cờ qualified</span></span></div>
-<div class="ln code tier-service" id="L104"><a class="n" href="#L104" data-n="104"></a><span class="t">        <span class="pl-k">await</span> manager.<span class="pl-en">update</span>(</span></div>
-<div class="ln code tier-service" id="L105"><a class="n" href="#L105" data-n="105"></a><span class="t">          <span class="pl-en">VideoView</span>,</span></div>
-<div class="ln code tier-service" id="L106"><a class="n" href="#L106" data-n="106"></a><span class="t">          { id: view.id },</span></div>
-<div class="ln code tier-service" id="L107"><a class="n" href="#L107" data-n="107"></a><span class="t">          {</span></div>
-<div class="ln code tier-service" id="L108"><a class="n" href="#L108" data-n="108"></a><span class="t">            watchTimeMs: Math.<span class="pl-en">max</span>(view.watchTimeMs, watchTimeMs),</span></div>
-<div class="ln code tier-service" id="L109"><a class="n" href="#L109" data-n="109"></a><span class="t">            qualified: view.qualified || nowQualifies,</span></div>
-<div class="ln code tier-service" id="L110"><a class="n" href="#L110" data-n="110"></a><span class="t">          },</span></div>
-<div class="ln code tier-service" id="L111"><a class="n" href="#L111" data-n="111"></a><span class="t">        );</span></div>
-<div class="ln code tier-service" id="L112"><a class="n" href="#L112" data-n="112"></a><span class="t">&nbsp;</span></div>
-<div class="ln code tier-service step" id="L113"><a class="n" href="#L113" data-n="113"></a><span class="t">      <span class="pl-c">  // Step 9: Lần đầu đạt ngưỡng thì cộng viewCount nguyên tử</span></span></div>
-<div class="ln code tier-service" id="L114"><a class="n" href="#L114" data-n="114"></a><span class="t">        <span class="pl-k">if</span> (shouldQualifyNow) {</span></div>
-<div class="ln code tier-service" id="L115"><a class="n" href="#L115" data-n="115"></a><span class="t">          <span class="pl-k">await</span> manager.<span class="pl-en">increment</span>(<span class="pl-en">Video</span>, { id: videoId }, <span class="pl-s">'viewCount'</span>, <span class="pl-c1">1</span>);</span></div>
-<div class="ln code tier-service" id="L116"><a class="n" href="#L116" data-n="116"></a><span class="t">        }</span></div>
-<div class="ln code tier-service" id="L117"><a class="n" href="#L117" data-n="117"></a><span class="t">      });</span></div>
-<div class="ln code tier-controller" id="L118"><a class="n" href="#L118" data-n="118"></a><span class="t">  }</span></div>
-<div class="ln code tier-controller" id="L119"><a class="n" href="#L119" data-n="119"></a><span class="t">}</span></div>
-<div class="ln blank" id="L120"><a class="n" href="#L120" data-n="120"></a><span class="t">&nbsp;</span></div>
-<div class="ln nhead tier-postgres" id="L121"><a class="n" href="#L121" data-n="121"></a><span class="t"><span class="pl-c">// <b class="tg tg-postgres">[POSTGRES]</b> <span class="ttl">CREATE TABLE video_views</span>  <span class="rf">·  1754800000000-short-video.ts L41–51</span></span></span></div>
-<div class="ln code tier-postgres" id="L122"><a class="n" href="#L122" data-n="122"></a><span class="t"><span class="pl-k">await</span> queryRunner.<span class="pl-en">query</span>(<span class="pl-s">`</span></span></div>
-<div class="ln code tier-postgres" id="L123"><a class="n" href="#L123" data-n="123"></a><span class="t"><span class="pl-s">  CREATE TABLE video_views (</span></span></div>
-<div class="ln code tier-postgres" id="L124"><a class="n" href="#L124" data-n="124"></a><span class="t"><span class="pl-s">    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),</span></span></div>
-<div class="ln code tier-postgres" id="L125"><a class="n" href="#L125" data-n="125"></a><span class="t"><span class="pl-s">    video_id      uuid NOT NULL REFERENCES videos(id) ON DELETE CASCADE,</span></span></div>
-<div class="ln code tier-postgres" id="L126"><a class="n" href="#L126" data-n="126"></a><span class="t"><span class="pl-s">    viewer_id     uuid NOT NULL REFERENCES users(id),</span></span></div>
-<div class="ln code tier-postgres" id="L127"><a class="n" href="#L127" data-n="127"></a><span class="t"><span class="pl-s">    watch_time_ms int NOT NULL DEFAULT 0,</span></span></div>
-<div class="ln code tier-postgres" id="L128"><a class="n" href="#L128" data-n="128"></a><span class="t"><span class="pl-s">    qualified     boolean NOT NULL DEFAULT false,</span></span></div>
-<div class="ln code tier-postgres" id="L129"><a class="n" href="#L129" data-n="129"></a><span class="t"><span class="pl-s">    created_at    timestamptz NOT NULL DEFAULT now(),</span></span></div>
-<div class="ln code tier-postgres" id="L130"><a class="n" href="#L130" data-n="130"></a><span class="t"><span class="pl-s">    CONSTRAINT uq_video_views_video_viewer UNIQUE (video_id, viewer_id)</span></span></div>
-<div class="ln code tier-postgres" id="L131"><a class="n" href="#L131" data-n="131"></a><span class="t"><span class="pl-s">  )</span></span></div>
-<div class="ln code tier-postgres" id="L132"><a class="n" href="#L132" data-n="132"></a><span class="t"><span class="pl-s">`</span>);</span></div>
+<div class="ln head" id="L23"><a class="n" href="#L23" data-n="23"></a><span class="t"><span class="pl-c">//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới</span></span></div>
+<div class="ln head" id="L24"><a class="n" href="#L24" data-n="24"></a><span class="t"><span class="pl-c">//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //</span></span></div>
+<div class="ln head" id="L25"><a class="n" href="#L25" data-n="25"></a><span class="t"><span class="pl-c">//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các</span></span></div>
+<div class="ln head" id="L26"><a class="n" href="#L26" data-n="26"></a><span class="t"><span class="pl-c">//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số</span></span></div>
+<div class="ln head" id="L27"><a class="n" href="#L27" data-n="27"></a><span class="t"><span class="pl-c">//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức</span></span></div>
+<div class="ln head" id="L28"><a class="n" href="#L28" data-n="28"></a><span class="t"><span class="pl-c">//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong</span></span></div>
+<div class="ln head" id="L29"><a class="n" href="#L29" data-n="29"></a><span class="t"><span class="pl-c">//             repo.</span></span></div>
+<div class="ln blank" id="L30"><a class="n" href="#L30" data-n="30"></a><span class="t">&nbsp;</span></div>
+<div class="ln nhead tier-controller" id="L31"><a class="n" href="#L31" data-n="31"></a><span class="t"><span class="pl-c">// <b class="tg tg-controller">[CONTROLLER]</b> <span class="ttl">ShortVideoController.recordView</span>  <span class="rf">·  short-video.controller.ts L48–49, L132–141</span></span></span></div>
+<div class="ln code tier-controller" id="L32"><a class="n" href="#L32" data-n="32"></a><span class="t">@<span class="pl-en">Controller</span>(<span class="pl-s">'videos'</span>)</span></div>
+<div class="ln code tier-controller" id="L33"><a class="n" href="#L33" data-n="33"></a><span class="t"><span class="pl-k">export</span> <span class="pl-k">class</span> <span class="pl-en">ShortVideoController</span> {</span></div>
+<div class="ln code tier-controller" id="L34"><a class="n" href="#L34" data-n="34"></a><span class="t" style="--ind:2">  <span class="pl-en">constructor</span>(</span></div>
+<div class="ln code tier-controller" id="L35"><a class="n" href="#L35" data-n="35"></a><span class="t" style="--ind:4">    <span class="pl-k">private</span> <span class="pl-k">readonly</span> videoService: <span class="pl-en">ShortVideoService</span>,</span></div>
+<div class="ln code tier-controller" id="L36"><a class="n" href="#L36" data-n="36"></a><span class="t" style="--ind:4">    <span class="pl-c">// ShortVideoService</span></span></div>
+<div class="ln code tier-controller" id="L37"><a class="n" href="#L37" data-n="37"></a><span class="t" style="--ind:4">    @<span class="pl-en">InjectDataSource</span>() <span class="pl-k">private</span> <span class="pl-k">readonly</span> dataSource: <span class="pl-en">DataSource</span>,</span></div>
+<div class="ln code tier-controller" id="L38"><a class="n" href="#L38" data-n="38"></a><span class="t" style="--ind:4">    <span class="pl-k">private</span> <span class="pl-k">readonly</span> config: <span class="pl-en">ConfigService</span>&lt;<span class="pl-en">CoreApiEnv</span>, <span class="pl-c1">true</span>&gt;,</span></div>
+<div class="ln code tier-controller" id="L39"><a class="n" href="#L39" data-n="39"></a><span class="t" style="--ind:2">  ) {}</span></div>
+<div class="ln code tier-controller" id="L40"><a class="n" href="#L40" data-n="40"></a><span class="t" style="--ind:2">&nbsp;</span></div>
+<div class="ln code tier-controller step" id="L41"><a class="n" href="#L41" data-n="41"></a><span class="t" style="--ind:2"><span class="pl-c">  // Step 1: Nhận watchTimeMs mà client báo (user từ JWT, id video từ URL), trả 204</span></span></div>
+<div class="ln code tier-controller" id="L42"><a class="n" href="#L42" data-n="42"></a><span class="t" style="--ind:2">  @<span class="pl-en">Post</span>(<span class="pl-s">':id/views'</span>)</span></div>
+<div class="ln code tier-controller" id="L43"><a class="n" href="#L43" data-n="43"></a><span class="t" style="--ind:2">  @<span class="pl-en">HttpCode</span>(HttpStatus.<span class="pl-c1">NO_CONTENT</span>)</span></div>
+<div class="ln code tier-controller" id="L44"><a class="n" href="#L44" data-n="44"></a><span class="t" style="--ind:2">  <span class="pl-k">async</span> <span class="pl-en">recordView</span>(</span></div>
+<div class="ln code tier-controller" id="L45"><a class="n" href="#L45" data-n="45"></a><span class="t" style="--ind:4">    @<span class="pl-en">CurrentUser</span>() user: <span class="pl-en">AuthenticatedUser</span>,</span></div>
+<div class="ln code tier-controller" id="L46"><a class="n" href="#L46" data-n="46"></a><span class="t" style="--ind:4">    @<span class="pl-en">Param</span>(<span class="pl-s">'id'</span>, <span class="pl-en">ParseUUIDPipe</span>) id: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code tier-controller" id="L47"><a class="n" href="#L47" data-n="47"></a><span class="t" style="--ind:4">    @<span class="pl-en">Body</span>() dto: <span class="pl-en">RecordViewDto</span>,</span></div>
+<div class="ln code tier-controller" id="L48"><a class="n" href="#L48" data-n="48"></a><span class="t" style="--ind:2">  ): <span class="pl-en">Promise</span>&lt;<span class="pl-c1">void</span>&gt; {</span></div>
+<div class="ln code tier-controller" id="L49"><a class="n" href="#L49" data-n="49"></a><span class="t" style="--ind:4">    <span class="pl-k">await</span> <span class="pl-c1">this</span>.videoService.<span class="pl-en">recordView</span>(user, id, dto.watchTimeMs);</span></div>
+<div class="ln code tier-controller" id="L50"><a class="n" href="#L50" data-n="50"></a><span class="t" style="--ind:4">&nbsp;</span></div>
+<div class="ln nhead tier-service" id="L51"><a class="n" href="#L51" data-n="51"></a><span class="t" style="--ind:4">    <span class="pl-c">// <b class="tg tg-service">[SERVICE]</b> <span class="ttl">ShortVideoService.recordView</span>  <span class="rf">·  short-video.service.ts L254–301</span></span></span></div>
+<div class="ln code tier-service syn synfirst" id="L52"><a class="n" href="#L52" data-n="52"></a><span class="t" style="--ind:4">    <span class="pl-k">const</span> <span class="pl-c1">videoId</span> = id;</span></div>
+<div class="ln code tier-service syn synfirst" id="L53"><a class="n" href="#L53" data-n="53"></a><span class="t" style="--ind:4">    <span class="pl-k">const</span> <span class="pl-c1">watchTimeMs</span> = dto.watchTimeMs;</span></div>
+<div class="ln code tier-service" id="L54"><a class="n" href="#L54" data-n="54"></a><span class="t" style="--ind:4">&nbsp;</span></div>
+<div class="ln code tier-service step" id="L55"><a class="n" href="#L55" data-n="55"></a><span class="t" style="--ind:4">    <span class="pl-c">// Step 2: Kiểm video xem được (tác giả hoặc đã published)</span></span></div>
+<div class="ln code tier-service" id="L56"><a class="n" href="#L56" data-n="56"></a><span class="t" style="--ind:4">    <span class="pl-c">// Không tồn tại, removed, rejected, hoặc chưa published (với người không phải tác giả) đều</span></span></div>
+<div class="ln code tier-service" id="L57"><a class="n" href="#L57" data-n="57"></a><span class="t" style="--ind:4">    <span class="pl-c">// trả CÙNG mã 404.</span></span></div>
+<div class="ln code tier-service" id="L58"><a class="n" href="#L58" data-n="58"></a><span class="t" style="--ind:4">    <span class="pl-k">const</span> <span class="pl-c1">video</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.<span class="pl-en">getVideoOrThrow</span>(user, videoId);</span></div>
+<div class="ln code tier-service" id="L59"><a class="n" href="#L59" data-n="59"></a><span class="t" style="--ind:4">&nbsp;</span></div>
+<div class="ln code tier-service step" id="L60"><a class="n" href="#L60" data-n="60"></a><span class="t" style="--ind:4">    <span class="pl-c">// Step 3: Tác giả tự xem thì không tính lượt xem</span></span></div>
+<div class="ln code tier-service" id="L61"><a class="n" href="#L61" data-n="61"></a><span class="t" style="--ind:4">    <span class="pl-k">if</span> (video.authorUserId === user.userId) <span class="pl-k">return</span>;</span></div>
+<div class="ln code tier-service" id="L62"><a class="n" href="#L62" data-n="62"></a><span class="t" style="--ind:4">&nbsp;</span></div>
+<div class="ln code tier-service" id="L63"><a class="n" href="#L63" data-n="63"></a><span class="t" style="--ind:4">    <span class="pl-k">const</span> <span class="pl-c1">qualifiedMinMs</span> = <span class="pl-c1">this</span>.config.<span class="pl-en">getOrThrow</span>(</span></div>
+<div class="ln code tier-service" id="L64"><a class="n" href="#L64" data-n="64"></a><span class="t" style="--ind:6">      <span class="pl-s">'VIDEO_QUALIFIED_VIEW_MIN_MS'</span>,</span></div>
+<div class="ln code tier-service" id="L65"><a class="n" href="#L65" data-n="65"></a><span class="t" style="--ind:6">      { <span class="pl-k">infer</span>: <span class="pl-c1">true</span> },</span></div>
+<div class="ln code tier-service" id="L66"><a class="n" href="#L66" data-n="66"></a><span class="t" style="--ind:4">    );</span></div>
+<div class="ln code tier-service" id="L67"><a class="n" href="#L67" data-n="67"></a><span class="t" style="--ind:4">&nbsp;</span></div>
+<div class="ln code tier-service step" id="L68"><a class="n" href="#L68" data-n="68"></a><span class="t" style="--ind:4">    <span class="pl-c">// Step 4: So watch-time với ngưỡng "xem đủ"</span></span></div>
+<div class="ln code tier-service" id="L69"><a class="n" href="#L69" data-n="69"></a><span class="t" style="--ind:4">    <span class="pl-k">const</span> <span class="pl-c1">nowQualifies</span> = watchTimeMs &gt;= qualifiedMinMs;</span></div>
+<div class="ln code tier-service" id="L70"><a class="n" href="#L70" data-n="70"></a><span class="t" style="--ind:4">&nbsp;</span></div>
+<div class="ln code tier-service step" id="L71"><a class="n" href="#L71" data-n="71"></a><span class="t" style="--ind:4">    <span class="pl-c">// Step 5: Mở transaction DB để đếm đúng 1 lần dưới race</span></span></div>
+<div class="ln code tier-service" id="L72"><a class="n" href="#L72" data-n="72"></a><span class="t" style="--ind:4">    <span class="pl-k">await</span> <span class="pl-c1">this</span>.dataSource.<span class="pl-en">transaction</span>(<span class="pl-k">async</span> (manager) =&gt; {</span></div>
+<div class="ln code tier-service" id="L73"><a class="n" href="#L73" data-n="73"></a><span class="t" style="--ind:4">&nbsp;</span></div>
+<div class="ln code tier-service step" id="L74"><a class="n" href="#L74" data-n="74"></a><span class="t" style="--ind:6">    <span class="pl-c">  // Step 6: Tạo dòng video_views nếu chưa có (INSERT ... ON CONFLICT DO NOTHING)</span></span></div>
+<div class="ln code tier-service" id="L75"><a class="n" href="#L75" data-n="75"></a><span class="t" style="--ind:6">    <span class="pl-c">  // <b class="tg tg-postgres">[POSTGRES]</b> Tạo dòng bằng INSERT ... ON CONFLICT DO NOTHING: không ném unique violation</span></span></div>
+<div class="ln code tier-service" id="L76"><a class="n" href="#L76" data-n="76"></a><span class="t" style="--ind:6">    <span class="pl-c">  // nên Postgres không hủy transaction (insert lỗi rồi đọc lại trong cùng transaction sẽ dính</span></span></div>
+<div class="ln code tier-service" id="L77"><a class="n" href="#L77" data-n="77"></a><span class="t" style="--ind:6">    <span class="pl-c">  // "current transaction is aborted").</span></span></div>
+<div class="ln code tier-service" id="L78"><a class="n" href="#L78" data-n="78"></a><span class="t" style="--ind:6">      <span class="pl-k">await</span> manager</span></div>
+<div class="ln code tier-service" id="L79"><a class="n" href="#L79" data-n="79"></a><span class="t" style="--ind:8">        .<span class="pl-en">createQueryBuilder</span>()</span></div>
+<div class="ln code tier-service" id="L80"><a class="n" href="#L80" data-n="80"></a><span class="t" style="--ind:8">        .<span class="pl-en">insert</span>()</span></div>
+<div class="ln code tier-service" id="L81"><a class="n" href="#L81" data-n="81"></a><span class="t" style="--ind:8">        .<span class="pl-en">into</span>(<span class="pl-en">VideoView</span>)</span></div>
+<div class="ln code tier-service" id="L82"><a class="n" href="#L82" data-n="82"></a><span class="t" style="--ind:8">        .<span class="pl-en">values</span>({</span></div>
+<div class="ln code tier-service" id="L83"><a class="n" href="#L83" data-n="83"></a><span class="t" style="--ind:10">          videoId,</span></div>
+<div class="ln code tier-service" id="L84"><a class="n" href="#L84" data-n="84"></a><span class="t" style="--ind:10">          viewerId: user.userId,</span></div>
+<div class="ln code tier-service" id="L85"><a class="n" href="#L85" data-n="85"></a><span class="t" style="--ind:10">          watchTimeMs: <span class="pl-c1">0</span>,</span></div>
+<div class="ln code tier-service" id="L86"><a class="n" href="#L86" data-n="86"></a><span class="t" style="--ind:10">          qualified: <span class="pl-c1">false</span>,</span></div>
+<div class="ln code tier-service" id="L87"><a class="n" href="#L87" data-n="87"></a><span class="t" style="--ind:8">        })</span></div>
+<div class="ln code tier-service" id="L88"><a class="n" href="#L88" data-n="88"></a><span class="t" style="--ind:8">        .<span class="pl-en">orIgnore</span>()</span></div>
+<div class="ln code tier-service" id="L89"><a class="n" href="#L89" data-n="89"></a><span class="t" style="--ind:8">        .<span class="pl-en">execute</span>();</span></div>
+<div class="ln code tier-service" id="L90"><a class="n" href="#L90" data-n="90"></a><span class="t" style="--ind:6">&nbsp;</span></div>
+<div class="ln code tier-service step" id="L91"><a class="n" href="#L91" data-n="91"></a><span class="t" style="--ind:6">    <span class="pl-c">  // Step 7: Khóa dòng (FOR UPDATE) để request song song xếp hàng</span></span></div>
+<div class="ln code tier-service" id="L92"><a class="n" href="#L92" data-n="92"></a><span class="t" style="--ind:6">    <span class="pl-c">  // Rồi KHÓA dòng (FOR UPDATE): 2 request đồng thời của cùng người xem chạy tuần tự, request</span></span></div>
+<div class="ln code tier-service" id="L93"><a class="n" href="#L93" data-n="93"></a><span class="t" style="--ind:6">    <span class="pl-c">  // sau thấy qualified = true của request trước nên không cộng viewCount lần nữa.</span></span></div>
+<div class="ln code tier-service" id="L94"><a class="n" href="#L94" data-n="94"></a><span class="t" style="--ind:6">      <span class="pl-k">const</span> <span class="pl-c1">view</span> = <span class="pl-k">await</span> manager.<span class="pl-en">findOneOrFail</span>(<span class="pl-en">VideoView</span>, {</span></div>
+<div class="ln code tier-service" id="L95"><a class="n" href="#L95" data-n="95"></a><span class="t" style="--ind:8">        where: { videoId, viewerId: user.userId },</span></div>
+<div class="ln code tier-service" id="L96"><a class="n" href="#L96" data-n="96"></a><span class="t" style="--ind:8">        lock: { mode: <span class="pl-s">'pessimistic_write'</span> },</span></div>
+<div class="ln code tier-service" id="L97"><a class="n" href="#L97" data-n="97"></a><span class="t" style="--ind:6">      });</span></div>
+<div class="ln code tier-service" id="L98"><a class="n" href="#L98" data-n="98"></a><span class="t" style="--ind:6">    <span class="pl-c">  // qualified chỉ chuyển false → true đúng 1 lần; các lần cập nhật watch-time sau không cộng</span></span></div>
+<div class="ln code tier-service" id="L99"><a class="n" href="#L99" data-n="99"></a><span class="t" style="--ind:6">    <span class="pl-c">  // lại (idempotent theo cờ).</span></span></div>
+<div class="ln code tier-service" id="L100"><a class="n" href="#L100" data-n="100"></a><span class="t" style="--ind:6">      <span class="pl-k">const</span> <span class="pl-c1">shouldQualifyNow</span> = nowQualifies &amp;&amp; !view.qualified;</span></div>
+<div class="ln code tier-service" id="L101"><a class="n" href="#L101" data-n="101"></a><span class="t" style="--ind:6">&nbsp;</span></div>
+<div class="ln code tier-service step" id="L102"><a class="n" href="#L102" data-n="102"></a><span class="t" style="--ind:6">    <span class="pl-c">  // Step 8: Ghi watch-time lớn nhất và cờ qualified</span></span></div>
+<div class="ln code tier-service" id="L103"><a class="n" href="#L103" data-n="103"></a><span class="t" style="--ind:6">      <span class="pl-k">await</span> manager.<span class="pl-en">update</span>(</span></div>
+<div class="ln code tier-service" id="L104"><a class="n" href="#L104" data-n="104"></a><span class="t" style="--ind:8">        <span class="pl-en">VideoView</span>,</span></div>
+<div class="ln code tier-service" id="L105"><a class="n" href="#L105" data-n="105"></a><span class="t" style="--ind:8">        { id: view.id },</span></div>
+<div class="ln code tier-service" id="L106"><a class="n" href="#L106" data-n="106"></a><span class="t" style="--ind:8">        {</span></div>
+<div class="ln code tier-service" id="L107"><a class="n" href="#L107" data-n="107"></a><span class="t" style="--ind:10">          watchTimeMs: Math.<span class="pl-en">max</span>(view.watchTimeMs, watchTimeMs),</span></div>
+<div class="ln code tier-service" id="L108"><a class="n" href="#L108" data-n="108"></a><span class="t" style="--ind:10">          qualified: view.qualified || nowQualifies,</span></div>
+<div class="ln code tier-service" id="L109"><a class="n" href="#L109" data-n="109"></a><span class="t" style="--ind:8">        },</span></div>
+<div class="ln code tier-service" id="L110"><a class="n" href="#L110" data-n="110"></a><span class="t" style="--ind:6">      );</span></div>
+<div class="ln code tier-service" id="L111"><a class="n" href="#L111" data-n="111"></a><span class="t" style="--ind:6">&nbsp;</span></div>
+<div class="ln code tier-service step" id="L112"><a class="n" href="#L112" data-n="112"></a><span class="t" style="--ind:6">    <span class="pl-c">  // Step 9: Lần đầu đạt ngưỡng thì cộng viewCount nguyên tử</span></span></div>
+<div class="ln code tier-service" id="L113"><a class="n" href="#L113" data-n="113"></a><span class="t" style="--ind:6">      <span class="pl-k">if</span> (shouldQualifyNow) {</span></div>
+<div class="ln code tier-service" id="L114"><a class="n" href="#L114" data-n="114"></a><span class="t" style="--ind:8">        <span class="pl-k">await</span> manager.<span class="pl-en">increment</span>(<span class="pl-en">Video</span>, { id: videoId }, <span class="pl-s">'viewCount'</span>, <span class="pl-c1">1</span>);</span></div>
+<div class="ln code tier-service" id="L115"><a class="n" href="#L115" data-n="115"></a><span class="t" style="--ind:6">      }</span></div>
+<div class="ln code tier-service" id="L116"><a class="n" href="#L116" data-n="116"></a><span class="t" style="--ind:4">    });</span></div>
+<div class="ln code tier-controller" id="L117"><a class="n" href="#L117" data-n="117"></a><span class="t" style="--ind:2">  }</span></div>
+<div class="ln code tier-controller" id="L118"><a class="n" href="#L118" data-n="118"></a><span class="t">}</span></div>
+<div class="ln blank" id="L119"><a class="n" href="#L119" data-n="119"></a><span class="t">&nbsp;</span></div>
+<div class="ln nhead tier-postgres" id="L120"><a class="n" href="#L120" data-n="120"></a><span class="t"><span class="pl-c">// <b class="tg tg-postgres">[POSTGRES]</b> <span class="ttl">CREATE TABLE video_views</span>  <span class="rf">·  1754800000000-short-video.ts L41–51</span></span></span></div>
+<div class="ln code tier-postgres" id="L121"><a class="n" href="#L121" data-n="121"></a><span class="t"><span class="pl-k">await</span> queryRunner.<span class="pl-en">query</span>(<span class="pl-s">`</span></span></div>
+<div class="ln code tier-postgres" id="L122"><a class="n" href="#L122" data-n="122"></a><span class="t" style="--ind:2"><span class="pl-s">  CREATE TABLE video_views (</span></span></div>
+<div class="ln code tier-postgres" id="L123"><a class="n" href="#L123" data-n="123"></a><span class="t" style="--ind:4"><span class="pl-s">    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),</span></span></div>
+<div class="ln code tier-postgres" id="L124"><a class="n" href="#L124" data-n="124"></a><span class="t" style="--ind:4"><span class="pl-s">    video_id      uuid NOT NULL REFERENCES videos(id) ON DELETE CASCADE,</span></span></div>
+<div class="ln code tier-postgres" id="L125"><a class="n" href="#L125" data-n="125"></a><span class="t" style="--ind:4"><span class="pl-s">    viewer_id     uuid NOT NULL REFERENCES users(id),</span></span></div>
+<div class="ln code tier-postgres" id="L126"><a class="n" href="#L126" data-n="126"></a><span class="t" style="--ind:4"><span class="pl-s">    watch_time_ms int NOT NULL DEFAULT 0,</span></span></div>
+<div class="ln code tier-postgres" id="L127"><a class="n" href="#L127" data-n="127"></a><span class="t" style="--ind:4"><span class="pl-s">    qualified     boolean NOT NULL DEFAULT false,</span></span></div>
+<div class="ln code tier-postgres" id="L128"><a class="n" href="#L128" data-n="128"></a><span class="t" style="--ind:4"><span class="pl-s">    created_at    timestamptz NOT NULL DEFAULT now(),</span></span></div>
+<div class="ln code tier-postgres" id="L129"><a class="n" href="#L129" data-n="129"></a><span class="t" style="--ind:4"><span class="pl-s">    CONSTRAINT uq_video_views_video_viewer UNIQUE (video_id, viewer_id)</span></span></div>
+<div class="ln code tier-postgres" id="L130"><a class="n" href="#L130" data-n="130"></a><span class="t" style="--ind:2"><span class="pl-s">  )</span></span></div>
+<div class="ln code tier-postgres" id="L131"><a class="n" href="#L131" data-n="131"></a><span class="t"><span class="pl-s">`</span>);</span></div>
   </div>
 </div>
 </main>
@@ -220,6 +239,14 @@ var done=function(){copy.textContent='Đã sao chép';setTimeout(function(){copy
 if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done,function(){})}
 else{var a=document.createElement('textarea');a.value=text;document.body.appendChild(a);a.select();try{document.execCommand('copy');done()}catch(e){}document.body.removeChild(a)}
 });
+})();
+(function(){
+var btn=document.getElementById('wrap'),src=document.querySelector('.src');if(!btn||!src)return;
+var key='litmatch-code-wrap',on=null;try{var s=localStorage.getItem(key);if(s==='1'||s==='0')on=s==='1'}catch(e){}
+if(on===null)on=!!(window.matchMedia&&window.matchMedia('(max-width:760px)').matches);
+function apply(){if(on)src.classList.add('wrap');else src.classList.remove('wrap');btn.textContent=on?'Cuộn ngang':'Xuống dòng'}
+apply();
+btn.addEventListener('click',function(){on=!on;try{localStorage.setItem(key,on?'1':'0')}catch(e){}apply()});
 })();</script>
 </body>
 </html>
