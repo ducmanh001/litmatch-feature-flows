@@ -2,8 +2,8 @@
 //  POST /api/v1/matching/tickets
 //  Vào hàng đợi Voice Match tới khi 2 người được ghép thành MatchSession.
 // ════════════════════════════════════════════════════════════════════════════
-//  Luồng      client → matching.controller.ts → matching.service.ts → Redis →
-//             matcher-worker.service.ts → PostgreSQL
+//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS] → [WORKER] → [POSTGRES] →
+//             [REDIS]
 //  Bảng       match_tickets, match_sessions, match_daily_quotas, users
 //  Redis      matching:queue:{matchType}:{region}:{ageBand} (sorted set) ·
 //             matching:shards:active (set) · pub/sub theo user cho event
@@ -13,12 +13,7 @@
 //             chép).
 //  Nguồn      litmatch @ d3cb28c · 2026-10-15
 
-// matching.controller.ts · L46–72
-/**
- * In:    user từ JWT, body { matchType, genderPreference?, useDiamond? }, header
- *        Idempotency-Key, X-Guest-Device-Token (chỉ guest)
- * Out:   TicketDto (status = queued)
- */
+// [CONTROLLER] matching.controller.ts · L46–72
 @Post('tickets')
 @Throttle({ default: { limit: 10, ttl: minutes(1) } })
 async joinQueue(
@@ -37,25 +32,7 @@ async joinQueue(
   );
 }
 
-// matching.service.ts · L89–202, L616–627
-/**
- * In:    user, dto { matchType, genderPreference?, useDiamond? }, idempotencyKey
- * Out:   MatchTicket (status = queued)
- *
- * Cơ chế và vì sao:
- * - DB trước, Redis sau. Postgres là nguồn sự thật của ticket, Redis chỉ là hàng đợi
- *   dẫn xuất, nên ghi DB trong 1 transaction rồi mới ZADD. Redis lỗi thì ticket nằm
- *   "mồ côi" trong DB: client retry cùng Idempotency-Key sẽ đẩy lại vào Redis,
- *   sweeper expire là chốt chặn cuối.
- * - Idempotency: key lưu ở cột unique của DB. Retry được nhận ra TRƯỚC khi trừ quota,
- *   nên không tốn lượt hay Diamond lần 2.
- * - 1 user chỉ 1 ticket đang chờ: chặn bằng partial unique index, không "check rồi
- *   insert" vì 2 request đồng thời sẽ cùng lọt qua bước check. Vi phạm thì 409.
- * - Lượt trả bằng Diamond (useDiamond): trừ tiền CÙNG transaction với insert ticket,
- *   insert lỗi thì tiền được rollback.
- * - authorize khóa dòng user (FOR UPDATE) và đọc isGuest tươi từ DB, nên JWT cũ sau
- *   khi nâng cấp tài khoản không né được giới hạn của guest.
- */
+// [SERVICE] matching.service.ts · L89–202
 async joinQueue(
   user: AuthenticatedUser,
   dto: JoinQueueDto,
@@ -68,6 +45,8 @@ async joinQueue(
 
   let ticket: MatchTicket;
   try {
+    // [POSTGRES] Ghi DB trong 1 transaction, Redis chỉ thêm SAU commit: Postgres là
+    // nguồn sự thật của ticket, Redis chỉ là hàng đợi dẫn xuất.
     ticket = await this.dataSource.transaction(async (manager) => {
       const authorization = await this.guestQuota.authorize(
         manager,
@@ -83,6 +62,8 @@ async joinQueue(
         );
       }
 
+      // Nhận ra retry (cùng Idempotency-Key) TRƯỚC khi trừ quota, để retry không tốn
+      // thêm lượt hay Diamond.
       const replay = await manager.findOneBy(MatchTicket, {
         idempotencyKey: prefixedKey,
       });
@@ -103,6 +84,8 @@ async joinQueue(
         dto.matchType,
         useDiamond,
       );
+      // Trừ Diamond CÙNG transaction với insert ticket: insert lỗi thì tiền rollback
+      // theo.
       if (quota.paidDiamond) {
         await this.economy.spendDiamondInTransaction(
           manager,
@@ -135,6 +118,10 @@ async joinQueue(
       );
     });
   } catch (err) {
+    // [POSTGRES] Mỗi user chỉ 1 vé đang chờ được chặn bằng unique index (xem bên dưới)
+    // chứ không check-rồi-insert, vì 2 request đồng thời sẽ cùng lọt qua check. Dính
+    // unique thì kiểm retry TRƯỚC, vì cả 2 unique có thể cùng dính; không phải retry
+    // thì 409.
     if (!isUniqueViolation(err)) throw err;
     const existing = await this.ticketRepo.findOneBy({
       idempotencyKey: prefixedKey,
@@ -161,39 +148,152 @@ async joinQueue(
     throw err;
   }
 
+  // [REDIS] Redis lỗi ở bước này thì ticket "mồ côi" trong DB: client retry cùng key sẽ
+  // đẩy lại vào Redis, sweeper expire là chốt chặn cuối.
   await this.ensureEnqueued(ticket);
   return ticket;
 }
 
-/**
- * In:    ticket
- * Out:   void
- * Lưu ý: SADD đặt SAU ZADD vì matcher có thể vừa SREM shard rỗng giữa hai lệnh; SADD
- *        sau cùng khôi phục lại shard.
- */
+// [SERVICE] guest-match-quota.service.ts · L48–81, L132–202
+async authorize(
+  manager: EntityManager,
+  userId: string,
+  context: GuestQuotaRequestContext,
+): Promise<GuestQuotaAuthorization> {
+  // [POSTGRES] Khóa dòng user (FOR UPDATE) và đọc isGuest tươi từ DB: JWT cũ sau khi
+  // nâng cấp tài khoản không né được giới hạn của guest.
+  const user = await manager.findOneOrFail(User, {
+    where: { id: userId },
+    lock: { mode: 'pessimistic_write' },
+  });
+  const quotaDate = new Date().toISOString().slice(0, 10);
+  if (!user.isGuest) return { user, quotaDate, keyHashes: [] };
+
+  if (!context.deviceToken) {
+    throw new DomainException(
+      MatchingErrors.GUEST_DEVICE_TOKEN_REQUIRED,
+      'Guest phải gửi X-Guest-Device-Token được cấp lúc đăng nhập',
+      HttpStatus.UNAUTHORIZED,
+    );
+  }
+  const deviceKey = await this.deviceTokens.verifyForUser(
+    context.deviceToken,
+    userId,
+  );
+  const keyHashes = [
+    this.keyHash('user', userId),
+    this.keyHash('device', deviceKey),
+    this.keyHash('network', this.normalizeNetwork(context.ip)),
+  ];
+  return {
+    user,
+    quotaDate,
+    keyHashes: keyHashes.sort(),
+  };
+}
+
+async consumeForMatch(
+  manager: EntityManager,
+  authorization: GuestQuotaAuthorization,
+  matchType: MatchType,
+  useDiamond: boolean,
+): Promise<MatchQuotaDecision> {
+  const guestLimit = this.config.getOrThrow('MATCHING_GUEST_DAILY_LIMIT', {
+    infer: true,
+  });
+  if (useDiamond)
+    return {
+      quotaDate: authorization.quotaDate,
+      freeLimit: guestLimit,
+      tier: null,
+      paidDiamond: true,
+    };
+
+  if (authorization.keyHashes.length > 0) {
+    await this.consume(manager, authorization);
+    return {
+      quotaDate: authorization.quotaDate,
+      freeLimit: guestLimit,
+      tier: null,
+      paidDiamond: false,
+    };
+  }
+
+  const tier = await this.economy.getActiveVipTier(
+    authorization.user.id,
+    manager,
+  );
+  const freeLimit = this.dailyLimit(tier, matchType);
+  // [POSTGRES] Đếm lượt miễn phí an toàn khi đồng thời: INSERT … ON CONFLICT DO NOTHING
+  // tạo dòng đếm nếu chưa có, rồi SELECT … FOR UPDATE khóa dòng đó trước khi kiểm và
+  // cộng 1, nên 2 request cùng lúc không cùng lọt qua giới hạn.
+  const quotaDate = authorization.quotaDate;
+  await manager
+    .createQueryBuilder()
+    .insert()
+    .into(MatchDailyQuota)
+    .values({
+      userId: authorization.user.id,
+      quotaDate,
+      matchType,
+      count: 0,
+    })
+    .orIgnore()
+    .execute();
+  const row = await manager
+    .getRepository(MatchDailyQuota)
+    .createQueryBuilder('q')
+    .setLock('pessimistic_write')
+    .where('q.user_id = :userId', { userId: authorization.user.id })
+    .andWhere('q.quota_date = :quotaDate', { quotaDate })
+    .andWhere('q.match_type = :matchType', { matchType })
+    .getOneOrFail();
+  if (row.count >= freeLimit) {
+    throw new DomainException(
+      MatchingErrors.DAILY_QUOTA_EXCEEDED,
+      `Đã hết ${freeLimit} lượt ${matchType} miễn phí trong ngày UTC`,
+      HttpStatus.TOO_MANY_REQUESTS,
+      { limit: freeLimit, quotaDate, matchType },
+    );
+  }
+  await manager
+    .createQueryBuilder()
+    .update(MatchDailyQuota)
+    .set({ count: () => 'count + 1', updatedAt: () => 'CURRENT_TIMESTAMP' })
+    .where('user_id = :userId', { userId: authorization.user.id })
+    .andWhere('quota_date = :quotaDate', { quotaDate })
+    .andWhere('match_type = :matchType', { matchType })
+    .execute();
+  return { quotaDate, freeLimit, tier, paidDiamond: false };
+}
+
+// [POSTGRES] 1752200000000-matching-core.ts · L34–38
+await queryRunner.query(`
+  CREATE UNIQUE INDEX uq_match_tickets_active_user
+    ON match_tickets(user_id)
+    WHERE status IN ('queued','matched')
+`);
+
+// [SERVICE] matching.service.ts · L616–627
 async ensureEnqueued(ticket: MatchTicket): Promise<void> {
   const shard = shardKeyOfTicket(ticket);
+  // [REDIS] NX: chỉ thêm nếu chưa có, để không đè score đã được boost (speed-up).
   await this.queue.enqueue(
     shard,
     String(ticketScore(ticket)),
     ticket.id,
     'NX',
   );
+  // SADD sau ZADD: matcher có thể vừa SREM shard rỗng giữa 2 lệnh, SADD sau cùng khôi
+  // phục lại shard.
   await this.queue.markActive(shard);
   this.matcherWakeup.notify();
 }
 
-// matching-redis.provider.ts · L21, L24–30, L32–36, L43–52
-/**
- * Set các shard đang có người chờ: worker chỉ quét set này, không quét cả keyspace
- * Redis.
- */
+// [REDIS] matching-redis.provider.ts · L21, L24–30, L32–36, L43–52
+// Worker chỉ quét set này thay vì quét cả keyspace Redis.
 export const MATCHING_ACTIVE_SHARDS_KEY = 'matching:shards:active';
 
-/**
- * Mỗi shard là 1 sorted set riêng theo (matchType, region, ageBand): chỉ ghép người
- * cùng loại, cùng vùng, cùng nhóm tuổi.
- */
 export function matchingShardKey(
   matchType: string,
   region: string,
@@ -208,11 +308,6 @@ export function shardKeyOfTicket(
   return matchingShardKey(ticket.matchType, ticket.region, ticket.ageBand);
 }
 
-/**
- * In:    ticket
- * Out:   score trong sorted set, nhỏ hơn được ghép trước
- * Score = thời điểm vào hàng + phạt trust − boost speed-up.
- */
 export function ticketScore(
   ticket: Pick<
     MatchTicket,
@@ -224,11 +319,7 @@ export function ticketScore(
   );
 }
 
-// redis-matching-queue.adapter.ts · L12–19, L25–32, L34–36, L38–40, L42–44, L46–48
-/**
- * ZADD shard NX|XX score ticketId. NX chỉ thêm nếu chưa có, nên không đè score đã
- * được boost.
- */
+// [REDIS] redis-matching-queue.adapter.ts · L12–19, L25–32, L34–36, L38–40, L42–44, L46–48
 async enqueue(
   shard: string,
   score: string,
@@ -238,7 +329,6 @@ async enqueue(
   await this.redis.zadd(shard, mode, score, ticketId);
 }
 
-/** ZPOPMIN: lấy n ticket điểm thấp nhất khỏi shard trong 1 lệnh nguyên tử. */
 async popMin(shard: string, count: number): Promise<Array<[string, string]>> {
   const values = await this.redis.zpopmin(shard, count);
   const entries: Array<[string, string]> = [];
@@ -264,14 +354,9 @@ async hasEntries(shard: string): Promise<boolean> {
   return (await this.redis.zcard(shard)) > 0;
 }
 
-// matcher-worker.service.ts · L172–191, L193–222, L228–255, L260–270, L272–296, L328–356, L358–365, L371–384, L390–392, L395–398
-/**
- * In:    không có (job nền, không gắn với request nào)
- * Out:   số cặp ghép được trong lượt này
- * Lưu ý: chạy khi có enqueue (gom các tín hiệu liên tiếp thành 1 batch) và theo
- *        interval dự phòng thưa. Nhiều pod chạy song song vẫn an toàn nhờ ZPOPMIN
- *        nguyên tử.
- */
+// [WORKER] matcher-worker.service.ts · L172–191, L193–222, L228–392, L395–398
+// Chạy khi có enqueue (gom tín hiệu liên tiếp thành 1 batch) và theo interval dự phòng
+// thưa; nhiều pod chạy song song vẫn an toàn nhờ ZPOPMIN nguyên tử.
 async runOnce(): Promise<number> {
   return this.job.runExclusive(async () => {
     return withSpan(
@@ -289,24 +374,15 @@ async runOnce(): Promise<number> {
   }, 0);
 }
 
-/**
- * In:    shard
- * Out:   số cặp ghép được
- *
- * Cơ chế và vì sao:
- * - ZPOPMIN shard 2 lấy 2 ticket điểm thấp nhất trong 1 lệnh nguyên tử (Redis đơn
- *   luồng nên không cần Lua), vì thế 2 matcher không bao giờ lấy trùng một ticket.
- * - Chỉ còn 1 ticket: trả lại với score cũ rồi chờ người tiếp theo.
- * - Cặp hợp lệ nhưng không ghép được (block/report hoặc giới tính không khớp): dừng
- *   shard này trong lượt hiện tại, nếu không sẽ pop lại đúng cặp đó và lặp vô hạn. Họ
- *   được thử lại khi có ứng viên thứ 3, hoặc sweeper expire khi quá hạn chờ.
- */
 private async drainShard(shard: string): Promise<number> {
   const batchSize = this.config.getOrThrow('MATCHING_MATCHER_BATCH_SIZE', {
     infer: true,
   });
   let matched = 0;
   for (let i = 0; i < batchSize; i++) {
+    // [REDIS] ZPOPMIN lấy 2 vé điểm thấp nhất (điểm nhỏ = ghép trước) trong 1 lệnh
+    // nguyên tử. Redis đơn luồng nên không cần Lua, và 2 matcher không bao giờ lấy
+    // trùng 1 vé.
     const popped = await this.queue.popMin(shard, 2);
     if (popped.length === 0) {
       await this.cleanupShardIfEmpty(shard);
@@ -322,37 +398,22 @@ private async drainShard(shard: string): Promise<number> {
       { id: popped[1][0], score: Number(popped[1][1]) },
     );
     if (outcome === 'matched') matched += 1;
+    // Cặp hợp lệ nhưng không ghép được (block/report, giới tính): dừng shard này, nếu
+    // không sẽ pop lại đúng cặp đó và lặp vô hạn. Họ được thử lại khi có người thứ 3
+    // vào hoặc sweeper expire.
     if (outcome === 'requeued_pair') break;
   }
   return matched;
 }
 
-/**
- * In:    shard, 2 ticket vừa pop khỏi Redis (id + score)
- * Out:   "matched" | "requeued_pair" | "dropped"
- *
- * Cơ chế và vì sao:
- * - Redis không phải nguồn sự thật, nên verify lại trong 1 transaction Postgres: khóa
- *   cả 2 ticket FOR UPDATE theo thứ tự id cố định để không deadlock với writer khác.
- * - Điều kiện ghép: cả 2 còn queued, user còn active, khác người, giới tính khớp 2
- *   chiều (đọc tươi từ users trong chính transaction này), không block/report nhau.
- * - Đủ điều kiện: tạo MatchSession đã confirmed và chuyển 2 ticket sang confirmed
- *   trong cùng transaction.
- * - Không ghép được: ticket còn hợp lệ được đẩy lại Redis với score gốc (không mất
- *   lượt chờ); ticket hỏng mà vẫn queued thì expire.
- * - Giới tính lọc ở bước verify chứ không chia shard theo giới tính: chia shard sẽ
- *   nhân số shard lên 3 và preference "any" phải quét nhiều shard. Đánh đổi: cặp
- *   không khớp ở đầu shard chặn shard đó tới khi có người điểm thấp hơn vào hoặc
- *   sweeper expire.
- * - Redis (requeue) và realtime chỉ làm SAU khi transaction commit. Realtime là
- *   best-effort, client vẫn còn poll GET /matching/tickets/:id.
- */
 private async tryPair(
   shard: string,
   a: PoppedTicket,
   b: PoppedTicket,
 ): Promise<PairOutcome> {
   const result = await this.dataSource.transaction(async (manager) => {
+    // [POSTGRES] Redis không phải nguồn sự thật: khóa 2 vé FOR UPDATE rồi verify lại
+    // trong DB. Khóa theo thứ tự id cố định để không deadlock với writer khác.
     const tickets = await manager.find(MatchTicket, {
       where: { id: In([a.id, b.id]) },
       order: { id: 'ASC' },
@@ -376,6 +437,10 @@ private async tryPair(
     const aValid = isValid(ta);
     const bValid = isValid(tb);
 
+    // Giới tính lọc ở bước verify (đọc tươi từ users) chứ không chia shard theo giới
+    // tính: shard nhân 3 và preference "any" phải quét nhiều shard. Đánh đổi: cặp không
+    // khớp ở đầu shard chặn shard đó tới khi có người điểm thấp hơn vào hoặc sweeper
+    // expire.
     const genderOk =
       aValid &&
       bValid &&
@@ -413,7 +478,37 @@ private async tryPair(
       ta.sessionId = session.id;
       tb.sessionId = session.id;
       await manager.save([ta, tb]);
-      // … tạo thông báo MatchConfirmed (cùng transaction) rồi return { kind: 'matched', matchedPair, … }
+      const matchNotifications = await Promise.all(
+        [ta, tb].map((ticket) =>
+          this.notificationService.createWithManager(manager, {
+            userId: ticket.userId,
+            type: NotificationType.MatchConfirmed,
+            payload: { sessionId: session.id, matchType: ticket.matchType },
+          }),
+        ),
+      );
+      const matchedAt = Date.now();
+      return {
+        kind: 'matched' as const,
+        requeue: [] as PoppedTicket[],
+        matchedPair: [
+          {
+            userId: ta.userId,
+            ticketId: ta.id,
+            sessionId: session.id,
+            matchType: ta.matchType,
+            waitSeconds: (matchedAt - ta.enqueuedAt.getTime()) / 1000,
+          },
+          {
+            userId: tb.userId,
+            ticketId: tb.id,
+            sessionId: session.id,
+            matchType: tb.matchType,
+            waitSeconds: (matchedAt - tb.enqueuedAt.getTime()) / 1000,
+          },
+        ],
+        matchNotifications,
+      };
     }
 
     const requeue: PoppedTicket[] = [];
@@ -440,6 +535,8 @@ private async tryPair(
     };
   });
 
+  // [REDIS] Không ghép được thì trả vé còn hợp lệ về Redis với score gốc (không mất
+  // lượt chờ); vé hỏng mà vẫn queued đã bị expire ở trên. Việc này làm SAU commit.
   if (result.requeue.length > 0) {
     for (const r of result.requeue) {
       await this.queue.enqueue(shard, String(r.score), r.id, 'NX');
@@ -447,7 +544,11 @@ private async tryPair(
     await this.queue.markActive(shard);
   }
   if (result.matchedPair) {
-    // … ghi metric thời gian chờ
+    for (const { matchType, waitSeconds } of result.matchedPair) {
+      this.metrics.observeMatched(matchType, waitSeconds);
+    }
+    // [REDIS] Realtime (pub/sub) làm SAU commit và là best-effort: client vẫn còn poll
+    // GET /matching/tickets/:id.
     await Promise.all(
       result.matchedPair.map(({ userId, ticketId, sessionId }) => {
         const envelope: RealtimeEnvelope<MatchConfirmedEventData> = {
@@ -462,18 +563,18 @@ private async tryPair(
         );
       }),
     );
-    // … gửi push thông báo
+    await Promise.all(
+      result.matchNotifications.map((n) =>
+        this.notificationService.sendPush(n),
+      ),
+    );
   }
   return result.kind;
 }
 
-/**
- * In:    shard
- * Out:   void
- * Lưu ý: bỏ shard rỗng khỏi set active; sau SREM phải kiểm lại để không nuốt một
- *        enqueue chen giữa.
- */
 private async cleanupShardIfEmpty(shard: string): Promise<void> {
   await this.queue.unmarkActive(shard);
+  // [REDIS] Kiểm lại sau SREM: nếu có enqueue chen giữa thì khôi phục shard, không nuốt
+  // mất.
   if (await this.queue.hasEntries(shard)) await this.queue.markActive(shard);
 }

@@ -1,8 +1,9 @@
 # Voice Match: code theo từng endpoint
 
-Mỗi file là **một endpoint**: từ controller xuống service, Redis và phần xử lý bên dưới (worker, DB), chỉ giữ luồng xử lý chính.
-Code trích nguyên văn từ repo (số dòng gốc ở đầu mỗi đoạn), đã lược import, comment cũ, decorator Swagger và thụt lề của class. Comment chỉ là khối ghi đầu hàm: input, output và chỗ logic khó hiểu.
-Không chép: DTO, interface, schema, phần dùng chung (middleware, guard, interceptor, pipe toàn cục, exception filter).
+Mỗi file là **một endpoint**, đi từ trên xuống theo thứ tự chạy: controller, service, Redis, Postgres, worker bên dưới.
+Mỗi đoạn có nhãn tầng (CONTROLLER, SERVICE, WORKER, POSTGRES, REDIS, KAFKA, BULLMQ); bản Pages tô màu các nhãn này.
+Code trích nguyên văn từ repo (số dòng gốc ở đầu mỗi đoạn), đã lược import, comment cũ, decorator Swagger và thụt lề của class. Comment viết thêm chỉ trả lời "vì sao" ở chỗ logic khó, đặt ngay cạnh dòng code liên quan.
+Không chép: DTO, interface, phần dùng chung (middleware, guard, interceptor, pipe toàn cục, exception filter).
 
 | # | Endpoint | Làm gì | Bảng | File |
 |---|----------|--------|------|------|
