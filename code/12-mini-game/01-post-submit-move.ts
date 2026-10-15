@@ -1,40 +1,14 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/mini-game/sessions/:id/moves
 //  Mỗi bên nộp đúng 1 nước đi; khi đủ 2 nước thì tính thắng/thua và báo kết quả cho cả hai.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận nước đi của user, giao cho service, trả trạng thái ván theo góc
-//                 nhìn của người nộp (chưa resolved thì không lộ move đối phương).
-//    [SERVICE]    Kiểm user thuộc ván, xác định cột move của người nộp, nộp bằng UPDATE
-//                 có điều kiện, đủ 2 move thì tính người thắng; chỉ publish sau commit.
-//    [POSTGRES]   UPDATE có điều kiện là chốt chặn duy nhất (move chưa nộp và ván còn
-//                 chờ), đồng thời khóa dòng ván giữa 2 bên nộp cùng lúc; xóa dòng
-//                 participant khi ván kết thúc.
-//    [REDIS]      Pub/sub báo kết quả (kèm cả 2 move) cho 2 người; không có event trung
-//                 gian khi mới 1 bên nộp.
-//
-//  Bảng       mini_game_sessions — ván của cặp user (low/high theo thứ tự canonical):
-//               low_move, high_move, status waiting_moves hoặc resolved, winner_user_id
-//               (null nếu hòa).
-//             mini_game_active_participants — bảng phụ chặn mỗi user chỉ có 1 ván đang
-//               chờ move; luồng này xóa 2 dòng khi ván resolved.
-//  Redis      realtime:user:{userId} — publish minigame.session.resolved (kèm lowMove,
-//               highMove, winnerUserId) cho từng người trong ván.
-//  Liên quan  signaling-gateway — subscribe pub/sub và đẩy minigame.session.resolved
-//               xuống socket của 2 người.
-//             MiniGameSessionDto — chỉ trả opponentMove khi ván đã resolved; trước đó
-//               chỉ có cờ opponentHasMoved (không chép DTO).
-//             GET /mini-game/sessions/:id — poll dự phòng khi realtime rớt (chưa chép).
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận request (user từ JWT, id ván từ URL, nước đi trong body)
+//  Step 2: Kiểm tra user thuộc ván (không thì 404)
+//  Step 3: Xác định cột move của người nộp (low hay high)
+//  Step 4: Nộp move bằng UPDATE có điều kiện trong transaction (0 dòng: 409)
+//  Step 5: Đọc lại ván: mới 1 bên nộp thì trả về, chưa resolve
+//  Step 6: Đủ 2 move: tính người thắng
+//  Step 7: Ghi kết quả ván và nhả slot participant của cả 2 người
+//  Step 8: Sau commit, báo minigame.session.resolved qua Redis cho cả 2
+//  Step 9: Controller trả ván theo góc nhìn của người nộp
 
 // [CONTROLLER] MiniGameController.submitMove  ·  mini-game.controller.ts L30–31, L53–71
 @Controller('mini-game')

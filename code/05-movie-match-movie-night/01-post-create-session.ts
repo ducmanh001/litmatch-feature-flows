@@ -1,41 +1,13 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/movie-match/sessions
 //  Tạo phiên xem video chung giữa 2 người bạn, idempotent theo cặp, mỗi user chỉ có 1 phiên đang xem.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận id bạn và URL video, giao cho service, trả phiên theo góc nhìn
-//                 của người tạo.
-//    [SERVICE]    Kiểm URL video theo whitelist, kiểm đã là bạn, chuẩn hóa cặp, trả lại
-//                 phiên cũ nếu cặp đang xem; không thì ghi phiên + 2 participant trong
-//                 1 transaction.
-//    [POSTGRES]   Bảng participant với PK user_id là chốt chặn "1 user 1 phiên đang
-//                 xem", bất kể user là low hay high; ghi cùng transaction với phiên.
-//    [REDIS]      Pub/sub báo movie.session.started cho cả 2 người khi vừa tạo phiên
-//                 mới.
-//
-//  Bảng       movie_sessions — phiên mới: cặp (low, high) canonical, video_url, vị trí
-//               phát 0, status active, mode friend (mặc định).
-//             movie_session_active_participants — mỗi người trong phiên một dòng, PK
-//               user_id; insert trùng nghĩa là user đang có phiên active khác.
-//  Redis      realtime:user:{userId} — publish movie.session.started cho từng người
-//               trong cặp.
-//  Liên quan  Friend — FriendService.areFriends: chỉ 2 người đã là bạn mới tạo được
-//               phiên (không chép).
-//             signaling-gateway — subscribe pub/sub và đẩy movie.session.started xuống
-//               socket.
-//             updateState / endSession — bước sau: cập nhật playback (last-write-wins,
-//               không khóa) và kết thúc phiên, endSession xóa 2 dòng participant (chưa
-//               chép).
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận request (user từ JWT, friendUserId và videoUrl trong body)
+//  Step 2: Kiểm URL video theo whitelist host
+//  Step 3: Kiểm tra 2 người đã là bạn (lỗi chung 404, không lộ quan hệ)
+//  Step 4: Chuẩn hóa cặp (low, high), cặp đang xem chung thì trả phiên cũ
+//  Step 5: Trong transaction, ghi phiên rồi 2 participant (PK user_id chặn trùng)
+//  Step 6: Thua race: đọc lại để phân biệt replay với user ở phiên khác
+//  Step 7: Báo movie.session.started qua Redis cho cả 2 người
+//  Step 8: Controller trả phiên theo góc nhìn của người tạo
 
 // [CONTROLLER] MovieMatchController.createSession  ·  movie-match.controller.ts L46–47, L50–67
 @Controller('movie-match')

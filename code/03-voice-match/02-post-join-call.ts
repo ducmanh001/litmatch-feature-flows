@@ -1,41 +1,14 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/calling/match-sessions/:matchSessionId/join
 //  Mở phòng gọi cho cặp đã ghép: tạo CallSession duy nhất rồi cấp token LiveKit riêng cho từng người.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [EXTERNAL] → [SERVICE]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận yêu cầu vào phòng gọi (giới hạn 20 lần/phút); chỉ lấy id session
-//                 từ URL, người dùng lấy từ JWT; trả call, token và URL LiveKit.
-//    [SERVICE]    Kiểm tra user thuộc session voice đã ghép, tạo hoặc lấy CallSession
-//                 duy nhất của cặp, kiểm lại session lần nữa, rồi cấp token và chọn URL
-//                 LiveKit.
-//    [POSTGRES]   CallSession là nguồn sự thật của cuộc gọi; unique match_session_id
-//                 bảo đảm 1 lượt ghép chỉ có 1 cuộc gọi dù 2 người join cùng lúc.
-//    [EXTERNAL]   LiveKit SDK ký token vào phòng call-{id} bằng API key và secret; mỗi
-//                 người một token riêng, identity là userId.
-//
-//  Bảng       call_sessions — 1 dòng cho mỗi cuộc gọi: tên phòng LiveKit, 2 user, trạng
-//               thái pending, active hoặc ended.
-//             match_sessions — chỉ đọc: cặp đã ghép, loại voice, trạng thái confirmed
-//               (Matching là chủ sở hữu).
-//             users — chỉ đọc region của 2 người để chọn URL LiveKit khi bật nhiều
-//               region.
-//  Liên quan  Matching — findSessionById: đọc MatchSession; Matching giữ quyền ghi
-//               trạng thái session, Calling chỉ đọc.
-//             User — getByIdOrThrow: đọc region của 2 người cho bước chọn URL.
-//             Calling endById — đóng CallSession khi MatchSession đã kết thúc (chi tiết
-//               ở luồng webhook và ticker).
-//             LiveKit — SFU thật nằm ngoài core-api; ở bước này core-api chỉ ký token,
-//               chưa mở kết nối nào.
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận yêu cầu vào phòng (giới hạn 20 lần/phút, user từ JWT)
+//  Step 2: Kiểm user thuộc session (không phải thành viên thì 404)
+//  Step 3: Lấy CallSession hiện có; session đã kết thúc thì từ chối
+//  Step 4: Chưa có call thì tạo CallSession pending (roomName do server đặt)
+//  Step 5: 2 người join cùng lúc: unique match_session_id, bên thua đọc lại call
+//  Step 6: Đọc lại session; đã kết thúc giữa chừng thì đóng luôn call vừa tạo
+//  Step 7: Ký token LiveKit riêng cho user (identity = userId)
+//  Step 8: Trả call, token và URL LiveKit về controller
+//  Step 9: Controller trả call, token, URL LiveKit và số giây gọi miễn phí
 
 // [CONTROLLER] CallingController.join  ·  calling.controller.ts L26–27, L30–53
 @Controller('calling')

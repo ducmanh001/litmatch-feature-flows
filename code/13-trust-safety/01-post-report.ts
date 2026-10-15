@@ -1,36 +1,14 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/safety/reports
 //  Ghi report và trừ trust score của người bị báo cáo trong 1 transaction, có chống lạm dụng theo cặp và theo ngày.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận report (giới hạn 10 lần/giờ), giao cho service và trả report vừa
-//                 ghi.
-//    [SERVICE]    Chặn tự report, khóa người bị báo cáo, tính điểm phạt theo cooldown
-//                 của cặp và trần penalty trong ngày, ghi report rồi trừ điểm.
-//    [POSTGRES]   Khóa dòng user (FOR UPDATE) tuần tự hóa mọi penalty của 1 người;
-//                 report ghi append-only; trừ điểm bằng UPDATE nguyên tử có sàn.
-//
-//  Bảng       users — dòng người bị báo cáo bị khóa FOR UPDATE; cột trust_score bị trừ
-//               (không xuống dưới sàn).
-//             reports — log append-only: người báo, người bị báo, lý do,
-//               trust_penalty_applied (số điểm đã trừ thật, có thể là 0); đồng thời là
-//               nguồn đếm cooldown theo cặp và tổng penalty trong ngày.
-//  Liên quan  User — getByIdOrThrow kiểm người bị báo cáo tồn tại; adjustTrustScore trừ
-//               điểm bằng UPDATE GREATEST(sàn, điểm + delta) cùng transaction (không
-//               chép).
-//             Matching — đọc trust_score lúc user vào hàng đợi: điểm thấp thì bị cộng
-//               thêm thời gian chờ ảo nên xếp sau; canPair còn không ghép lại cặp vừa
-//               report trong N ngày (chưa chép).
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận report (giới hạn 10 lần/giờ; user từ JWT, người bị báo từ body)
+//  Step 2: Chặn tự report, kiểm người bị báo cáo có tồn tại
+//  Step 3: Mở transaction, khóa dòng user bị báo cáo (FOR UPDATE)
+//  Step 4: Đếm report đã trừ điểm của cặp này trong cooldown
+//  Step 5: Tính phần trần penalty 24 giờ còn lại của người bị báo
+//  Step 6: Tính điểm phạt: 0 nếu cặp đã bị phạt, không vượt trần ngày
+//  Step 7: Ghi report (append-only) kèm số điểm đã trừ thật
+//  Step 8: Trừ trust score (có sàn) trong cùng transaction
+//  Step 9: Controller trả report vừa ghi
 
 // [CONTROLLER] SafetyController.createReport  ·  safety.controller.ts L29–30, L33–53
 @Controller('safety')

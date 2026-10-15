@@ -1,44 +1,14 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/matching/tickets/:id/speedup
 //  Trả Diamond để vé được ưu tiên: trừ tiền trước, cộng boost vào DB, rồi đặt lại điểm trong Redis.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận yêu cầu speed-up kèm header Idempotency-Key; user lấy từ JWT, id
-//                 vé từ URL; trả kết quả kèm giá speed-up hiện hành.
-//    [SERVICE]    Kiểm tra vé là của chính user và còn queued, tính giá theo hạng VIP,
-//                 trừ Diamond qua Economy, cộng boost vào vé, rồi đặt lại điểm trong
-//                 Redis.
-//    [POSTGRES]   Nguồn sự thật của tổng boost trên vé (priority_boost_ms, cộng dồn
-//                 nguyên tử) và của ví Diamond.
-//    [REDIS]      Hàng đợi dẫn xuất: điểm của vé trong sorted set được đặt lại thấp hơn
-//                 để matcher ghép vé này trước.
-//
-//  Bảng       match_tickets — vé đang chờ: trạng thái queued, nhóm ghép,
-//               priority_boost_ms cộng dồn mỗi lần speed-up.
-//             wallets — ví Diamond: bị khóa FOR UPDATE và trừ số dư trong lúc ghi sổ;
-//               đọc hạng VIP để tính giá.
-//             transactions — 1 giao dịch matching_speedup cho mỗi lần trả tiền, key
-//               idempotency unique.
-//             ledger_entries — bút toán sổ kép: Nợ ví user, Có system_revenue.
-//             outbox_events — event economy.diamond.debited ghi cùng transaction với số
-//               dư.
-//  Redis      matching:queue:{matchType}:{region}:{ageBand} — sorted set; member =
-//               ticketId, score = enqueuedAt + trustPenalty - priorityBoost (nhỏ ghép
-//               trước); speed-up ghi lại score nhỏ hơn.
-//  Liên quan  Economy — spendDiamond: ghi sổ kép, khóa ví FOR UPDATE, kiểm số dư,
-//               idempotent theo key; getActiveVipTier: đọc hạng VIP để tính giá.
-//             Matching worker — bước kế tiếp: matcher ZPOPMIN lấy vé điểm thấp nhất nên
-//               vé đã boost được ghép trước (xem luồng vào hàng đợi Voice Match).
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận request (user từ JWT, id vé từ URL, Idempotency-Key từ header)
+//  Step 2: Kiểm tra vé (đúng chủ vé, còn đang queued)
+//  Step 3: Tính giá speed-up và tạo key idempotent
+//  Step 4: Trừ Diamond qua Economy
+//  Step 5: Cộng boost vào vé trong Postgres
+//  Step 6: Đọc lại tổng boost, rồi đặt lại điểm của vé trong Redis
+//  Step 7: Ghi điểm mới của vé vào sorted set của shard
+//  Step 8: Service trả kết quả về controller
+//  Step 9: Controller trả response kèm giá speed-up hiện hành
 
 // [CONTROLLER] MatchingController.speedup  ·  matching.controller.ts L42–43, L134–154
 @Controller('matching')

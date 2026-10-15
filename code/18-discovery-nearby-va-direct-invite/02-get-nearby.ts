@@ -1,49 +1,14 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  GET /api/v1/discovery/nearby
 //  Trả danh sách người gần vị trí của mình dưới dạng nhóm khoảng cách, có 3 lớp chống dò vị trí.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [REDIS] → [POSTGRES] → [SERVICE]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận bộ lọc (giới tính, tuổi) và cursor, trả trang thẻ người dùng kèm
-//                 nhóm khoảng cách.
-//    [SERVICE]    Kiểm hạn mức, opt-in và độ tươi của vị trí; lấy ứng viên, tính khoảng
-//                 cách haversine cộng jitter, sắp xếp và phân trang bằng keyset cursor
-//                 ngay ở app.
-//    [REDIS]      Bộ đếm hạn mức truy vấn nearby theo user (Lua nguyên tử), chống dò
-//                 quét bằng nhiều truy vấn.
-//    [POSTGRES]   Lọc hộp giới hạn bằng btree (lat, lon) cùng các điều kiện hiển thị
-//                 trong 1 câu SELECT; vị trí chỉ lưu dạng đã làm tròn.
-//
-//  Bảng       user_locations — vị trí đã làm tròn của từng user (PK user_id) cùng
-//               updated_at để biết còn tươi; index btree (lat, lon) phục vụ lọc hộp
-//               giới hạn.
-//             discovery_settings — cờ nearby_visible: opt-in của chính mình (điều kiện
-//               để được xem người khác) và của ứng viên (điều kiện để được thấy).
-//             user_privacy_settings — cột hide_profile: người ẩn hồ sơ bị loại khỏi ứng
-//               viên.
-//             users — đọc hồ sơ ứng viên còn active, lọc theo giới tính, tuổi, guest.
-//  Redis      discovery:nearby-query:count:{userId} — bộ đếm số truy vấn nearby của
-//               user trong cửa sổ 1 giờ; vượt hạn mức thì trả 429.
-//  Liên quan  Safety — getHiddenUserIds: tập user bị ẩn vì block (2 chiều) hoặc từng
-//               report (vĩnh viễn) (không chép).
-//             User — findActiveByIds lọc ứng viên còn active theo giới tính, tuổi,
-//               guest; PrivacySettings cho cờ showDistance (không chép).
-//             common/redis rate-limit — script Lua INCR + EXPIRE nguyên tử, dùng chung
-//               với Matching speed-up và Invite (không chép).
-//             PUT /discovery/nearby/location — lớp 1 chống trilateration: làm tròn tọa
-//               độ ~500m ngay khi ghi, nên user_locations không chứa tọa độ thô (chưa
-//               chép).
-//             PUT /discovery/nearby/visible — bật/tắt opt-in; tắt thì xóa dòng vị trí
-//               cùng transaction (chưa chép).
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận bộ lọc (giới tính, tuổi) và cursor từ query
+//  Step 2: Kiểm hạn mức truy vấn nearby của user qua Redis (429 nếu vượt)
+//  Step 3: Kiểm user đã bật hiển thị Nearby (opt-in)
+//  Step 4: Lấy vị trí của mình, vị trí quá hạn coi như chưa có
+//  Step 5: Lấy tập người cần ẩn (block 2 chiều, report)
+//  Step 6: Lấy ứng viên: lọc hộp giới hạn trong SQL, haversine ở app
+//  Step 7: Mỗi ứng viên: haversine + jitter, rồi sắp xếp và lọc theo cursor
+//  Step 8: Cắt trang theo limit và dựng nextCursor
+//  Step 9: Trả trang thẻ người dùng kèm nhóm khoảng cách, không trả km hay tọa độ
 
 // [CONTROLLER] DiscoveryController.nearby  ·  discovery.controller.ts L26–27, L75–89
 @Controller('discovery')

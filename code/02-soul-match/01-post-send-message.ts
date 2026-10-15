@@ -1,46 +1,16 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/soul-match/sessions/:id/messages
 //  Gửi tin nhắn trong phòng ẩn danh: giờ chat tính ở server, idempotent theo key, realtime riêng cho từng người nhận.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận tin nhắn (giới hạn 60 lần/phút) kèm Idempotency-Key bắt buộc;
-//                 user lấy từ JWT, id phòng từ URL; trả tin nhắn với vai trò me hoặc
-//                 partner, không lộ id đối phương.
-//    [SERVICE]    Tính phase của phòng theo giờ server, kiểm user chưa bị khóa và còn
-//                 trong giờ chat, ghi tin nhắn trong transaction đã khóa session, rồi
-//                 phát realtime riêng cho từng người.
-//    [POSTGRES]   Khóa dòng match_sessions FOR UPDATE; unique idempotency_key chặn nhân
-//                 đôi tin nhắn; seq do DB cấp để phân trang theo cursor.
-//    [REDIS]      Pub/sub báo soul.message tới 2 người; payload tính sẵn cho từng người
-//                 nhận để giữ ẩn danh.
-//
-//  Bảng       match_sessions — phòng chat là view dẫn xuất từ session soul đã
-//               confirmed; dòng bị khóa FOR UPDATE khi ghi tin.
-//             soul_chat_messages — tin nhắn chỉ thêm, không sửa: nội dung, người gửi,
-//               idempotency_key unique, seq tăng dần.
-//             users — chỉ đọc trạng thái (có bị khóa hay không) của người gửi.
-//             friendships — chỉ đọc: đã là bạn thì phòng không còn hết giờ chat.
-//  Redis      realtime:user:{userId} — kênh pub/sub theo người nhận; core-api phát
-//               soul.message, signaling-gateway chuyển xuống socket.
-//  Liên quan  Matching — findSessionById: đọc MatchSession; Matching giữ quyền ghi
-//               trạng thái session.
-//             Friend — areFriends: Friendship là nguồn sự thật để chat không còn hết
-//               giờ sau khi cả 2 đã thích nhau.
-//             User — getByIdOrThrow: đọc trạng thái người gửi để kiểm tra ban.
-//             Soul Match (rating) — luồng khác khóa cùng dòng session rồi chụp lịch sử
-//               chat để import sang Friend Chat (xem luồng rating).
-//             signaling-gateway — subscribe kênh realtime của user, đẩy soul.message
-//               xuống client.
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận request (user từ JWT, id phòng từ URL, Idempotency-Key từ header)
+//  Step 2: Lấy phòng chat và tính phase theo giờ server
+//  Step 3: Chặn nếu phòng không còn ở phase chatting
+//  Step 4: Kiểm tra người gửi chưa bị khóa tài khoản
+//  Step 5: Gắn user vào Idempotency-Key của client
+//  Step 6: Trong transaction, khóa dòng session FOR UPDATE
+//  Step 7: Kiểm lại hạn chat sau khi đã có khóa
+//  Step 8: Ghi tin nhắn (unique idempotency_key chặn nhân đôi)
+//  Step 9: Phát soul.message qua Redis, payload riêng cho từng người
+//  Step 10: Trùng key: cùng nội dung thì trả tin cũ, khác thì 409
+//  Step 11: Controller trả tin nhắn với vai trò me hoặc partner
 
 // [CONTROLLER] SoulMatchController.sendMessage  ·  soul-match.controller.ts L43–44, L85–107
 @Controller('soul-match')

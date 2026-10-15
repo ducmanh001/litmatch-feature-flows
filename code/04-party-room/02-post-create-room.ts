@@ -1,46 +1,15 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/party/rooms
 //  Tạo phòng và membership host trong 1 transaction, rồi tạo room trên LiveKit; SFU lỗi thì đóng phòng bù trừ.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [EXTERNAL] → [SERVICE]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận request tạo phòng (giới hạn 5 lần/phút), trả phòng, membership
-//                 host, token publish và URL LiveKit.
-//    [SERVICE]    Kiểm tiêu đề, chốt URL LiveKit theo region host, ghi phòng + host
-//                 trong 1 transaction; sau commit tạo room SFU, lỗi thì bù trừ bằng
-//                 cách đóng phòng.
-//    [POSTGRES]   Ghi phòng và membership host nguyên tử; unique index 1 user 1 phòng
-//                 chặn host đang ở phòng khác.
-//    [EXTERNAL]   LiveKit: tạo room tường minh (giới hạn người, tự đóng khi trống), rồi
-//                 ký token publish cho host.
-//    [REDIS]      Chỉ dùng khi bù trừ: đóng phòng thì pub/sub báo party.room.closed cho
-//                 member.
-//
-//  Bảng       party_rooms — dòng phòng mới: host, title, status active, speaker_limit
-//               chụp từ config, livekit_url chụp theo region host; đóng với
-//               close_reason error khi SFU lỗi.
-//             party_room_members — dòng membership role host; bị đánh dấu left_at khi
-//               phòng bị đóng bù trừ.
-//             users — chỉ đọc region của host khi bật multi-region, để chọn URL
-//               LiveKit.
-//  Redis      realtime:user:{userId} — chỉ khi bù trừ: publish party.room.closed cho
-//               member đang active.
-//  Liên quan  LiveKit (SFU) — tạo room party-{roomId} với maxParticipants và
-//               emptyTimeout; deleteRoom khi đóng phòng; ký token host
-//               (canPublish=true).
-//             User — getByIdOrThrow lấy region của host (chỉ khi LIVEKIT_REGION_URLS có
-//               giá trị).
-//             PartyRoomSweeper — backstop: đóng phòng còn trong DB nhưng không còn trên
-//               SFU, nếu bù trừ cũng lỗi (chưa chép).
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận request (user từ JWT, title và category từ body; 5 lần/phút)
+//  Step 2: Chốt URL LiveKit theo region của host
+//  Step 3: Ghi phòng và membership host trong 1 transaction
+//  Step 4: Sau commit, tạo room tường minh trên LiveKit
+//  Step 5: SFU lỗi: đóng phòng vừa tạo để bù trừ
+//  Step 6: Đóng phòng idempotent: khóa dòng phòng, đã closed thì bỏ qua
+//  Step 7: Dọn room trên SFU và báo party.room.closed cho member
+//  Step 8: Trả 503 để client thử lại sau
+//  Step 9: Ký token publish cho host, trả phòng và URL LiveKit
+//  Step 10: Controller trả phòng, membership host, token và URL LiveKit
 
 // [CONTROLLER] PartyRoomController.create  ·  party-room.controller.ts L46–47, L50–63
 @Controller('party/rooms')

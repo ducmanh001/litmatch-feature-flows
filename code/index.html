@@ -76,12 +76,12 @@ main{padding:8px 0 32px}
 <div class="box">
   <div class="bar">
     <div class="path"><a href="https://github.com/ducmanh001/litmatch-feature-flows">litmatch-feature-flows</a> / <b>code</b><span class="meta">25 chức năng</span></div>
-    <div class="actions"><a class="btn" href="../index.html">Sơ đồ luồng</a><button class="btn" id="theme" type="button" title="Đổi theme">Theme: Tự động</button></div>
+    <div class="actions"><a class="btn" href="../ai/index.html">AI / Văn bản</a><a class="btn" href="../index.html">Sơ đồ luồng</a><button class="btn" id="theme" type="button" title="Đổi theme">Theme: Tự động</button></div>
   </div>
   <div class="legend"><span>Tầng:</span><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-worker">WORKER</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-redis">REDIS</b><b class="lg tg-kafka">KAFKA</b><b class="lg tg-bullmq">BULLMQ</b><b class="lg tg-external">EXTERNAL</b><b class="lg tg-gateway">GATEWAY</b></div>
   <div class="idx">
     <h1>Các luồng khó của Litmatch: code kèm lời giải thích</h1>
-    <p>Chỉ chọn luồng có nhiều nghiệp vụ hoặc cơ chế kỹ thuật (Redis, transaction DB, idempotency, webhook, worker nền); bỏ CRUD cơ bản. Mỗi chức năng là một trang: code thật đọc từ trên xuống theo thứ tự chạy, hàm được gọi chép ngay tại dòng gọi, ngang cấp (chỉ khối { } mới thụt vào), có đánh số Step và nhãn tầng tô màu; comment chỉ trả lời "vì sao" ở chỗ logic khó. Mở trang để xem vai trò từng tầng, từng bảng, từng module liên quan.</p>
+    <p>Chỉ chọn luồng có nhiều nghiệp vụ hoặc cơ chế kỹ thuật (Redis, transaction DB, idempotency, webhook, worker nền); bỏ CRUD cơ bản. Mỗi chức năng là một trang: code thật đọc từ trên xuống theo thứ tự chạy, hàm được gọi chép ngay tại dòng gọi, ngang cấp (chỉ khối { } mới thụt vào), có đánh số Step và nhãn tầng tô màu; comment chỉ trả lời "vì sao" ở chỗ logic khó. Mở trang để đọc đầy đủ Step; dữ liệu tầng, bảng, Redis và module liên quan có trong bản AI / Văn bản.</p>
 <h2 id="02-soul-match">02 · Soul Match</h2>
 <p class="sum">Chat ẩn danh vài phút giữa 2 người đã ghép, đánh giá nhau; cả 2 cùng thích thì thành bạn và giữ lại lịch sử chat.</p>
 <table class="tbl ov"><thead><tr><th>Chức năng</th><th>Làm gì</th><th>Tầng đi qua</th></tr></thead><tbody>

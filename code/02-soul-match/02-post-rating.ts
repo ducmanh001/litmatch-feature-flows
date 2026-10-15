@@ -1,50 +1,16 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/soul-match/sessions/:id/rating
 //  Ghi rating bất biến; khi cả 2 cùng like thì tạo Friendship, Conversation và chuyển lịch sử chat trong một transaction.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [SERVICE] → [POSTGRES] → [REDIS]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận verdict (rude, boring, like) của user dành cho đối phương; chỉ
-//                 lấy id phòng từ URL, user lấy từ JWT.
-//    [SERVICE]    Kiểm tra phòng còn trong cửa sổ đánh giá, khóa session, ghi rating
-//                 bất biến, và khi cả 2 cùng like thì nhờ Friend tạo quan hệ bạn kèm
-//                 chuyển lịch sử chat.
-//    [POSTGRES]   Khóa dòng match_sessions để 2 lượt like tuần tự; unique (session_id,
-//                 rater_user_id) chống ghi trùng; Friendship, Conversation và tin nhắn
-//                 import cùng một transaction.
-//    [REDIS]      Pub/sub báo soul.matched cho cả 2 người, sau commit, khi quan hệ bạn
-//                 vừa được tạo.
-//
-//  Bảng       match_sessions — dòng bị khóa FOR UPDATE để tuần tự hóa 2 người đánh giá;
-//               chỉ khóa, không ghi (Matching là chủ sở hữu).
-//             soul_match_ratings — 1 dòng cho mỗi người trong mỗi session, không sửa
-//               được; unique (session_id, rater_user_id).
-//             soul_chat_messages — đọc toàn bộ lịch sử chat ẩn danh của session khi cả
-//               2 cùng like.
-//             friendships — quan hệ bạn bè 2 chiều, 1 dòng theo cặp canonical (low <
-//               high), unique.
-//             conversations — phòng chat bền vững của cặp, tạo cùng Friendship.
-//             messages — lịch sử chat ẩn danh được chép sang; idempotency_key import ổn
-//               định nên chạy lại không nhân đôi.
-//  Redis      realtime:user:{userId} — kênh pub/sub theo người nhận; core-api phát
-//               soul.matched, signaling-gateway chuyển xuống socket.
-//  Liên quan  Friend — ensureFriendship và areFriends; ensureFriendship được chép đầy
-//               đủ ở dưới vì là cơ chế chính của bước tạo bạn.
-//             Matching — findSessionById đọc session; Matching giữ quyền ghi trạng thái
-//               session.
-//             Soul Match (gửi tin nhắn) — khóa cùng dòng session: một tin nhắn không
-//               thể lọt vào giữa lúc chụp lịch sử chat (xem luồng gửi tin nhắn).
-//             signaling-gateway — subscribe kênh realtime của user, đẩy soul.matched
-//               xuống client.
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận request (user từ JWT, id phòng từ URL, verdict trong body)
+//  Step 2: Kiểm tra user thuộc phòng và còn trong cửa sổ đánh giá
+//  Step 3: Trong transaction, khóa dòng session FOR UPDATE
+//  Step 4: Đã đánh giá rồi: cùng verdict thì trả kết quả cũ, khác thì 409
+//  Step 5: Ghi rating (unique session + người đánh giá)
+//  Step 6: Cả 2 cùng like: chụp lịch sử chat ẩn danh theo seq
+//  Step 7: Nhờ Friend tạo Friendship và Conversation, cùng transaction
+//  Step 8: Chép lịch sử chat ẩn danh sang Conversation
+//  Step 9: Double-submit song song: đọc lại rồi replay hoặc 409
+//  Step 10: Sau commit, báo soul.matched qua Redis cho cả 2 người
+//  Step 11: Controller trả verdict và cờ matched
 
 // [CONTROLLER] SoulMatchController.rate  ·  soul-match.controller.ts L43–44, L109–123
 @Controller('soul-match')

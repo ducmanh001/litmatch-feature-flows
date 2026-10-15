@@ -1,41 +1,13 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/party/rooms/:id/speaker-invite/accept
 //  Audience đồng ý lời mời của host để lên speaker: đếm giới hạn dưới khóa phòng, commit role, rồi mở quyền publish trên LiveKit.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [EXTERNAL] → [REDIS]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận request của chính audience được mời, trả membership sau khi đổi
-//                 role.
-//    [SERVICE]    Khóa phòng, kiểm lời mời đang chờ, đếm speaker so với giới hạn, đổi
-//                 role; sau commit mới gọi SFU, lỗi thì hoàn role cũ.
-//    [POSTGRES]   Khóa dòng phòng (FOR UPDATE) làm điểm tuần tự hóa; role và cờ
-//                 speaker_invite_pending nằm ở dòng membership.
-//    [EXTERNAL]   LiveKit: updateParticipant đổi quyền publish ngay cho người đang kết
-//                 nối, không cần cấp lại token.
-//    [REDIS]      Pub/sub báo party.role.changed cho mọi member đang ở phòng.
-//
-//  Bảng       party_rooms — khóa FOR UPDATE; đọc status và speaker_limit (chụp lúc tạo
-//               phòng).
-//             party_room_members — dòng của người accept: kiểm role audience và
-//               speaker_invite_pending, đếm role speaker, đổi role thành speaker; hoàn
-//               role cũ khi SFU lỗi.
-//  Redis      realtime:user:{userId} — publish party.role.changed tới từng member đang
-//               active, mỗi người một kênh.
-//  Liên quan  inviteSpeaker — bước trước: host gửi lời mời, chỉ bật cờ
-//               speaker_invite_pending, người được mời vẫn là audience (chưa chép).
-//             LiveKit (SFU) — nhận lệnh updateParticipant đổi grant canPublish của
-//               participant đang nối.
-//             signaling-gateway — subscribe pub/sub và đẩy party.role.changed xuống
-//               socket.
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận request (user từ JWT, id phòng từ URL)
+//  Step 2: Trong transaction, khóa dòng phòng FOR UPDATE
+//  Step 3: Kiểm tra lời mời đang chờ (đã là speaker thì trả luôn)
+//  Step 4: Đếm speaker so với giới hạn, rồi đổi role thành speaker
+//  Step 5: Sau commit, gọi LiveKit mở quyền publish cho người này
+//  Step 6: LiveKit lỗi: hoàn role cũ bằng transaction mới
+//  Step 7: Báo party.role.changed cho mọi member qua Redis
+//  Step 8: Service trả membership, controller trả DTO
 
 // [CONTROLLER] PartyRoomController.acceptSpeakerInvite  ·  party-room.controller.ts L46–47, L195–206
 @Controller('party/rooms')

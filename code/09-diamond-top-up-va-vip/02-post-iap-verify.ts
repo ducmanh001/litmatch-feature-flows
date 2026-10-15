@@ -1,43 +1,14 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/economy/iap/verify
 //  Xác thực receipt với Apple hoặc Google ở server, rồi cộng Diamond đúng một lần theo id giao dịch của store.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [EXTERNAL] → [SERVICE] → [POSTGRES]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận receipt hoặc purchase token từ app (giới hạn 10 lần/phút); user
-//                 lấy từ JWT, provider, payload và productId từ body.
-//    [SERVICE]    Tra catalog, nhờ verifier hỏi store để xác thực, rồi ghi sổ
-//                 idempotent theo id giao dịch của store.
-//    [EXTERNAL]   Apple verifyReceipt (production rồi sandbox) hoặc Google Play
-//                 Developer API xác nhận giao dịch thật và trả providerTransactionId.
-//    [POSTGRES]   Một transaction ghi giao dịch, bút toán, số dư ví và iap_receipts;
-//                 unique (provider, provider_transaction_id) chặn credit đôi.
-//
-//  Bảng       iap_products — catalog: productId của store và provider ứng với bao nhiêu
-//               Diamond (chỉ đọc).
-//             iap_receipts — 1 dòng cho mỗi receipt đã credit, trỏ tới transaction;
-//               unique (provider, provider_transaction_id).
-//             transactions — 1 giao dịch iap_purchase, key idempotency do server sinh
-//               từ id giao dịch của store.
-//             ledger_entries — bút toán sổ kép: Nợ system_iap, Có user_wallet.
-//             wallets — số dư Diamond tăng thêm; nếu đang âm (nợ do hoàn tiền trước đó)
-//               thì khoản nạp tự bù nợ.
-//             outbox_events — event economy.diamond.credited ghi cùng transaction.
-//  Liên quan  Economy (LedgerService) — record: idempotency theo key, khóa ví FOR
-//               UPDATE, sổ kép, outbox; phần lõi này có trong luồng Mua VIP.
-//             Hoàn tiền từ Apple — luồng ngược: khi Apple báo REFUND, receipt này được
-//               đảo bút toán và có thể làm số dư âm.
-//             Job đối soát — coi receipt đã credit mà không có transaction là lệch, nên
-//               transactionId của receipt là bắt buộc.
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận receipt từ app (user từ JWT; tối đa 10 lần/phút)
+//  Step 2: Tra catalog để ra số Diamond (client không gửi số lượng)
+//  Step 3: Hỏi Apple hoặc Google xác thực receipt ở server
+//  Step 4: Apple: gọi production trước, receipt sandbox thì gọi lại sandbox
+//  Step 5: Apple: khớp productId và transactionId trong receipt
+//  Step 6: Google: hỏi Publisher API, chỉ nhận purchaseState = purchased
+//  Step 7: Ghi sổ Nợ system_iap / Có ví user, key theo id giao dịch store
+//  Step 8: Lưu iap_receipts cùng transaction (unique chặn credit đôi)
+//  Step 9: Trả transactionId, số Diamond và cờ replayed
 
 // [CONTROLLER] EconomyController.verifyIap  ·  economy.controller.ts L48–49, L118–132
 @Controller('economy')

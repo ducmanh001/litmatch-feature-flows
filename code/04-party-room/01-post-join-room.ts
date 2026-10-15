@@ -1,44 +1,13 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/party/rooms/:id/join
 //  Vào phòng Party làm audience, hoặc vào lại khi rớt mạng, rồi nhận token LiveKit theo role hiện tại (audience không được publish).
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS] → [EXTERNAL]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận request join (giới hạn 20 lần/phút), gom user và id phòng, trả
-//                 phòng, membership, token và URL LiveKit.
-//    [SERVICE]    Khóa phòng, nhận ra join lại, kiểm sức chứa, tạo membership audience;
-//                 sau commit mới bắn realtime và ký token.
-//    [POSTGRES]   Nguồn sự thật của phòng và membership; khóa dòng phòng (FOR UPDATE)
-//                 và partial unique index chống ghi trùng.
-//    [REDIS]      Pub/sub báo cho các member còn lại, mỗi người một kênh riêng;
-//                 signaling-gateway đẩy event xuống socket.
-//    [EXTERNAL]   LiveKit: token là JWT chứa quyền publish; audience canPublish=false
-//                 nên SFU tự chặn việc tự unmute.
-//
-//  Bảng       party_rooms — dòng phòng bị khóa FOR UPDATE: đọc status, livekitUrl; xóa
-//               mốc host rớt (host_disconnected_at) khi host nối lại.
-//             party_room_members — membership theo dòng (active = left_at IS NULL): đếm
-//               sức chứa, tạo dòng role audience, hoặc xóa mốc disconnected khi join
-//               lại.
-//  Redis      realtime:user:{userId} — kênh pub/sub riêng của từng member; core-api
-//               publish party.member.joined (hoặc reconnected), signaling-gateway
-//               subscribe rồi đẩy xuống socket.
-//  Liên quan  LiveKit (SFU) — áp quyền publish theo token; maxParticipants ở SFU là
-//               chốt chặn sức chứa thứ hai sau giới hạn trong DB.
-//             PartyRoomSweeper — job nền đóng phòng khi host rớt quá thời gian chờ;
-//               tranh cùng dòng phòng với join nên không đóng nhầm phòng vừa hồi phục
-//               (chưa chép).
-//             signaling-gateway — subscribe pub/sub và đẩy event party.* xuống socket
-//               của từng member.
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận request (user từ JWT, id phòng từ URL; tối đa 20 lần/phút)
+//  Step 2: Trong transaction, khóa dòng phòng FOR UPDATE
+//  Step 3: Join lại khi rớt mạng: xóa mốc rớt, không tạo membership mới
+//  Step 4: Đếm member đang ở phòng, so với sức chứa
+//  Step 5: Tạo membership audience (unique index chặn đang ở phòng khác)
+//  Step 6: Sau commit, báo party.member.joined cho các member còn lại
+//  Step 7: Chốt URL LiveKit của phòng, ký token theo role hiện tại
+//  Step 8: Controller trả phòng, membership, token và URL LiveKit
 
 // [CONTROLLER] PartyRoomController.join  ·  party-room.controller.ts L46–47, L132–147
 @Controller('party/rooms')

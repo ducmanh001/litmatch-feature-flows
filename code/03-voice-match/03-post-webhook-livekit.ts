@@ -1,49 +1,17 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/calling/webhooks/livekit
 //  LiveKit báo ai vào hoặc rời phòng, ticker nền canh giờ (reconnect, tối đa 420 giây) rồi kết thúc call.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [EXTERNAL] → [SERVICE] → [POSTGRES] → [WORKER] → [SERVICE]
-//             → [EXTERNAL] → [REDIS]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận webhook công khai của LiveKit, lấy nguyên văn body và header
-//                 Authorization, kiểm chữ ký rồi mới giao event cho service; sau verify
-//                 luôn trả 200.
-//    [EXTERNAL]   LiveKit SDK kiểm chữ ký JWT của webhook; khi call kết thúc, core-api
-//                 gọi ngược LiveKit để xóa phòng.
-//    [SERVICE]    Biến event vào hoặc rời phòng thành trạng thái CallSession (pending,
-//                 active, đang reconnect, ended); mọi nhánh kết thúc dùng chung một hàm
-//                 end idempotent.
-//    [POSTGRES]   CallSession là nguồn sự thật của thời gian: mốc vào phòng, mốc bắt
-//                 đầu, cửa sổ reconnect; khóa dòng FOR UPDATE tuần tự hóa webhook,
-//                 ticker và nút end.
-//    [WORKER]     CallTickerService chạy nền theo chu kỳ ngắn (mặc định 1 giây): đóng
-//                 call pending quá hạn, call rớt mạng quá cửa sổ reconnect, và call
-//                 Voice Match chạm 420 giây.
-//    [REDIS]      Pub/sub báo call.ended cho 2 người để client đóng màn hình gọi.
-//
-//  Bảng       call_sessions — 1 dòng cho mỗi cuộc gọi: trạng thái, mốc vào phòng và rớt
-//               của từng bên, mốc bắt đầu reconnect, lý do và thời lượng khi kết thúc.
-//             match_sessions — chỉ được Matching sửa: chuyển sang ended khi call kết
-//               thúc để 2 người không bị session cũ giữ lại.
-//  Redis      realtime:user:{userId} — kênh pub/sub theo người nhận; core-api phát
-//               call.ended, signaling-gateway chuyển xuống socket.
-//  Liên quan  Matching — endVoiceSessionForCall: chốt MatchSession sang ended khi call
-//               kết thúc.
-//             LiveKit — SFU gửi webhook participant_joined, participant_left,
-//               room_finished; core-api xóa phòng sau khi kết thúc.
-//             signaling-gateway — subscribe kênh realtime của user, đẩy call.ended
-//               xuống client.
-//             Calling (GET /calling/calls/:id) — đường đối soát dự phòng khi webhook bị
-//               mất: hỏi LiveKit ai đang trong phòng (chưa chép).
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận webhook công khai của LiveKit (@Public, lấy nguyên văn body)
+//  Step 2: Kiểm chữ ký webhook (sai thì 401) rồi mới đọc event
+//  Step 3: Chỉ nhận phòng có prefix call-, tìm CallSession theo roomName
+//  Step 4: Người vào phòng: khóa dòng, ghi mốc; đủ 2 người thì call sang active
+//  Step 5: Người rớt: ghi mốc rớt, mở cửa sổ reconnect, chưa end call
+//  Step 6: Sau khi chữ ký hợp lệ luôn trả 200 { ok: true }
+//  Step 7: Ticker nền: đăng ký job theo chu kỳ, mỗi tick chỉ 1 pod chạy
+//  Step 8: Đóng call pending quá hạn (chưa ai vào đủ)
+//  Step 9: End idempotent: khóa dòng, kiểm lại status, chốt thời lượng
+//  Step 10: Dọn sau end: chốt MatchSession, xóa phòng, phát call.ended
+//  Step 11: Đóng call rớt mạng quá cửa sổ reconnect
+//  Step 12: Đóng call Voice Match chạm 420 giây (tính trong SQL)
 
 // [CONTROLLER] LivekitWebhookController.handle  ·  livekit-webhook.controller.ts L27–28, L34–61
 @Controller('calling/webhooks')

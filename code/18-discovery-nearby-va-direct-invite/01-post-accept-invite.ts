@@ -1,49 +1,17 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/matching/invites/:id/accept
 //  Người được mời chấp nhận: tạo thẳng 2 ticket và 1 session đã confirmed, bỏ qua hàng đợi, idempotent theo (lời mời, vai trò).
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [SERVICE] → [POSTGRES] → [REDIS]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận accept của người được mời, lấy thêm hồ sơ người mời để dựng
-//                 response gồm lời mời, session và inviteeTicketId.
-//    [SERVICE]    Precheck trong transaction riêng (khóa lời mời, kiểm hạn và chuyển
-//                 trạng thái, kiểm canPair), rồi transaction chính tạo 2 ticket +
-//                 session confirmed và đổi lời mời sang accepted; bắn realtime sau
-//                 commit.
-//    [POSTGRES]   Khóa dòng lời mời (FOR UPDATE); unique index chặn user đang bận;
-//                 unique idempotency_key chặn ticket đôi; mọi ghi nằm trong 1
-//                 transaction.
-//    [REDIS]      Pub/sub báo match.confirmed cho cả 2 bên để vào phòng ngay.
-//
-//  Bảng       match_invites — 1 dòng cho mỗi lời mời: trạng thái (pending → accepted,
-//               declined, expired, cancelled), hạn expires_at, session_id khi đã
-//               accept; bị khóa FOR UPDATE.
-//             match_tickets — 2 dòng mới (người mời, người được mời) với
-//               idempotency_key theo (lời mời, vai trò); unique index "1 user 1 ticket
-//               đang hoạt động" chặn user đang bận.
-//             match_sessions — 1 dòng cho cặp vừa ghép, trạng thái confirmed, trỏ tới 2
-//               ticket.
-//             users — đọc 2 user để kiểm còn Active và lấy vùng, nhóm tuổi, trust score
-//               cho ticket.
-//  Redis      realtime:user:{userId} — publish match.confirmed ({ ticketId, sessionId
-//               }) cho cả 2 bên; signaling-gateway đẩy xuống socket.
-//  Liên quan  Safety — canPair (qua MATCH_INTERACTION_POLICY): từ chối nếu hai người
-//               block hoặc report nhau (không chép).
-//             createInvite — bước trước: tạo lời mời pending, giới hạn số lời mời mỗi
-//               giờ bằng Redis, unique 1 lời mời pending cho mỗi cặp (chưa chép).
-//             signaling-gateway — subscribe pub/sub và đẩy match.confirmed xuống socket
-//               của 2 bên.
-//             Soul Match / Calling — bước kế tiếp: từ đây luồng y hệt auto-match,
-//               client vào phòng ngay (chưa chép).
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận accept của người được mời (user từ JWT, id lời mời từ URL)
+//  Step 2: Precheck trong transaction riêng, commit xong mới throw
+//  Step 3: Khóa dòng lời mời (FOR UPDATE), kiểm đúng người được mời
+//  Step 4: Kiểm lại block/report, không ghép được thì ghi Declined
+//  Step 5: Precheck thấy đã accept thì trả lại ticket và session cũ
+//  Step 6: Mở transaction chính: tạo ticket, session, đổi lời mời
+//  Step 7: Khóa lại dòng lời mời; replay giữa chừng thì trả session cũ
+//  Step 8: Tạo 2 ticket matched, unique chặn user đang bận và ticket đôi
+//  Step 9: Tạo session confirmed, chuyển 2 ticket sang confirmed
+//  Step 10: Đổi lời mời sang accepted, lưu session_id
+//  Step 11: Sau commit, phát match.confirmed cho cả 2 bên qua Redis
+//  Step 12: Controller trả lời mời, session và inviteeTicketId
 
 // [CONTROLLER] InviteController.accept  ·  invite.controller.ts L45–46, L93–109
 @Controller('matching/invites')

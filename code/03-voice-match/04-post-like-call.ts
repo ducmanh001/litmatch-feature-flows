@@ -1,39 +1,13 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/calling/calls/:id/like
 //  Ghi lượt thích bất biến; khi cả 2 cùng thích thì tạo bạn bè và phòng chat trong cùng transaction.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận yêu cầu thích đối phương; chỉ lấy id call từ URL, người dùng lấy
-//                 từ JWT.
-//    [SERVICE]    Kiểm tra user thuộc call, chỉ cho thích khi call đang active hoặc đã
-//                 ended, ghi lượt thích bất biến, và khi cả 2 đã thích thì tạo quan hệ
-//                 bạn.
-//    [POSTGRES]   Khóa dòng CallSession để 2 lượt thích chạy tuần tự; unique (call_id,
-//                 rater_user_id) chống bấm đôi; Friendship và Conversation ghi cùng
-//                 transaction.
-//
-//  Bảng       call_sessions — dòng bị khóa FOR UPDATE để tuần tự hóa 2 lượt thích; dùng
-//               kiểm user thuộc call và trạng thái call.
-//             voice_match_reactions — 1 dòng cho mỗi người đã thích trong mỗi call,
-//               không sửa được; unique (call_id, rater_user_id).
-//             friendships — quan hệ bạn bè của cặp (1 dòng theo cặp canonical), chỉ tạo
-//               khi cả 2 đã thích.
-//             conversations — phòng chat bền vững của cặp, tạo cùng lúc với Friendship.
-//  Liên quan  Friend — ensureFriendship: tạo Friendship và Conversation bằng INSERT ...
-//               ON CONFLICT DO NOTHING trên cặp canonical, chạy trong transaction của
-//               Calling.
-//             Calling (đối soát LiveKit) — getCall hỏi LiveKit ai đang trong phòng để
-//               cập nhật trạng thái call khi webhook bị mất (chưa chép).
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận yêu cầu thích (id call từ URL, user từ JWT)
+//  Step 2: Kiểm user thuộc call (không phải thành viên thì 404)
+//  Step 3: Mở transaction DB, khóa dòng CallSession để 2 lượt thích chạy tuần tự
+//  Step 4: Chỉ cho thích khi call đang active hoặc đã ended
+//  Step 5: Ghi lượt thích bất biến của mình (bấm lại không ghi thêm)
+//  Step 6: Cả 2 đã thích thì tạo Friendship và Conversation, cùng transaction
+//  Step 7: Trả { liked, matched, friendUserId } về controller
+//  Step 8: Dính unique: coi như đã thích, đọc lại trạng thái bạn bè
 
 // [CONTROLLER] CallingController.likeCall  ·  calling.controller.ts L26–27, L126–138
 @Controller('calling')

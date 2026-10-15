@@ -1,41 +1,17 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/auth/otp/verify
 //  Kiểm mã OTP có giới hạn số lần thử và chỉ dùng một lần, rồi tìm hoặc tạo tài khoản và cấp phiên đăng nhập.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [CONTROLLER]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận số điện thoại và mã OTP (giới hạn 10 lần/phút), giao cho
-//                 service, rồi đặt refresh token vào cookie httpOnly và bóc nó khỏi
-//                 body trả về.
-//    [SERVICE]    Xác minh OTP, tìm hoặc tạo tài khoản (không tạo trùng khi 2 request
-//                 song song), cấp access token và refresh token.
-//    [POSTGRES]   Mã OTP lưu dạng băm, đếm lần thử và tiêu thụ mã bằng UPDATE có điều
-//                 kiện; unique (provider, provider_uid) chặn tạo trùng tài khoản;
-//                 refresh token lưu dạng băm.
-//
-//  Bảng       phone_otps — mã OTP của từng số: code_hash (HMAC), expires_at,
-//               attempt_count, consumed_at; chỉ mã chưa dùng mới nhất có giá trị.
-//             auth_identities — cách đăng nhập của 1 user; unique (provider,
-//               provider_uid) nên cùng số điện thoại không tạo được 2 tài khoản.
-//             users — dòng người dùng mới (nickname ngẫu nhiên, isGuest = false) hoặc
-//               dòng cũ để kiểm trạng thái.
-//             refresh_tokens — ghi 1 dòng refresh token mới (chỉ lưu băm SHA-256) cùng
-//               family_id của lần đăng nhập này.
-//  Liên quan  POST /auth/otp/request — bước trước: tạo mã 6 số, giới hạn số lần yêu cầu
-//               theo số điện thoại mỗi giờ, vô hiệu mã cũ, lưu băm (chưa chép).
-//             User — createWithManager: tạo user cùng transaction với identity (không
-//               chép).
-//             POST /auth/refresh — bước sau: đổi refresh token lấy cặp token mới (xem
-//               file 02).
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận số điện thoại và mã OTP (giới hạn 10 lần/phút)
+//  Step 2: Lấy mã OTP chưa dùng mới nhất của số này, kiểm còn hạn
+//  Step 3: Cộng 1 lượt thử cho mã này, vượt giới hạn thì 429
+//  Step 4: So băm HMAC của mã nhập với băm lưu trong DB
+//  Step 5: Đánh dấu mã đã dùng (consumed_at), không dùng lại được
+//  Step 6: Tìm tài khoản theo số điện thoại, chưa có thì tạo
+//  Step 7: Chưa có tài khoản: tạo user và identity trong 1 transaction
+//  Step 8: 2 request đầu tiên chạy song song: bên dính unique đọc lại identity
+//  Step 9: Ký access token JWT
+//  Step 10: Sinh refresh token ngẫu nhiên, DB chỉ lưu băm SHA-256
+//  Step 11: Đặt refresh token vào cookie httpOnly, bóc khỏi body trả về
+//  Step 12: Trả access token và csrfToken trong body
 
 // [CONTROLLER] AuthController.verifyOtp  ·  auth.controller.ts L38–40, L75–88
 @Public()

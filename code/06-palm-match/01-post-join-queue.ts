@@ -1,42 +1,16 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/palm-match/queue
 //  Vào hàng đợi ghép ẩn danh; nếu có người chờ phù hợp thì ghép ngay thành 1 phiên Palm Match.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận request vào hàng đợi, giao cho service và trả trạng thái hiện
-//                 tại (đang chờ hoặc đã ghép).
-//    [SERVICE]    Trong 1 transaction: lấy khóa ghép, đóng session quá hạn của user,
-//                 xếp user vào hàng đợi, duyệt người chờ lâu nhất, kiểm block/report,
-//                 tạo session snapshot.
-//    [POSTGRES]   Hàng đợi là bảng (PK user_id); khóa advisory theo transaction tuần tự
-//                 hóa việc chọn cặp; PK bảng participant là chốt cuối cho "1 user 1
-//                 session".
-//
-//  Bảng       palm_match_queue_entries — hàng đợi: mỗi user đang chờ 1 dòng (PK
-//               user_id), sắp theo queued_at; bị xóa khi quá hạn chờ hoặc khi được
-//               ghép.
-//             palm_match_active_participants — mỗi user 1 dòng trỏ tới session chưa
-//               dismiss (PK user_id); ghi 2 dòng khi ghép.
-//             palm_match_sessions — snapshot 1 lượt ghép: cặp (low, high), cung hoàng
-//               đạo mỗi bên, % hợp, lời bói, deadline expires_at.
-//             palm_reading_templates — đọc các mẫu lời bói category love đang hoạt động
-//               để chọn lời bói cho cặp.
-//  Liên quan  Safety — canPair: hai người đã block hoặc report nhau gần đây thì không
-//               ghép (không chép).
-//             Movie Match ẩn danh — dùng cùng kỹ thuật hàng đợi + khóa advisory, mỗi
-//               bên một khóa riêng (không chép).
-//             flip / rating — bước sau: mỗi bên lật lá, rồi like hoặc skip; mutual-like
-//               tạo Friendship (chưa chép).
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận request (user lấy từ JWT)
+//  Step 2: Trong transaction, lấy khóa advisory để chọn cặp tuần tự
+//  Step 3: Đóng session đã quá hạn của chính user (hết hạn kiểu lười)
+//  Step 4: Còn session chưa dismiss thì trả lại state đó, không xếp hàng
+//  Step 5: Xóa entry chờ quá hạn, rồi xếp user vào hàng đợi (PK user_id)
+//  Step 6: Lấy tối đa 20 người chờ lâu nhất (FIFO)
+//  Step 7: Duyệt ứng viên: bỏ người đã có session, kiểm block/report
+//  Step 8: Chưa có ứng viên hợp lệ: user ở lại hàng đợi, trả queued
+//  Step 9: Có cặp: tạo session snapshot (seed tất định)
+//  Step 10: Rút cả 2 khỏi hàng đợi, ghi 2 participant (PK user_id)
+//  Step 11: Trả trạng thái đã ghép theo góc nhìn của user
 
 // [CONTROLLER] PalmMatchController.joinQueue  ·  palm-match.controller.ts L33–34, L54–64
 @Controller('palm-match')

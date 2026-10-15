@@ -1,46 +1,17 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/economy/vip/purchase
 //  Trừ Diamond và gia hạn VIP trong một transaction của sổ kép: idempotent theo key, khóa ví FOR UPDATE, ghi outbox.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [WORKER] → [KAFKA]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận yêu cầu mua gói VIP kèm header Idempotency-Key bắt buộc; user
-//                 lấy từ JWT, planId từ body.
-//    [SERVICE]    EconomyService đọc giá gói từ catalog rồi dựng bút toán Nợ ví / Có
-//                 system_revenue kèm phần gia hạn VIP; LedgerService là nơi duy nhất
-//                 được ghi vào sổ cái và ví.
-//    [POSTGRES]   Một transaction làm tất cả: chèn giao dịch (unique idempotency_key),
-//                 khóa ví FOR UPDATE, ghi bút toán, trừ số dư, gia hạn VIP, ghi outbox.
-//    [WORKER]     OutboxRelayService (bật bằng ECONOMY_OUTBOX_RELAY_ENABLED, mặc định
-//                 tắt) quét outbox_events chưa gửi theo lô (FOR UPDATE SKIP LOCKED) rồi
-//                 chuyển cho EventBus.
-//    [KAFKA]      Topic litmatch.economy.events nhận event economy.vip.purchased và
-//                 economy.diamond.debited.
-//
-//  Bảng       transactions — 1 dòng cho mỗi giao dịch: type vip_purchase, key
-//               idempotency unique, request_hash, snapshot giá gói trong metadata.
-//             ledger_entries — bút toán sổ kép chỉ thêm, không sửa (trigger chặn UPDATE
-//               và DELETE): Nợ user_wallet, Có system_revenue.
-//             ledger_accounts — tài khoản nội bộ tạo khi cần: ví của user và
-//               system_revenue.
-//             wallets — số dư Diamond và hạn VIP của user; bị khóa FOR UPDATE; gia hạn
-//               cộng dồn.
-//             vip_plans — catalog gói VIP: hạng, số ngày, giá Diamond (chỉ đọc).
-//             outbox_events — event economy.diamond.debited và economy.vip.purchased,
-//               ghi cùng transaction để relay gửi Kafka sau.
-//  Liên quan  Kafka (litmatch.economy.events) — hiện chưa có module nào subscribe topic
-//               này; khi relay tắt thì outbox_events chỉ tích lũy dòng chưa gửi.
-//             Các luồng Diamond khác — speed-up, quà, nạp IAP, payOS, hoàn tiền đều ghi
-//               sổ qua LedgerService.record ở trên (các trang kia chỉ nhắc tới nó).
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận request (user từ JWT, planId trong body, Idempotency-Key từ header)
+//  Step 2: Đọc giá và số ngày của gói từ catalog server
+//  Step 3: Dựng bút toán Nợ ví / Có system_revenue, gọi LedgerService.record
+//  Step 4: Kiểm sổ kép: mỗi currency tổng Nợ phải bằng tổng Có
+//  Step 5: Băm request; key đã có thì trả kết quả cũ, không mở transaction
+//  Step 6: Trong transaction, chèn giao dịch (trùng key là replay)
+//  Step 7: Tạo hoặc lấy tài khoản sổ, khóa ví FOR UPDATE theo thứ tự userId
+//  Step 8: Ghi bút toán, trừ số dư (kiểm đủ tiền) và ghi outbox
+//  Step 9: Phần việc riêng của VIP cùng transaction: gia hạn, ghi outbox
+//  Step 10: Thua race cùng key: đọc lại dòng của bên thắng, trả như replay
+//  Step 11: Service trả hạng và hạn VIP (replay thì không gia hạn lần 2)
+//  Step 12: Worker nền: khóa lô outbox chưa gửi, gửi sang Kafka
 
 // [CONTROLLER] EconomyController.purchaseVip  ·  economy.controller.ts L48–49, L134–151
 @Controller('economy')

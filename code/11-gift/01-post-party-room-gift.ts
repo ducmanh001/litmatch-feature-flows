@@ -1,60 +1,17 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/party/rooms/:roomId/gifts
 //  Tặng quà trong Party Room: trừ DIA người tặng, cộng PTS người nhận, ghi GiftEvent trong cùng một transaction.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận yêu cầu tặng quà (giới hạn 30 lần/phút) kèm Idempotency-Key bắt
-//                 buộc; user lấy từ JWT, giftId và người nhận từ body.
-//    [SERVICE]    GiftService đọc giá quà từ DB, kiểm 2 người cùng ở trong phòng và
-//                 tính điểm PTS; EconomyService dựng 2 chân sổ kép (DIA và PTS) rồi
-//                 giao cho LedgerService ghi.
-//    [POSTGRES]   Một transaction ghi giao dịch, bút toán DIA và PTS, số dư và điểm của
-//                 ví, outbox, GiftEvent, notification; bước nào lỗi thì rollback tất
-//                 cả.
-//    [REDIS]      Sau khi commit, phát gift.sent tới từng thành viên đang ở phòng qua
-//                 pub/sub để client chạy hiệu ứng.
-//
-//  Bảng       gifts — catalog quà: giá Diamond là dữ liệu trong DB, server đọc lại đúng
-//               lúc tặng.
-//             transactions — 1 giao dịch gift_send; key idempotency gift:send:{người
-//               tặng}:{key client}.
-//             ledger_entries — bút toán nhiều chân: DIA Nợ ví người tặng / Có
-//               system_gift_pool; PTS Nợ system_points_mint / Có user_earnings của
-//               người nhận.
-//             wallets — ví người tặng bị trừ DIA (khóa FOR UPDATE); ví người nhận được
-//               cộng điểm PTS vào earnings.
-//             gift_events — 1 dòng cho mỗi lần tặng, unique transaction_id; chỉ là
-//               snapshot hiển thị, nguồn sự thật là sổ cái.
-//             outbox_events — event economy.gift.sent và economy.diamond.debited, ghi
-//               cùng transaction.
-//             notifications — thông báo gift_received cho người nhận, tạo trong cùng
-//               transaction.
-//             party_rooms — chỉ đọc: phòng phải đang mở (active) mới tặng được quà.
-//             party_room_members — chỉ đọc: người tặng và người nhận phải là thành viên
-//               đang ở trong phòng.
-//  Redis      realtime:user:{userId} — kênh pub/sub theo người nhận; core-api phát
-//               gift.sent cho từng thành viên trong phòng, signaling-gateway chuyển
-//               xuống socket.
-//  Liên quan  Economy (LedgerService) — record: idempotency theo key, khóa ví FOR
-//               UPDATE, check số dư và earnings, outbox; phần lõi này có trong luồng
-//               Mua VIP.
-//             Party Room — getActiveRoomMembers: danh sách thành viên của phòng đang
-//               mở.
-//             User — getByIdOrThrow: đọc người nhận để biết có phải guest không.
-//             Notification — createWithManager tạo thông báo trong transaction,
-//               sendPush gửi push sau commit.
-//             signaling-gateway — subscribe kênh realtime của user, đẩy gift.sent xuống
-//               client.
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận request (user từ JWT, roomId từ URL, Idempotency-Key từ header)
+//  Step 2: Chặn tự tặng, đọc giá quà từ DB
+//  Step 3: Kiểm người tặng và người nhận cùng ở trong phòng
+//  Step 4: Tính điểm PTS cho người nhận (guest thì 0)
+//  Step 5: Economy dựng 2 chân sổ kép: DIA người tặng, PTS người nhận
+//  Step 6: Ledger kiểm sổ kép: mỗi currency tự cân Nợ = Có
+//  Step 7: Mở transaction DB, chèn giao dịch idempotent
+//  Step 8: Khóa ví người tặng và người nhận theo thứ tự userId
+//  Step 9: Cập nhật số dư (DIA) và earnings (PTS), ghi outbox
+//  Step 10: Chạy tiếp outbox, GiftEvent, notification trong cùng transaction
+//  Step 11: Sau commit, lần đầu mới phát gift.sent qua Redis và push
+//  Step 12: Controller trả response (GiftEventDto)
 
 // [CONTROLLER] GiftController.sendGift  ·  gift.controller.ts L37–38, L50–73
 @Controller()

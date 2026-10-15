@@ -1,53 +1,17 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/conversations/:id/messages
 //  Gửi tin nhắn idempotent, cập nhật streak ngày, phát realtime cho 2 người và thông báo cho người nhận.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận tin nhắn kèm Idempotency-Key bắt buộc; nếu có imageAssetId thì
-//                 kiểm quyền sở hữu ảnh rồi đổi thành URL, HTTP chỉ tạo được attachment
-//                 kiểu ảnh.
-//    [SERVICE]    Kiểm tra user thuộc hội thoại và không bị block 2 chiều, ghi tin nhắn
-//                 idempotent, cập nhật streak, phát realtime cho 2 người, rồi tạo thông
-//                 báo cho người nhận (trừ khi đã mute).
-//    [POSTGRES]   Unique idempotency_key chặn nhân đôi tin nhắn; seq do DB cấp cho
-//                 cursor; streak cập nhật trong transaction riêng, khóa dòng FOR
-//                 UPDATE.
-//    [REDIS]      Pub/sub báo friend.message (và friend.streak.increased khi chạm mốc)
-//                 cho cả 2 người.
-//
-//  Bảng       conversations — hội thoại 1-1 của một cặp (low < high), unique theo cặp;
-//               last_message_at cập nhật sau mỗi tin để sắp xếp danh sách chat.
-//             messages — tin nhắn chỉ thêm: nội dung, attachment, idempotency_key
-//               unique, seq tăng dần.
-//             conversation_streaks — chuỗi ngày cả 2 cùng nhắn của hội thoại; dòng bị
-//               khóa FOR UPDATE khi cập nhật.
-//             conversation_member_states — chỉ đọc: người nhận có đang mute hội thoại
-//               hay không.
-//             blocks — chỉ đọc (qua Safety): dòng block mới nhất của mỗi chiều cho biết
-//               đang block hay đã bỏ block.
-//             notifications — thông báo friend_message cho người nhận, tạo ở
-//               transaction riêng và best-effort.
-//  Redis      realtime:user:{userId} — kênh pub/sub theo người nhận; core-api phát
-//               friend.message và friend.streak.increased, signaling-gateway chuyển
-//               xuống socket.
-//  Liên quan  Safety — isBlocked: kiểm block theo từng chiều; bị block trả cùng lỗi 404
-//               với "không phải thành viên".
-//             Media — resolveImageUrl: kiểm ảnh thuộc user và đã upload, trả URL để làm
-//               attachment.
-//             Notification — create tạo thông báo friend_message, sendPush gửi push; cả
-//               hai best-effort sau khi tin đã lưu.
-//             signaling-gateway — subscribe kênh realtime của user, đẩy friend.message
-//               xuống client.
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận request (user từ JWT, id hội thoại từ URL, Idempotency-Key)
+//  Step 2: Có ảnh đính kèm thì kiểm quyền sở hữu và đổi thành URL
+//  Step 3: Kiểm user thuộc hội thoại
+//  Step 4: Kiểm block 2 chiều, độ dài tin nhắn, tin rỗng
+//  Step 5: Lưu tin nhắn idempotent (retry trả lại tin cũ, khác nội dung thì 409)
+//  Step 6: Cập nhật streak sau khi tin đã lưu, trong transaction riêng
+//  Step 7: Tạo dòng streak nếu chưa có, khóa dòng FOR UPDATE
+//  Step 8: Cả 2 đã nhắn hôm nay thì tăng streak 1 lần/ngày, cứu lỡ 1 ngày
+//  Step 9: Chạm mốc streak thì phát friend.streak.increased qua Redis
+//  Step 10: Phát friend.message cho cả 2 người qua Redis (sau khi lưu)
+//  Step 11: Tạo thông báo và push cho người nhận, trừ khi đã mute
+//  Step 12: Controller trả tin nhắn vừa lưu
 
 // [CONTROLLER] FriendController.sendMessage  ·  friend.controller.ts L47–48, L198–228
 @Controller()

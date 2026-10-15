@@ -1,40 +1,15 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/economy/webhooks/payos
 //  payOS báo thanh toán thành công: kiểm HMAC, đối chiếu snapshot của đơn, rồi cộng Diamond đúng một lần.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [EXTERNAL] → [SERVICE] → [POSTGRES]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận webhook công khai của payOS, kiểm chữ ký HMAC trước mọi thứ rồi
-//                 giao event đã xác thực cho PayosService.
-//    [EXTERNAL]   payOS ký phần data bằng HMAC-SHA256 với checksum key; core-api dựng
-//                 lại chuỗi chuẩn và so chữ ký.
-//    [SERVICE]    Đối chiếu event với snapshot của đơn rồi ghi sổ Nợ system_iap / Có ví
-//                 user, đánh dấu đơn paid trong cùng transaction.
-//    [POSTGRES]   Khóa dòng đơn FOR UPDATE; các unique order_code, idempotency_key,
-//                 payment_link_id, transaction_id chặn trùng.
-//
-//  Bảng       payos_payment_orders — đơn nạp: snapshot số tiền VND, số Diamond,
-//               order_code, paymentLinkId, trạng thái; nối với đúng 1 transaction.
-//             transactions — 1 giao dịch payos_topup, key idempotency do server sinh từ
-//               order_code.
-//             ledger_entries — bút toán sổ kép: Nợ system_iap, Có user_wallet.
-//             wallets — số dư Diamond tăng thêm, bị khóa FOR UPDATE trong lúc ghi sổ.
-//             outbox_events — event economy.diamond.credited ghi cùng transaction.
-//  Liên quan  Economy (LedgerService) — record: idempotency theo key, khóa ví FOR
-//               UPDATE, sổ kép, outbox; phần lõi này có trong luồng Mua VIP.
-//             payOS (tạo đơn) — bước trước: POST /economy/payos/orders tạo đơn kèm
-//               snapshot giá rồi gọi payOS tạo link thanh toán (chưa chép).
-//             Web ví — trang ví gọi GET /economy/payos/orders/:id để biết đơn đã paid
-//               chưa; redirect từ payOS không phải bằng chứng thanh toán.
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận webhook công khai của payOS (tối đa 120 lần/phút)
+//  Step 2: Kiểm chữ ký HMAC trước mọi truy vấn hoặc ghi
+//  Step 3: Dựng chuỗi chuẩn từ data (sắp key tăng dần) rồi ký HMAC-SHA256
+//  Step 4: So chữ ký tính được với chữ ký payOS gửi (timingSafeEqual)
+//  Step 5: Giao event đã xác thực cho PayosService để cộng Diamond
+//  Step 6: Tìm đơn theo orderCode, đối chiếu snapshot (lệch thì bỏ qua)
+//  Step 7: Ghi sổ Nợ system_iap / Có ví user, idempotent theo order_code
+//  Step 8: Cùng transaction: khóa dòng đơn, đối chiếu lại snapshot
+//  Step 9: Đánh dấu đơn paid và nối với giao dịch vừa ghi
+//  Step 10: Trả { received: true } cho payOS
 
 // [CONTROLLER] EconomyWebhooksController.payos  ·  economy-webhooks.controller.ts L42–44, L121–134
 @Public()

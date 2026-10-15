@@ -1,32 +1,14 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/videos/:id/views
 //  Ghi watch-time của người xem và cộng viewCount đúng 1 lần khi xem đủ ngưỡng, kể cả khi nhiều request đến cùng lúc.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận watchTimeMs mà client báo, giao cho service và trả 204.
-//    [SERVICE]    Kiểm video xem được, bỏ qua tác giả tự xem, so watch-time với ngưỡng
-//                 "xem đủ", cộng viewCount đúng 1 lần.
-//    [POSTGRES]   Dòng video_views (unique video, người xem) tạo bằng ON CONFLICT DO
-//                 NOTHING rồi khóa FOR UPDATE; viewCount cộng nguyên tử trong cùng
-//                 transaction.
-//
-//  Bảng       video_views — mỗi cặp (video, người xem) 1 dòng: watch_time_ms lớn nhất
-//               đã báo và cờ qualified (chỉ chuyển false → true 1 lần); unique
-//               (video_id, viewer_id).
-//             videos — đọc để kiểm quyền xem (tác giả hoặc đã published); view_count
-//               được cộng khi người xem đạt ngưỡng lần đầu.
-//  Liên quan  VideoRankingService — job nền tính rankScore từ viewCount, likeCount,
-//               commentCount, nên đếm đúng 1 lần ảnh hưởng thứ hạng (chưa chép).
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận watchTimeMs mà client báo (user từ JWT, id video từ URL), trả 204
+//  Step 2: Kiểm video xem được (tác giả hoặc đã published)
+//  Step 3: Tác giả tự xem thì không tính lượt xem
+//  Step 4: So watch-time với ngưỡng "xem đủ"
+//  Step 5: Mở transaction DB để đếm đúng 1 lần dưới race
+//  Step 6: Tạo dòng video_views nếu chưa có (INSERT ... ON CONFLICT DO NOTHING)
+//  Step 7: Khóa dòng (FOR UPDATE) để request song song xếp hàng
+//  Step 8: Ghi watch-time lớn nhất và cờ qualified
+//  Step 9: Lần đầu đạt ngưỡng thì cộng viewCount nguyên tử
 
 // [CONTROLLER] ShortVideoController.recordView  ·  short-video.controller.ts L48–49, L132–141
 @Controller('videos')

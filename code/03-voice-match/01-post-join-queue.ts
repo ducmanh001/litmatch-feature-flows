@@ -1,56 +1,17 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/matching/tickets
 //  Vào hàng đợi Voice Match tới khi 2 người được ghép thành MatchSession.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS] → [WORKER] → [POSTGRES] →
-//             [REDIS]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận request vào hàng đợi (giới hạn 10 lần/phút), gom user, body,
-//                 header Idempotency-Key và thiết bị guest rồi giao cho service; trả
-//                 ticket kèm giá speed-up.
-//    [SERVICE]    Kiểm tra user (bị khóa, guest), nhận ra retry, trừ lượt miễn phí theo
-//                 ngày hoặc trừ Diamond, ghi ticket; chỉ sau khi DB commit mới đẩy vào
-//                 Redis.
-//    [POSTGRES]   Nguồn sự thật của ticket, session và quota; khóa dòng (FOR UPDATE) và
-//                 unique index chống ghi trùng.
-//    [REDIS]      Hàng đợi dẫn xuất: mỗi nhóm (loại ghép, vùng, nhóm tuổi) một sorted
-//                 set, điểm nhỏ ghép trước; một set liệt kê nhóm đang có người chờ;
-//                 pub/sub báo kết quả ghép cho client.
-//    [WORKER]     Job nền lấy 2 vé điểm thấp nhất từ Redis, kiểm lại trong Postgres rồi
-//                 tạo MatchSession; không ghép được thì trả vé về hàng đợi.
-//
-//  Bảng       match_tickets — 1 dòng cho mỗi lượt vào hàng đợi: trạng thái (queued,
-//               confirmed, expired...), nhóm ghép, độ ưu tiên, key idempotency.
-//             match_sessions — 1 dòng cho mỗi cặp đã ghép (2 user, 2 ticket, trạng thái
-//               confirmed).
-//             match_daily_quotas — số lượt miễn phí đã dùng theo user, ngày UTC và loại
-//               ghép (voice hoặc soul).
-//             users — hồ sơ được khóa và đọc: vùng, ngày sinh, giới tính, trust score,
-//               trạng thái, isGuest.
-//  Redis      matching:queue:{matchType}:{region}:{ageBand} — sorted set; member =
-//               ticketId, score = độ ưu tiên (nhỏ ghép trước).
-//             matching:shards:active — set các nhóm đang có người chờ, để worker không
-//               quét cả keyspace.
-//             pub/sub theo user — đẩy event match.confirmed cho signaling-gateway
-//               chuyển xuống client.
-//  Liên quan  Economy — trừ Diamond khi user trả thêm lượt (cùng transaction với tạo
-//               vé); ghi sổ kép, idempotent theo key.
-//             Safety — canPair: nếu hai người đã block hoặc report nhau thì không ghép.
-//             Notification — tạo thông báo "đã ghép được" trong transaction ghép cặp và
-//               gửi push sau commit.
-//             signaling-gateway — subscribe pub/sub, đẩy match.confirmed xuống socket
-//               của user.
-//             Calling — bước kế tiếp: client gọi POST calling/match-sessions/:id/join
-//               để vào cuộc gọi (chưa chép).
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận request vào hàng đợi (user, body, Idempotency-Key, guest)
+//  Step 2: Mở transaction DB; khóa dòng user, kiểm guest và tài khoản bị khóa
+//  Step 3: Đã có ticket cùng Idempotency-Key thì trả lại luôn, không trừ quota
+//  Step 4: Trừ lượt miễn phí theo ngày (khóa dòng quota) hoặc trả Diamond
+//  Step 5: Ghi ticket queued vào Postgres (unique index: mỗi user 1 vé đang chờ)
+//  Step 6: Dính unique: retry cùng key thì trả vé cũ, còn lại 409
+//  Step 7: Sau commit, đẩy ticket vào Redis (ensureEnqueued: ZADD NX, đánh dấu shard active)
+//  Step 8: Trả ticket về controller (bọc thành TicketDto kèm giá speed-up)
+//  Step 9: Worker nền: ZPOPMIN lấy 2 vé điểm thấp nhất của shard (nguyên tử)
+//  Step 10: Khóa 2 vé FOR UPDATE, verify lại trong DB (giới tính, canPair)
+//  Step 11: Ghép được: tạo MatchSession, cập nhật 2 vé, tạo thông báo
+//  Step 12: Sau commit: vé không ghép được về lại Redis, hoặc phát match.confirmed
 
 // [CONTROLLER] MatchingController.joinQueue  ·  matching.controller.ts L42–43, L46–72
 @Controller('matching')

@@ -1,36 +1,17 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/auth/refresh
 //  Xoay refresh token mỗi lần dùng và phát hiện dùng lại: token đã xoay mà bị dùng lại thì thu hồi cả họ token.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [CONTROLLER]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Chặn bằng CSRF double-submit, đọc refresh token từ cookie httpOnly,
-//                 rồi đặt cặp cookie mới và trả access token (không trả refresh token
-//                 trong body).
-//    [SERVICE]    Sinh token mới và nhờ adapter xoay token cũ; kiểm lại trạng thái user
-//                 tại thời điểm refresh, bị khóa thì thu hồi token vừa cấp.
-//    [POSTGRES]   Khóa dòng token (FOR UPDATE), đánh dấu rotated bằng UPDATE có điều
-//                 kiện, ghi token mới cùng transaction; dùng lại token cũ thì thu hồi
-//                 cả family.
-//
-//  Bảng       refresh_tokens — mỗi lần xoay: dòng cũ được đánh dấu rotated_at, dòng mới
-//               giữ cùng family_id; token_hash unique; dùng lại thì revoked_at được đặt
-//               cho cả family.
-//             users — đọc user để lấy role, isGuest và kiểm trạng thái còn Active.
-//  Liên quan  CsrfGuard — chặn trước khi vào controller: so cookie csrf_token với
-//               header X-CSRF-Token (không chép).
-//             POST /auth/otp/verify, /auth/social, /auth/guest — nơi cấp refresh token
-//               đầu tiên của 1 family (xem file 01).
-//             POST /auth/logout — thu hồi token hiện tại và xóa cookie (chưa chép).
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận request: CSRF double-submit, refresh token đọc từ cookie
+//  Step 2: Tìm token theo băm SHA-256, kiểm chưa thu hồi và còn hạn
+//  Step 3: Sinh cặp token mới (chưa lưu vào DB)
+//  Step 4: Giao adapter xoay token trong 1 transaction
+//  Step 5: Đọc lại token cũ và khóa dòng (FOR UPDATE)
+//  Step 6: Token đã xoay mà bị dùng lại thì thu hồi cả family
+//  Step 7: Đánh dấu token cũ đã xoay (UPDATE có điều kiện)
+//  Step 8: Ghi token mới cùng family, cùng transaction
+//  Step 9: Kết quả invalid hoặc reused thì từ chối với 401
+//  Step 10: Kiểm lại trạng thái user, bị khóa thì thu hồi token vừa cấp
+//  Step 11: Đặt refresh token mới vào cookie httpOnly, không trả trong body
+//  Step 12: Trả access token và csrfToken trong body
 
 // [CONTROLLER] AuthController.refresh  ·  auth.controller.ts L38–40, L108–125
 @Public()

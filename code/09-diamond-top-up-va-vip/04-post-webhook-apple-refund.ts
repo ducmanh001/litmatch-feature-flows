@@ -1,47 +1,16 @@
-// ════════════════════════════════════════════════════════════════════════════
 //  POST /api/v1/economy/webhooks/apple
 //  Apple báo REFUND hoặc REVOKE: kiểm chữ ký JWS, rồi đảo bút toán của lần nạp gốc; số dư có thể âm.
-// ════════════════════════════════════════════════════════════════════════════
-//  Luồng      [CONTROLLER] → [EXTERNAL] → [SERVICE] → [POSTGRES]
-//
-//  Vai trò từng tầng
-//    [CONTROLLER] Nhận App Store Server Notification V2, nhờ verifier kiểm chữ ký, đối
-//                 chiếu bundleId, chỉ xử lý REFUND và REVOKE, luôn ACK 200 sau khi
-//                 verify.
-//    [EXTERNAL]   Apple ký thông báo bằng JWS (ES256) kèm chuỗi chứng chỉ x5c; core-api
-//                 xác thực chuỗi lên Apple Root CA G3.
-//    [SERVICE]    RefundService tìm receipt gốc rồi nhờ LedgerService.reverse ghi bút
-//                 toán đảo và đánh dấu receipt refunded; gọi lại nhiều lần vẫn chỉ hoàn
-//                 một lần.
-//    [POSTGRES]   Một transaction ghi bút toán đảo, đổi trạng thái giao dịch gốc
-//                 (UPDATE có điều kiện), đổi receipt, ghi outbox; số dư ví được phép
-//                 âm.
-//
-//  Bảng       iap_receipts — receipt đã credit: chuyển sang refunded và trỏ
-//               refund_transaction_id sang giao dịch đảo.
-//             transactions — giao dịch gốc chuyển completed sang reversed; giao dịch
-//               mới type reversal trỏ reversal_of về gốc, actor null.
-//             ledger_entries — bút toán đảo chiều: Nợ ví user, Có system_iap; bảng chỉ
-//               thêm, trigger chặn sửa và xóa.
-//             wallets — số dư bị trừ lại, được phép âm (user nợ diamond).
-//             outbox_events — event economy.diamond.refunded ghi cùng transaction.
-//  Liên quan  Economy (LedgerService.record) — đường ghi sổ idempotent mà reverse gọi
-//               vào; xem luồng Mua VIP.
-//             Nạp IAP — luồng nạp ban đầu, tạo ra receipt credited mà webhook này đảo
-//               lại.
-//             Job quét hoàn tiền — IapRefundPollService quét Apple Refund History và
-//               Google Voided Purchases làm đường dự phòng, gọi cùng
-//               RefundService.refundIapPurchase (chưa chép).
-//             Google RTDN — POST /economy/webhooks/google/rtdn chỉ log tín hiệu
-//               CANCELED, không tự hoàn tiền (chưa chép).
-//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
-//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới
-//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //
-//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các
-//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số
-//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức
-//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong
-//             repo.
+//  Step 1: Nhận webhook công khai của Apple (tối đa 60 lần/phút)
+//  Step 2: Kiểm chữ ký JWS trước khi tin bất kỳ trường nào
+//  Step 3: Xác thực chuỗi x5c lên Apple Root CA G3, rồi verify ES256
+//  Step 4: Đối chiếu bundleId, chỉ xử lý REFUND và REVOKE
+//  Step 5: Giao RefundService tìm receipt gốc và hoàn tiền
+//  Step 6: Tìm receipt gốc; không rõ hoặc đã hoàn thì dừng
+//  Step 7: Nhờ LedgerService.reverse đảo bút toán của giao dịch gốc
+//  Step 8: Ghi giao dịch đảo vào sổ; số dư ví được phép âm
+//  Step 9: Đánh dấu giao dịch gốc reversed (UPDATE có điều kiện)
+//  Step 10: Gốc đã bị đảo trước đó: coi là idempotent, nối receipt
+//  Step 11: Luôn ACK 200 cho Apple sau khi đã verify
 
 // [CONTROLLER] EconomyWebhooksController.appleNotification  ·  economy-webhooks.controller.ts L42–44, L56–91
 @Public()
