@@ -1,0 +1,649 @@
+{
+  "id": "05-movie-match-movie-night/01-post-create-session",
+  "featureId": "05-movie-match-movie-night",
+  "feature": "Movie Match / Movie Night",
+  "summary": "Hai người cùng xem một video đồng bộ: với bạn bè (Movie Night) hoặc ghép người lạ ẩn danh (Movie Match).",
+  "name": "Tạo phiên xem chung với một người bạn",
+  "title": "Tạo phiên xem video chung giữa 2 người bạn, idempotent theo cặp, mỗi user chỉ có 1 phiên đang xem.",
+  "method": "POST",
+  "route": "/api/v1/movie-match/sessions",
+  "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.ts",
+  "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.html",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/05-movie-match-movie-night/01-post-create-session.json",
+  "diagramUrl": "https://ducmanh001.github.io/litmatch-feature-flows/#05-movie-match-movie-night",
+  "catalog": "annotated-05-movie-match-movie-night.mjs",
+  "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]",
+  "roles": [
+    [
+      "CONTROLLER",
+      "Nhận id bạn và URL video, giao cho service, trả phiên theo góc nhìn của người tạo."
+    ],
+    [
+      "SERVICE",
+      "Kiểm URL video theo whitelist, kiểm đã là bạn, chuẩn hóa cặp, trả lại phiên cũ nếu cặp đang xem; không thì ghi phiên + 2 participant trong 1 transaction."
+    ],
+    [
+      "POSTGRES",
+      "Bảng participant với PK user_id là chốt chặn \"1 user 1 phiên đang xem\", bất kể user là low hay high; ghi cùng transaction với phiên."
+    ],
+    [
+      "REDIS",
+      "Pub/sub báo movie.session.started cho cả 2 người khi vừa tạo phiên mới."
+    ]
+  ],
+  "tables": [
+    [
+      "movie_sessions",
+      "phiên mới: cặp (low, high) canonical, video_url, vị trí phát 0, status active, mode friend (mặc định)."
+    ],
+    [
+      "movie_session_active_participants",
+      "mỗi người trong phiên một dòng, PK user_id; insert trùng nghĩa là user đang có phiên active khác."
+    ]
+  ],
+  "redis": [
+    [
+      "realtime:user:{userId}",
+      "publish movie.session.started cho từng người trong cặp."
+    ]
+  ],
+  "related": [
+    [
+      "Friend",
+      "FriendService.areFriends: chỉ 2 người đã là bạn mới tạo được phiên (không chép)."
+    ],
+    [
+      "signaling-gateway",
+      "subscribe pub/sub và đẩy movie.session.started xuống socket."
+    ],
+    [
+      "updateState / endSession",
+      "bước sau: cập nhật playback (last-write-wins, không khóa) và kết thúc phiên, endSession xóa 2 dòng participant (chưa chép)."
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "text": "Nhận request (user từ JWT, friendUserId và videoUrl trong body)",
+      "line": 26,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.html#L26",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/05-movie-match-movie-night/01-post-create-session.ts#L26"
+    },
+    {
+      "number": 2,
+      "text": "Kiểm URL video theo whitelist host",
+      "line": 44,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.html#L44",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/05-movie-match-movie-night/01-post-create-session.ts#L44"
+    },
+    {
+      "number": 3,
+      "text": "Kiểm tra 2 người đã là bạn (lỗi chung 404, không lộ quan hệ)",
+      "line": 98,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.html#L98",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/05-movie-match-movie-night/01-post-create-session.ts#L98"
+    },
+    {
+      "number": 4,
+      "text": "Chuẩn hóa cặp (low, high), cặp đang xem chung thì trả phiên cũ",
+      "line": 116,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.html#L116",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/05-movie-match-movie-night/01-post-create-session.ts#L116"
+    },
+    {
+      "number": 5,
+      "text": "Trong transaction, ghi phiên rồi 2 participant (PK user_id chặn trùng)",
+      "line": 130,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.html#L130",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/05-movie-match-movie-night/01-post-create-session.ts#L130"
+    },
+    {
+      "number": 6,
+      "text": "Thua race: đọc lại để phân biệt replay với user ở phiên khác",
+      "line": 156,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.html#L156",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/05-movie-match-movie-night/01-post-create-session.ts#L156"
+    },
+    {
+      "number": 7,
+      "text": "Báo movie.session.started qua Redis cho cả 2 người",
+      "line": 169,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.html#L169",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/05-movie-match-movie-night/01-post-create-session.ts#L169"
+    },
+    {
+      "number": 8,
+      "text": "Controller trả phiên theo góc nhìn của người tạo",
+      "line": 187,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.html#L187",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/05-movie-match-movie-night/01-post-create-session.ts#L187"
+    }
+  ],
+  "declaredSteps": [
+    {
+      "at": "@Post('sessions')",
+      "text": "Nhận request (user từ JWT, friendUserId và videoUrl trong body)"
+    },
+    {
+      "at": "this.assertValidVideoUrl(videoUrl);",
+      "text": "Kiểm URL video theo whitelist host"
+    },
+    {
+      "at": "if (userId === friendUserId) {",
+      "text": "Kiểm tra 2 người đã là bạn (lỗi chung 404, không lộ quan hệ)"
+    },
+    {
+      "at": "const [userLowId, userHighId] = canonicalPair(userId, friendUserId);",
+      "text": "Chuẩn hóa cặp (low, high), cặp đang xem chung thì trả phiên cũ"
+    },
+    {
+      "at": "created = await this.dataSource.transaction(async (manager) => {",
+      "text": "Trong transaction, ghi phiên rồi 2 participant (PK user_id chặn trùng)"
+    },
+    {
+      "at": "if (!isUniqueViolation(err)) throw err;",
+      "text": "Thua race: đọc lại để phân biệt replay với user ở phiên khác"
+    },
+    {
+      "at": "const envelope: RealtimeEnvelope<MovieSessionStartedEventData> = {",
+      "text": "Báo movie.session.started qua Redis cho cả 2 người"
+    },
+    {
+      "at": "return MovieSessionDto.from(",
+      "text": "Controller trả phiên theo góc nhìn của người tạo"
+    }
+  ],
+  "whyComments": [
+    {
+      "at": "if (!(await this.friendService.areFriends(userId, friendUserId))) {",
+      "text": [
+        "Tự xem với mình, không phải bạn, không tồn tại đều trả cùng 404 NOT_FRIEND: không để lộ quan hệ (oracle)."
+      ],
+      "src": "docs/services/movie-match-service.md mục 5 (\"cùng mã lỗi cho không tồn tại/không phải bạn — không oracle\")",
+      "file": "apps/core-api/src/modules/movie-match/movie-match.service.ts"
+    },
+    {
+      "at": "const existing = await this.findActiveByPair(userLowId, userHighId);",
+      "text": [
+        "Idempotent theo cặp: đã active đúng cặp này thì trả lại phiên cũ. Active với CẶP KHÁC thì 409, không tự ý kết thúc phiên cũ thay user.",
+        "Chỉ tính phiên mode friend: 2 người bạn đang tình cờ ghép ẩn danh với nhau KHÔNG được coi là replay của phiên xem chung bạn bè (flow và quyền riêng tư khác nhau)."
+      ],
+      "src": "doc createSession movie-match.service.ts L101-103 + comment gốc movie-match.service.ts L648-649 (mode: Friend trong findActiveByPair)",
+      "file": "apps/core-api/src/modules/movie-match/movie-match.service.ts"
+    },
+    {
+      "at": "created = await this.dataSource.transaction(async (manager) => {",
+      "text": [
+        "[POSTGRES] Phiên và 2 dòng participant ghi trong 1 transaction: insert participant lỗi thì rollback cả phiên, không mồ côi dòng."
+      ],
+      "src": "comment gốc movie-match.service.ts L151-152 + doc createSession L104-107",
+      "file": "apps/core-api/src/modules/movie-match/movie-match.service.ts"
+    },
+    {
+      "at": "await manager.insert(MovieSessionActiveParticipant, [",
+      "text": [
+        "PK user_id chặn user đang active ở phiên KHÁC, dù là low hay high ở đó. 2 unique index đơn cột trên user_low_id/user_high_id không đủ: mỗi index chỉ soi 1 cột nên không thấy xung đột chéo (low ở A, high ở B)."
+      ],
+      "src": "comment gốc movie-match.service.ts L151-152 + doc entity movie-session-active-participant.entity.ts L8-14",
+      "file": "apps/core-api/src/modules/movie-match/movie-match.service.ts"
+    },
+    {
+      "at": "if (!isUniqueViolation(err)) throw err;",
+      "text": [
+        "Thua race: đọc lại để phân biệt \"đúng cặp\" (replay, trả lại phiên) với \"user đã active ở cặp khác\" (409, không đoán ý user)."
+      ],
+      "src": "comment gốc movie-match.service.ts L161-162",
+      "file": "apps/core-api/src/modules/movie-match/movie-match.service.ts"
+    },
+    {
+      "at": "await Promise.all(",
+      "text": [
+        "[REDIS] Chỉ bắn khi vừa tạo phiên mới (các nhánh replay đã return). Best-effort: client còn poll GET /sessions/:id."
+      ],
+      "src": "docs/services/movie-match-service.md mục 7 \"best-effort\" + suy ra từ code (return sớm trước publish)",
+      "file": "apps/core-api/src/modules/movie-match/movie-match.service.ts"
+    },
+    {
+      "at": "const allowed = allowedHosts.some(",
+      "text": [
+        "Khớp hostname CHÍNH XÁC hoặc subdomain thật (host hoặc .host), không substring/regex: chặn bypass kiểu youtube.com.evil.com."
+      ],
+      "src": "doc assertValidVideoUrl movie-match.service.ts L896-900",
+      "file": "apps/core-api/src/modules/movie-match/movie-match.service.ts"
+    }
+  ],
+  "sources": [
+    "apps/core-api/src/database/migrations/1753200000000-movie-match.ts",
+    "apps/core-api/src/modules/movie-match/movie-match.controller.ts",
+    "apps/core-api/src/modules/movie-match/movie-match.service.ts"
+  ],
+  "sourceContext": {
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/movie-match/movie-match.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('sessions')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/movie-match/movie-match.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async createSession(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "if (!(await this.friendService.areFriends(userId, friendUserId))) {",
+            "text": [
+              "Tự xem với mình, không phải bạn, không tồn tại đều trả cùng 404 NOT_FRIEND: không để lộ quan hệ (oracle)."
+            ],
+            "src": "docs/services/movie-match-service.md mục 5 (\"cùng mã lỗi cho không tồn tại/không phải bạn — không oracle\")"
+          },
+          {
+            "at": "const existing = await this.findActiveByPair(userLowId, userHighId);",
+            "text": [
+              "Idempotent theo cặp: đã active đúng cặp này thì trả lại phiên cũ. Active với CẶP KHÁC thì 409, không tự ý kết thúc phiên cũ thay user.",
+              "Chỉ tính phiên mode friend: 2 người bạn đang tình cờ ghép ẩn danh với nhau KHÔNG được coi là replay của phiên xem chung bạn bè (flow và quyền riêng tư khác nhau)."
+            ],
+            "src": "doc createSession movie-match.service.ts L101-103 + comment gốc movie-match.service.ts L648-649 (mode: Friend trong findActiveByPair)"
+          },
+          {
+            "at": "created = await this.dataSource.transaction(async (manager) => {",
+            "text": [
+              "[POSTGRES] Phiên và 2 dòng participant ghi trong 1 transaction: insert participant lỗi thì rollback cả phiên, không mồ côi dòng."
+            ],
+            "src": "comment gốc movie-match.service.ts L151-152 + doc createSession L104-107"
+          },
+          {
+            "at": "await manager.insert(MovieSessionActiveParticipant, [",
+            "text": [
+              "PK user_id chặn user đang active ở phiên KHÁC, dù là low hay high ở đó. 2 unique index đơn cột trên user_low_id/user_high_id không đủ: mỗi index chỉ soi 1 cột nên không thấy xung đột chéo (low ở A, high ở B)."
+            ],
+            "src": "comment gốc movie-match.service.ts L151-152 + doc entity movie-session-active-participant.entity.ts L8-14"
+          },
+          {
+            "at": "if (!isUniqueViolation(err)) throw err;",
+            "text": [
+              "Thua race: đọc lại để phân biệt \"đúng cặp\" (replay, trả lại phiên) với \"user đã active ở cặp khác\" (409, không đoán ý user)."
+            ],
+            "src": "comment gốc movie-match.service.ts L161-162"
+          },
+          {
+            "at": "await Promise.all(",
+            "text": [
+              "[REDIS] Chỉ bắn khi vừa tạo phiên mới (các nhánh replay đã return). Best-effort: client còn poll GET /sessions/:id."
+            ],
+            "src": "docs/services/movie-match-service.md mục 7 \"best-effort\" + suy ra từ code (return sớm trước publish)"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/movie-match/movie-match.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private assertValidVideoUrl(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const allowed = allowedHosts.some(",
+            "text": [
+              "Khớp hostname CHÍNH XÁC hoặc subdomain thật (host hoặc .host), không substring/regex: chặn bypass kiểu youtube.com.evil.com."
+            ],
+            "src": "doc assertValidVideoUrl movie-match.service.ts L896-900"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/movie-match/movie-match.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async findActiveByPair(",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1753200000000-movie-match.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE movie_session_active_participants (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      }
+    ],
+    "ranges": [
+      {
+        "file": "apps/core-api/src/modules/movie-match/movie-match.controller.ts",
+        "range": {
+          "at": "@Post('sessions')",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/movie-match/movie-match.service.ts",
+        "range": {
+          "at": "async createSession(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/movie-match/movie-match.service.ts",
+        "range": {
+          "at": "private assertValidVideoUrl(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/movie-match/movie-match.service.ts",
+        "range": {
+          "at": "private async findActiveByPair(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/database/migrations/1753200000000-movie-match.ts",
+        "range": {
+          "at": "CREATE TABLE movie_session_active_participants (",
+          "to": "^    `\\);$",
+          "pad": [
+            1,
+            0
+          ]
+        }
+      }
+    ],
+    "helpers": [],
+    "skip": [
+      "findActiveByPair"
+    ],
+    "attach": {},
+    "nested": true
+  },
+  "omittedContext": {
+    "note": "Curated source selection; unlisted call bodies, shared request infrastructure, DTOs and other context may be omitted. skip names stay unexpanded; helpers may be substituted; attach controls placement. Flattened scopes are not executable code.",
+    "skip": [
+      "findActiveByPair"
+    ],
+    "attach": {},
+    "helpers": []
+  },
+  "featureMetadata": {
+    "id": "05-movie-match-movie-night",
+    "short": "Movie Match / Movie Night",
+    "title": "Movie Match / Movie Night",
+    "summary": "Hai người cùng xem một video đồng bộ: với bạn bè (Movie Night) hoặc ghép người lạ ẩn danh (Movie Match).",
+    "diagramAnchor": "05-movie-match-movie-night"
+  },
+  "endpointCatalog": {
+    "n": "01",
+    "slug": "post-create-session",
+    "method": "POST",
+    "short": "/movie-match/sessions",
+    "route": "/api/v1/movie-match/sessions",
+    "name": "Tạo phiên xem chung với một người bạn",
+    "title": "Tạo phiên xem video chung giữa 2 người bạn, idempotent theo cặp, mỗi user chỉ có 1 phiên đang xem.",
+    "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]",
+    "roles": [
+      [
+        "CONTROLLER",
+        "Nhận id bạn và URL video, giao cho service, trả phiên theo góc nhìn của người tạo."
+      ],
+      [
+        "SERVICE",
+        "Kiểm URL video theo whitelist, kiểm đã là bạn, chuẩn hóa cặp, trả lại phiên cũ nếu cặp đang xem; không thì ghi phiên + 2 participant trong 1 transaction."
+      ],
+      [
+        "POSTGRES",
+        "Bảng participant với PK user_id là chốt chặn \"1 user 1 phiên đang xem\", bất kể user là low hay high; ghi cùng transaction với phiên."
+      ],
+      [
+        "REDIS",
+        "Pub/sub báo movie.session.started cho cả 2 người khi vừa tạo phiên mới."
+      ]
+    ],
+    "tables": [
+      [
+        "movie_sessions",
+        "phiên mới: cặp (low, high) canonical, video_url, vị trí phát 0, status active, mode friend (mặc định)."
+      ],
+      [
+        "movie_session_active_participants",
+        "mỗi người trong phiên một dòng, PK user_id; insert trùng nghĩa là user đang có phiên active khác."
+      ]
+    ],
+    "redis": [
+      [
+        "realtime:user:{userId}",
+        "publish movie.session.started cho từng người trong cặp."
+      ]
+    ],
+    "related": [
+      [
+        "Friend",
+        "FriendService.areFriends: chỉ 2 người đã là bạn mới tạo được phiên (không chép)."
+      ],
+      [
+        "signaling-gateway",
+        "subscribe pub/sub và đẩy movie.session.started xuống socket."
+      ],
+      [
+        "updateState / endSession",
+        "bước sau: cập nhật playback (last-write-wins, không khóa) và kết thúc phiên, endSession xóa 2 dòng participant (chưa chép)."
+      ]
+    ],
+    "nested": true,
+    "skip": [
+      "findActiveByPair"
+    ],
+    "steps": [
+      {
+        "at": "@Post('sessions')",
+        "text": "Nhận request (user từ JWT, friendUserId và videoUrl trong body)"
+      },
+      {
+        "at": "this.assertValidVideoUrl(videoUrl);",
+        "text": "Kiểm URL video theo whitelist host"
+      },
+      {
+        "at": "if (userId === friendUserId) {",
+        "text": "Kiểm tra 2 người đã là bạn (lỗi chung 404, không lộ quan hệ)"
+      },
+      {
+        "at": "const [userLowId, userHighId] = canonicalPair(userId, friendUserId);",
+        "text": "Chuẩn hóa cặp (low, high), cặp đang xem chung thì trả phiên cũ"
+      },
+      {
+        "at": "created = await this.dataSource.transaction(async (manager) => {",
+        "text": "Trong transaction, ghi phiên rồi 2 participant (PK user_id chặn trùng)"
+      },
+      {
+        "at": "if (!isUniqueViolation(err)) throw err;",
+        "text": "Thua race: đọc lại để phân biệt replay với user ở phiên khác"
+      },
+      {
+        "at": "const envelope: RealtimeEnvelope<MovieSessionStartedEventData> = {",
+        "text": "Báo movie.session.started qua Redis cho cả 2 người"
+      },
+      {
+        "at": "return MovieSessionDto.from(",
+        "text": "Controller trả phiên theo góc nhìn của người tạo"
+      }
+    ],
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/movie-match/movie-match.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('sessions')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/movie-match/movie-match.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async createSession(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "if (!(await this.friendService.areFriends(userId, friendUserId))) {",
+            "text": [
+              "Tự xem với mình, không phải bạn, không tồn tại đều trả cùng 404 NOT_FRIEND: không để lộ quan hệ (oracle)."
+            ],
+            "src": "docs/services/movie-match-service.md mục 5 (\"cùng mã lỗi cho không tồn tại/không phải bạn — không oracle\")"
+          },
+          {
+            "at": "const existing = await this.findActiveByPair(userLowId, userHighId);",
+            "text": [
+              "Idempotent theo cặp: đã active đúng cặp này thì trả lại phiên cũ. Active với CẶP KHÁC thì 409, không tự ý kết thúc phiên cũ thay user.",
+              "Chỉ tính phiên mode friend: 2 người bạn đang tình cờ ghép ẩn danh với nhau KHÔNG được coi là replay của phiên xem chung bạn bè (flow và quyền riêng tư khác nhau)."
+            ],
+            "src": "doc createSession movie-match.service.ts L101-103 + comment gốc movie-match.service.ts L648-649 (mode: Friend trong findActiveByPair)"
+          },
+          {
+            "at": "created = await this.dataSource.transaction(async (manager) => {",
+            "text": [
+              "[POSTGRES] Phiên và 2 dòng participant ghi trong 1 transaction: insert participant lỗi thì rollback cả phiên, không mồ côi dòng."
+            ],
+            "src": "comment gốc movie-match.service.ts L151-152 + doc createSession L104-107"
+          },
+          {
+            "at": "await manager.insert(MovieSessionActiveParticipant, [",
+            "text": [
+              "PK user_id chặn user đang active ở phiên KHÁC, dù là low hay high ở đó. 2 unique index đơn cột trên user_low_id/user_high_id không đủ: mỗi index chỉ soi 1 cột nên không thấy xung đột chéo (low ở A, high ở B)."
+            ],
+            "src": "comment gốc movie-match.service.ts L151-152 + doc entity movie-session-active-participant.entity.ts L8-14"
+          },
+          {
+            "at": "if (!isUniqueViolation(err)) throw err;",
+            "text": [
+              "Thua race: đọc lại để phân biệt \"đúng cặp\" (replay, trả lại phiên) với \"user đã active ở cặp khác\" (409, không đoán ý user)."
+            ],
+            "src": "comment gốc movie-match.service.ts L161-162"
+          },
+          {
+            "at": "await Promise.all(",
+            "text": [
+              "[REDIS] Chỉ bắn khi vừa tạo phiên mới (các nhánh replay đã return). Best-effort: client còn poll GET /sessions/:id."
+            ],
+            "src": "docs/services/movie-match-service.md mục 7 \"best-effort\" + suy ra từ code (return sớm trước publish)"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/movie-match/movie-match.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private assertValidVideoUrl(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const allowed = allowedHosts.some(",
+            "text": [
+              "Khớp hostname CHÍNH XÁC hoặc subdomain thật (host hoặc .host), không substring/regex: chặn bypass kiểu youtube.com.evil.com."
+            ],
+            "src": "doc assertValidVideoUrl movie-match.service.ts L896-900"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/movie-match/movie-match.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async findActiveByPair(",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1753200000000-movie-match.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE movie_session_active_participants (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "sourceManifest": {
+    "verifiedCodeSha256": true,
+    "mode": "published-presentation",
+    "baselineCommit": "cb30743143bd8f6576b154db4b606380c365c674",
+    "sourceCommit": "d3cb28c",
+    "sources": [
+      "apps/core-api/src/database/migrations/1753200000000-movie-match.ts",
+      "apps/core-api/src/modules/movie-match/movie-match.controller.ts",
+      "apps/core-api/src/modules/movie-match/movie-match.service.ts"
+    ],
+    "steps": [
+      "Step 1: Nhận request (user từ JWT, friendUserId và videoUrl trong body)",
+      "Step 2: Kiểm URL video theo whitelist host",
+      "Step 3: Kiểm tra 2 người đã là bạn (lỗi chung 404, không lộ quan hệ)",
+      "Step 4: Chuẩn hóa cặp (low, high), cặp đang xem chung thì trả phiên cũ",
+      "Step 5: Trong transaction, ghi phiên rồi 2 participant (PK user_id chặn trùng)",
+      "Step 6: Thua race: đọc lại để phân biệt replay với user ở phiên khác",
+      "Step 7: Báo movie.session.started qua Redis cho cả 2 người",
+      "Step 8: Controller trả phiên theo góc nhìn của người tạo"
+    ],
+    "removedOverview": "// ════════════════════════════════════════════════════════════════════════════\n//  POST /api/v1/movie-match/sessions\n//  Tạo phiên xem video chung giữa 2 người bạn, idempotent theo cặp, mỗi user chỉ có 1 phiên đang xem.\n// ════════════════════════════════════════════════════════════════════════════\n//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]\n//\n//  Vai trò từng tầng\n//    [CONTROLLER] Nhận id bạn và URL video, giao cho service, trả phiên theo góc nhìn\n//                 của người tạo.\n//    [SERVICE]    Kiểm URL video theo whitelist, kiểm đã là bạn, chuẩn hóa cặp, trả lại\n//                 phiên cũ nếu cặp đang xem; không thì ghi phiên + 2 participant trong\n//                 1 transaction.\n//    [POSTGRES]   Bảng participant với PK user_id là chốt chặn \"1 user 1 phiên đang\n//                 xem\", bất kể user là low hay high; ghi cùng transaction với phiên.\n//    [REDIS]      Pub/sub báo movie.session.started cho cả 2 người khi vừa tạo phiên\n//                 mới.\n//\n//  Bảng       movie_sessions — phiên mới: cặp (low, high) canonical, video_url, vị trí\n//               phát 0, status active, mode friend (mặc định).\n//             movie_session_active_participants — mỗi người trong phiên một dòng, PK\n//               user_id; insert trùng nghĩa là user đang có phiên active khác.\n//  Redis      realtime:user:{userId} — publish movie.session.started cho từng người\n//               trong cặp.\n//  Liên quan  Friend — FriendService.areFriends: chỉ 2 người đã là bạn mới tạo được\n//               phiên (không chép).\n//             signaling-gateway — subscribe pub/sub và đẩy movie.session.started xuống\n//               socket.\n//             updateState / endSession — bước sau: cập nhật playback (last-write-wins,\n//               không khóa) và kết thúc phiên, endSession xóa 2 dòng participant (chưa\n//               chép).\n//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi\n//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới\n//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //\n//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các\n//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số\n//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức\n//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong\n//             repo.\n",
+    "baselineBodySha256": "fa95d24e2c80162a2c55fa90a8051fad4c991063041b504878d4f2d530b745ae",
+    "bodySha256": "fa95d24e2c80162a2c55fa90a8051fad4c991063041b504878d4f2d530b745ae",
+    "rawSha256": "b38ec4fe62fa57c52c294617d9a48f6923b3c9dfefc7c7dec4e7c9e94c0f5764",
+    "codeSha256": "b38ec4fe62fa57c52c294617d9a48f6923b3c9dfefc7c7dec4e7c9e94c0f5764"
+  },
+  "code": {
+    "path": "code/05-movie-match-movie-night/01-post-create-session.ts",
+    "sha256": "b38ec4fe62fa57c52c294617d9a48f6923b3c9dfefc7c7dec4e7c9e94c0f5764",
+    "hashAlgorithm": "sha256",
+    "content": "//  POST /api/v1/movie-match/sessions\n//  Tạo phiên xem video chung giữa 2 người bạn, idempotent theo cặp, mỗi user chỉ có 1 phiên đang xem.\n//  Step 1: Nhận request (user từ JWT, friendUserId và videoUrl trong body)\n//  Step 2: Kiểm URL video theo whitelist host\n//  Step 3: Kiểm tra 2 người đã là bạn (lỗi chung 404, không lộ quan hệ)\n//  Step 4: Chuẩn hóa cặp (low, high), cặp đang xem chung thì trả phiên cũ\n//  Step 5: Trong transaction, ghi phiên rồi 2 participant (PK user_id chặn trùng)\n//  Step 6: Thua race: đọc lại để phân biệt replay với user ở phiên khác\n//  Step 7: Báo movie.session.started qua Redis cho cả 2 người\n//  Step 8: Controller trả phiên theo góc nhìn của người tạo\n\n// [CONTROLLER] MovieMatchController.createSession  ·  movie-match.controller.ts L46–47, L50–67\n@Controller('movie-match')\nexport class MovieMatchController {\n  // MovieMatchService\n  private readonly logger = new Logger(MovieMatchService.name);\n  constructor(\n    private readonly movieMatchService: MovieMatchService,\n    // MovieMatchService\n    @InjectDataSource() private readonly dataSource: DataSource,\n    private readonly friendService: FriendService,\n    private readonly config: ConfigService<CoreApiEnv, true>,\n    @Inject(MOVIE_MATCH_REDIS) private readonly redis: Redis,\n  ) {}\n\n  // Step 1: Nhận request (user từ JWT, friendUserId và videoUrl trong body)\n  @Post('sessions')\n  @HttpCode(HttpStatus.OK)\n  async createSession(\n    @CurrentUser() user: AuthenticatedUser,\n    @Body() dto: CreateMovieSessionDto,\n  ): Promise<MovieSessionDto> {\n    const session = await this.movieMatchService.createSession(\n      user.userId,\n      dto.friendUserId,\n      dto.videoUrl,\n    );\n\n    // [SERVICE] MovieMatchService.createSession  ·  movie-match.service.ts L109–186\n    const userId = user.userId;\n    const friendUserId = dto.friendUserId;\n    const videoUrl = dto.videoUrl;\n\n    // Step 2: Kiểm URL video theo whitelist host\n    this.assertValidVideoUrl(videoUrl);\n\n    // [SERVICE] MovieMatchService.assertValidVideoUrl  ·  movie-match.service.ts L901–949\n    const maxLength = this.config.getOrThrow('MOVIE_MATCH_URL_MAX_LENGTH', {\n      infer: true,\n    });\n    if (videoUrl.length > maxLength) {\n      throw new DomainException(\n        MovieMatchErrors.INVALID_VIDEO_URL,\n        `videoUrl dài quá ${maxLength} ký tự`,\n        HttpStatus.UNPROCESSABLE_ENTITY,\n        { maxLength },\n      );\n    }\n\n    let url: URL;\n    try {\n      url = new URL(videoUrl);\n    } catch {\n      throw new DomainException(\n        MovieMatchErrors.INVALID_VIDEO_URL,\n        'videoUrl không hợp lệ',\n        HttpStatus.UNPROCESSABLE_ENTITY,\n      );\n    }\n    if (url.protocol !== 'https:' && url.protocol !== 'http:') {\n      throw new DomainException(\n        MovieMatchErrors.INVALID_VIDEO_URL,\n        'videoUrl phải dùng http/https',\n        HttpStatus.UNPROCESSABLE_ENTITY,\n      );\n    }\n\n    const hostname = url.hostname.toLowerCase();\n    const allowedHosts = this.config\n      .getOrThrow('MOVIE_MATCH_ALLOWED_VIDEO_HOSTS', { infer: true })\n      .split(',')\n      .map((h) => h.trim().toLowerCase())\n      .filter((h) => h.length > 0);\n    // Khớp hostname CHÍNH XÁC hoặc subdomain thật (host hoặc .host), không substring/regex: chặn\n    // bypass kiểu youtube.com.evil.com.\n    const allowed = allowedHosts.some(\n      (host) => hostname === host || hostname.endsWith(`.${host}`),\n    );\n    if (!allowed) {\n      throw new DomainException(\n        MovieMatchErrors.INVALID_VIDEO_URL,\n        'Domain video không nằm trong danh sách được phép',\n        HttpStatus.UNPROCESSABLE_ENTITY,\n        { allowedHosts },\n      );\n    }\n\n    // Step 3: Kiểm tra 2 người đã là bạn (lỗi chung 404, không lộ quan hệ)\n    if (userId === friendUserId) {\n      throw new DomainException(\n        MovieMatchErrors.NOT_FRIEND,\n        'Không thể xem chung với chính mình',\n        HttpStatus.NOT_FOUND,\n      );\n    }\n    // Tự xem với mình, không phải bạn, không tồn tại đều trả cùng 404 NOT_FRIEND: không để lộ\n    // quan hệ (oracle).\n    if (!(await this.friendService.areFriends(userId, friendUserId))) {\n      throw new DomainException(\n        MovieMatchErrors.NOT_FRIEND,\n        'Không phải bạn của bạn',\n        HttpStatus.NOT_FOUND,\n      );\n    }\n\n    // Step 4: Chuẩn hóa cặp (low, high), cặp đang xem chung thì trả phiên cũ\n    const [userLowId, userHighId] = canonicalPair(userId, friendUserId);\n\n    // Idempotent theo cặp: đã active đúng cặp này thì trả lại phiên cũ. Active với CẶP KHÁC thì\n    // 409, không tự ý kết thúc phiên cũ thay user.\n    // Chỉ tính phiên mode friend: 2 người bạn đang tình cờ ghép ẩn danh với nhau KHÔNG được coi\n    // là replay của phiên xem chung bạn bè (flow và quyền riêng tư khác nhau).\n    const existing = await this.findActiveByPair(userLowId, userHighId);\n    if (existing) return existing;\n\n    const now = new Date();\n    let created: MovieSession;\n    try {\n\n      // Step 5: Trong transaction, ghi phiên rồi 2 participant (PK user_id chặn trùng)\n      // [POSTGRES] Phiên và 2 dòng participant ghi trong 1 transaction: insert participant lỗi\n      // thì rollback cả phiên, không mồ côi dòng.\n      created = await this.dataSource.transaction(async (manager) => {\n        const session = await manager.save(\n          manager.create(MovieSession, {\n            userLowId,\n            userHighId,\n            videoUrl,\n            positionSeconds: 0,\n            isPlaying: false,\n            positionUpdatedAt: now,\n            status: MovieSessionStatus.Active,\n          }),\n        );\n        // PK user_id chặn user đang active ở phiên KHÁC, dù là low hay high ở đó. 2 unique index\n        // đơn cột trên user_low_id/user_high_id không đủ: mỗi index chỉ soi 1 cột nên không thấy\n        // xung đột chéo (low ở A, high ở B).\n        await manager.insert(MovieSessionActiveParticipant, [\n          { userId: userLowId, sessionId: session.id },\n          { userId: userHighId, sessionId: session.id },\n        ]);\n        return session;\n      });\n    } catch (err) {\n\n      // Step 6: Thua race: đọc lại để phân biệt replay với user ở phiên khác\n      // Thua race: đọc lại để phân biệt \"đúng cặp\" (replay, trả lại phiên) với \"user đã active ở\n      // cặp khác\" (409, không đoán ý user).\n      if (!isUniqueViolation(err)) throw err;\n      const raced = await this.findActiveByPair(userLowId, userHighId);\n      if (raced) return raced;\n      throw new DomainException(\n        MovieMatchErrors.ALREADY_ACTIVE,\n        'Đang có phiên xem chung khác đang active',\n        HttpStatus.CONFLICT,\n      );\n    }\n\n    // Step 7: Báo movie.session.started qua Redis cho cả 2 người\n    const envelope: RealtimeEnvelope<MovieSessionStartedEventData> = {\n      event: RealtimeEvents.MovieSessionStarted,\n      data: {\n        sessionId: created.id,\n        videoUrl: created.videoUrl,\n        initiatorUserId: userId,\n      },\n    };\n    // [REDIS] Chỉ bắn khi vừa tạo phiên mới (các nhánh replay đã return). Best-effort: client còn\n    // poll GET /sessions/:id.\n    await Promise.all(\n      [userLowId, userHighId].map((uid) =>\n        publishRealtimeEvent(this.redis, this.logger, uid, envelope),\n      ),\n    );\n    return created;\n\n    // Step 8: Controller trả phiên theo góc nhìn của người tạo\n    return MovieSessionDto.from(session, user.userId);\n  }\n}\n\n// [POSTGRES] CREATE TABLE movie_session_active_participants  ·  1753200000000-movie-match.ts L45–50\nawait queryRunner.query(`\n  CREATE TABLE movie_session_active_participants (\n    user_id    uuid PRIMARY KEY REFERENCES users(id),\n    session_id uuid NOT NULL REFERENCES movie_sessions(id)\n  )\n`);\n"
+  },
+  "provenance": {
+    "catalog": {
+      "path": "annotated-05-movie-match-movie-night.mjs",
+      "sha256": "10d2764eb6787ed9b1fcabdd93c971534cc1651412317f6b48792d8c122e74e4"
+    },
+    "displayedCodeSha256": "b38ec4fe62fa57c52c294617d9a48f6923b3c9dfefc7c7dec4e7c9e94c0f5764"
+  }
+}

@@ -1,0 +1,840 @@
+{
+  "id": "04-party-room/02-post-create-room",
+  "featureId": "04-party-room",
+  "feature": "Party Room",
+  "summary": "Phòng audio nhiều người trên LiveKit: host mở phòng, audience vào nghe, host mời speaker lên nói.",
+  "name": "Tạo phòng Party",
+  "title": "Tạo phòng và membership host trong 1 transaction, rồi tạo room trên LiveKit; SFU lỗi thì đóng phòng bù trừ.",
+  "method": "POST",
+  "route": "/api/v1/party/rooms",
+  "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.ts",
+  "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/04-party-room/02-post-create-room.json",
+  "diagramUrl": "https://ducmanh001.github.io/litmatch-feature-flows/#04-party-room",
+  "catalog": "annotated-04-party-room.mjs",
+  "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [EXTERNAL] → [SERVICE]",
+  "roles": [
+    [
+      "CONTROLLER",
+      "Nhận request tạo phòng (giới hạn 5 lần/phút), trả phòng, membership host, token publish và URL LiveKit."
+    ],
+    [
+      "SERVICE",
+      "Kiểm tiêu đề, chốt URL LiveKit theo region host, ghi phòng + host trong 1 transaction; sau commit tạo room SFU, lỗi thì bù trừ bằng cách đóng phòng."
+    ],
+    [
+      "POSTGRES",
+      "Ghi phòng và membership host nguyên tử; unique index 1 user 1 phòng chặn host đang ở phòng khác."
+    ],
+    [
+      "EXTERNAL",
+      "LiveKit: tạo room tường minh (giới hạn người, tự đóng khi trống), rồi ký token publish cho host."
+    ],
+    [
+      "REDIS",
+      "Chỉ dùng khi bù trừ: đóng phòng thì pub/sub báo party.room.closed cho member."
+    ]
+  ],
+  "tables": [
+    [
+      "party_rooms",
+      "dòng phòng mới: host, title, status active, speaker_limit chụp từ config, livekit_url chụp theo region host; đóng với close_reason error khi SFU lỗi."
+    ],
+    [
+      "party_room_members",
+      "dòng membership role host; bị đánh dấu left_at khi phòng bị đóng bù trừ."
+    ],
+    [
+      "users",
+      "chỉ đọc region của host khi bật multi-region, để chọn URL LiveKit."
+    ]
+  ],
+  "redis": [
+    [
+      "realtime:user:{userId}",
+      "chỉ khi bù trừ: publish party.room.closed cho member đang active."
+    ]
+  ],
+  "related": [
+    [
+      "LiveKit (SFU)",
+      "tạo room party-{roomId} với maxParticipants và emptyTimeout; deleteRoom khi đóng phòng; ký token host (canPublish=true)."
+    ],
+    [
+      "User",
+      "getByIdOrThrow lấy region của host (chỉ khi LIVEKIT_REGION_URLS có giá trị)."
+    ],
+    [
+      "PartyRoomSweeper",
+      "backstop: đóng phòng còn trong DB nhưng không còn trên SFU, nếu bù trừ cũng lỗi (chưa chép)."
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "text": "Nhận request (user từ JWT, title và category từ body; 5 lần/phút)",
+      "line": 28,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html#L28",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/02-post-create-room.ts#L28"
+    },
+    {
+      "number": 2,
+      "text": "Chốt URL LiveKit theo region của host",
+      "line": 53,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html#L53",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/02-post-create-room.ts#L53"
+    },
+    {
+      "number": 3,
+      "text": "Ghi phòng và membership host trong 1 transaction",
+      "line": 62,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html#L62",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/02-post-create-room.ts#L62"
+    },
+    {
+      "number": 4,
+      "text": "Sau commit, tạo room tường minh trên LiveKit",
+      "line": 109,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html#L109",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/02-post-create-room.ts#L109"
+    },
+    {
+      "number": 5,
+      "text": "SFU lỗi: đóng phòng vừa tạo để bù trừ",
+      "line": 126,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html#L126",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/02-post-create-room.ts#L126"
+    },
+    {
+      "number": 6,
+      "text": "Đóng phòng idempotent: khóa dòng phòng, đã closed thì bỏ qua",
+      "line": 138,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html#L138",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/02-post-create-room.ts#L138"
+    },
+    {
+      "number": 7,
+      "text": "Dọn room trên SFU và báo party.room.closed cho member",
+      "line": 173,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html#L173",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/02-post-create-room.ts#L173"
+    },
+    {
+      "number": 8,
+      "text": "Trả 503 để client thử lại sau",
+      "line": 196,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html#L196",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/02-post-create-room.ts#L196"
+    },
+    {
+      "number": 9,
+      "text": "Ký token publish cho host, trả phòng và URL LiveKit",
+      "line": 204,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html#L204",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/02-post-create-room.ts#L204"
+    },
+    {
+      "number": 10,
+      "text": "Controller trả phòng, membership host, token và URL LiveKit",
+      "line": 212,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html#L212",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/02-post-create-room.ts#L212"
+    }
+  ],
+  "declaredSteps": [
+    {
+      "at": "@Post()",
+      "text": "Nhận request (user từ JWT, title và category từ body; 5 lần/phút)"
+    },
+    {
+      "at": "const livekitUrl = await this.resolveHostLivekitUrl(user.userId);",
+      "text": "Chốt URL LiveKit theo region của host"
+    },
+    {
+      "at": "({ room, membership } = await this.dataSource.transaction(",
+      "text": "Ghi phòng và membership host trong 1 transaction"
+    },
+    {
+      "at": "await this.livekit.createRoom(partyRoomName(room.id), {",
+      "text": "Sau commit, tạo room tường minh trên LiveKit"
+    },
+    {
+      "at": "await this.closeRoomById(room.id, PartyRoomCloseReason.Error).catch(",
+      "text": "SFU lỗi: đóng phòng vừa tạo để bù trừ"
+    },
+    {
+      "at": "const room = await manager.findOne(PartyRoom, {",
+      "text": "Đóng phòng idempotent: khóa dòng phòng, đã closed thì bỏ qua"
+    },
+    {
+      "at": "if (result.closed) {",
+      "text": "Dọn room trên SFU và báo party.room.closed cho member"
+    },
+    {
+      "at": "throw new ServiceUnavailableException(",
+      "text": "Trả 503 để client thử lại sau"
+    },
+    {
+      "at": "return {",
+      "in": "PartyRoomService.createRoom",
+      "nth": 1,
+      "text": "Ký token publish cho host, trả phòng và URL LiveKit"
+    },
+    {
+      "at": "return JoinPartyRoomDto.from(",
+      "text": "Controller trả phòng, membership host, token và URL LiveKit"
+    }
+  ],
+  "whyComments": [
+    {
+      "at": "const livekitUrl = await this.resolveHostLivekitUrl(user.userId);",
+      "text": [
+        "Chốt URL LiveKit theo region của HOST (server suy ra từ User, không nhận từ client) trước khi tạo phòng: phòng ghim 1 endpoint trọn đời, cùng triết lý snapshot với speakerLimit."
+      ],
+      "src": "comment gốc party-room.service.ts L155-156 + doc resolveHostLivekitUrl party-room.service.ts L1144-1148 (User.region do server derive, không nhận từ client)",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    },
+    {
+      "at": "({ room, membership } = await this.dataSource.transaction(",
+      "text": [
+        "[POSTGRES] Phòng và membership host ghi ATOMIC trong 1 transaction: không bao giờ có phòng vô chủ ngay từ lúc sinh."
+      ],
+      "src": "doc createRoom party-room.service.ts L133-136",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    },
+    {
+      "at": "speakerLimit: this.config.getOrThrow(",
+      "text": [
+        "Chụp giới hạn speaker lúc tạo: đổi config sau này không ảnh hưởng phòng đang sống."
+      ],
+      "src": "comment gốc party-room.service.ts L170",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    },
+    {
+      "at": "throw new DomainException(",
+      "text": [
+        "[POSTGRES] Host đang ở phòng active khác thì insert member dính unique index \"1 user 1 phòng\" (xem bên dưới)."
+      ],
+      "src": "comment gốc party-room.service.ts L188",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    },
+    {
+      "at": "await this.livekit.createRoom(partyRoomName(room.id), {",
+      "text": [
+        "[EXTERNAL] Gọi SFU SAU commit (lệnh mạng không nằm trong atomic của Postgres) và tạo room TƯỜNG MINH với maxParticipants, emptyTimeout thay vì để LiveKit tự tạo khi có người vào."
+      ],
+      "src": "doc createRoom party-room.service.ts L133-136 + doc syncPublishPermissionAfterCommit L1067-1069 + doc ports/livekit-party-room.ts L23",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    },
+    {
+      "at": "await this.closeRoomById(room.id, PartyRoomCloseReason.Error).catch(",
+      "text": [
+        "Bù trừ: SFU lỗi thì đóng phòng vừa tạo (lý do error); đóng cũng nhả membership host nên host không bị kẹt trong 1 phòng hỏng."
+      ],
+      "src": "doc createRoom L133-137 \"compensate đóng phòng vừa tạo\" + suy ra từ code (closeRoomById set left_at cho member active)",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    },
+    {
+      "at": "throw new ServiceUnavailableException(",
+      "text": [
+        "Lỗi hạ tầng (5xx) nên không dùng DomainException (chỉ 4xx); client thử lại sau."
+      ],
+      "src": "comment gốc party-room.service.ts L219",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    },
+    {
+      "at": "const room = await manager.findOne(PartyRoom, {",
+      "text": [
+        "[POSTGRES] Đóng phòng idempotent: khóa dòng phòng, đã closed thì no-op, nên endpoint host-leave, webhook, sweeper và bù trừ này gọi trùng vẫn an toàn."
+      ],
+      "src": "doc closeRoomById party-room.service.ts L998-1001",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    },
+    {
+      "at": "if (guard !== undefined && !guard(room)) {",
+      "text": [
+        "`guard` (sweeper dùng, lúc bù trừ này không truyền) chạy TRÊN dòng đã khóa, trong cùng transaction: host kịp nối lại thì guard fail và không đóng nhầm."
+      ],
+      "src": "doc closeRoomById party-room.service.ts L1002-1006",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    },
+    {
+      "at": "if (result.closed) {",
+      "text": [
+        "Chỉ lời gọi thực hiện transition mới dọn SFU và publish, nên retry không bắn event đôi."
+      ],
+      "src": "doc closeRoomById party-room.service.ts L999-1000",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    },
+    {
+      "at": "this.logger.debug(",
+      "text": [
+        "Room có thể đã tự đóng (room_finished hoặc empty timeout): không phải lỗi nghiệp vụ."
+      ],
+      "src": "comment gốc party-room.service.ts L1047",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    },
+    {
+      "at": "publishRealtimeEvent(this.redis, this.logger, uid, envelope),",
+      "text": [
+        "[REDIS] Báo party.room.closed cho từng member đã đóng; best-effort, client còn poll."
+      ],
+      "src": "suy ra từ code (publishRealtimeEvent sau commit) + doc publish-realtime.ts L10-13",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    }
+  ],
+  "sources": [
+    "apps/core-api/src/database/migrations/1752700000000-party-room-gift.ts",
+    "apps/core-api/src/modules/party-room/party-room.controller.ts",
+    "apps/core-api/src/modules/party-room/party-room.service.ts"
+  ],
+  "sourceContext": {
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/party-room/party-room.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post()",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async createRoom(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const livekitUrl = await this.resolveHostLivekitUrl(user.userId);",
+            "text": [
+              "Chốt URL LiveKit theo region của HOST (server suy ra từ User, không nhận từ client) trước khi tạo phòng: phòng ghim 1 endpoint trọn đời, cùng triết lý snapshot với speakerLimit."
+            ],
+            "src": "comment gốc party-room.service.ts L155-156 + doc resolveHostLivekitUrl party-room.service.ts L1144-1148 (User.region do server derive, không nhận từ client)"
+          },
+          {
+            "at": "({ room, membership } = await this.dataSource.transaction(",
+            "text": [
+              "[POSTGRES] Phòng và membership host ghi ATOMIC trong 1 transaction: không bao giờ có phòng vô chủ ngay từ lúc sinh."
+            ],
+            "src": "doc createRoom party-room.service.ts L133-136"
+          },
+          {
+            "at": "speakerLimit: this.config.getOrThrow(",
+            "text": [
+              "Chụp giới hạn speaker lúc tạo: đổi config sau này không ảnh hưởng phòng đang sống."
+            ],
+            "src": "comment gốc party-room.service.ts L170"
+          },
+          {
+            "at": "throw new DomainException(",
+            "text": [
+              "[POSTGRES] Host đang ở phòng active khác thì insert member dính unique index \"1 user 1 phòng\" (xem bên dưới)."
+            ],
+            "src": "comment gốc party-room.service.ts L188"
+          },
+          {
+            "at": "await this.livekit.createRoom(partyRoomName(room.id), {",
+            "text": [
+              "[EXTERNAL] Gọi SFU SAU commit (lệnh mạng không nằm trong atomic của Postgres) và tạo room TƯỜNG MINH với maxParticipants, emptyTimeout thay vì để LiveKit tự tạo khi có người vào."
+            ],
+            "src": "doc createRoom party-room.service.ts L133-136 + doc syncPublishPermissionAfterCommit L1067-1069 + doc ports/livekit-party-room.ts L23"
+          },
+          {
+            "at": "await this.closeRoomById(room.id, PartyRoomCloseReason.Error).catch(",
+            "text": [
+              "Bù trừ: SFU lỗi thì đóng phòng vừa tạo (lý do error); đóng cũng nhả membership host nên host không bị kẹt trong 1 phòng hỏng."
+            ],
+            "src": "doc createRoom L133-137 \"compensate đóng phòng vừa tạo\" + suy ra từ code (closeRoomById set left_at cho member active)"
+          },
+          {
+            "at": "throw new ServiceUnavailableException(",
+            "text": [
+              "Lỗi hạ tầng (5xx) nên không dùng DomainException (chỉ 4xx); client thử lại sau."
+            ],
+            "src": "comment gốc party-room.service.ts L219"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async resolveHostLivekitUrl(",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752700000000-party-room-gift.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE UNIQUE INDEX uq_party_members_active_user",
+            "to": "^    \\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async closeRoomById(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const room = await manager.findOne(PartyRoom, {",
+            "text": [
+              "[POSTGRES] Đóng phòng idempotent: khóa dòng phòng, đã closed thì no-op, nên endpoint host-leave, webhook, sweeper và bù trừ này gọi trùng vẫn an toàn."
+            ],
+            "src": "doc closeRoomById party-room.service.ts L998-1001"
+          },
+          {
+            "at": "if (guard !== undefined && !guard(room)) {",
+            "text": [
+              "`guard` (sweeper dùng, lúc bù trừ này không truyền) chạy TRÊN dòng đã khóa, trong cùng transaction: host kịp nối lại thì guard fail và không đóng nhầm."
+            ],
+            "src": "doc closeRoomById party-room.service.ts L1002-1006"
+          },
+          {
+            "at": "if (result.closed) {",
+            "text": [
+              "Chỉ lời gọi thực hiện transition mới dọn SFU và publish, nên retry không bắn event đôi."
+            ],
+            "src": "doc closeRoomById party-room.service.ts L999-1000"
+          },
+          {
+            "at": "this.logger.debug(",
+            "text": [
+              "Room có thể đã tự đóng (room_finished hoặc empty timeout): không phải lỗi nghiệp vụ."
+            ],
+            "src": "comment gốc party-room.service.ts L1047"
+          },
+          {
+            "at": "publishRealtimeEvent(this.redis, this.logger, uid, envelope),",
+            "text": [
+              "[REDIS] Báo party.room.closed cho từng member đã đóng; best-effort, client còn poll."
+            ],
+            "src": "suy ra từ code (publishRealtimeEvent sau commit) + doc publish-realtime.ts L10-13"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async mintToken(",
+            "to": "^  }$"
+          }
+        ]
+      }
+    ],
+    "ranges": [
+      {
+        "file": "apps/core-api/src/modules/party-room/party-room.controller.ts",
+        "range": {
+          "at": "@Post()",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "range": {
+          "at": "async createRoom(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "range": {
+          "at": "private async resolveHostLivekitUrl(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/database/migrations/1752700000000-party-room-gift.ts",
+        "range": {
+          "at": "CREATE UNIQUE INDEX uq_party_members_active_user",
+          "to": "^    \\);$",
+          "pad": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "range": {
+          "at": "async closeRoomById(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "range": {
+          "at": "private async mintToken(",
+          "to": "^  }$"
+        }
+      }
+    ],
+    "helpers": [],
+    "skip": [
+      "resolveHostLivekitUrl",
+      "mintToken"
+    ],
+    "attach": {},
+    "nested": true
+  },
+  "omittedContext": {
+    "note": "Curated source selection; unlisted call bodies, shared request infrastructure, DTOs and other context may be omitted. skip names stay unexpanded; helpers may be substituted; attach controls placement. Flattened scopes are not executable code.",
+    "skip": [
+      "resolveHostLivekitUrl",
+      "mintToken"
+    ],
+    "attach": {},
+    "helpers": []
+  },
+  "featureMetadata": {
+    "id": "04-party-room",
+    "short": "Party Room",
+    "title": "Party Room",
+    "summary": "Phòng audio nhiều người trên LiveKit: host mở phòng, audience vào nghe, host mời speaker lên nói.",
+    "diagramAnchor": "04-party-room"
+  },
+  "endpointCatalog": {
+    "n": "02",
+    "slug": "post-create-room",
+    "method": "POST",
+    "short": "/party/rooms",
+    "route": "/api/v1/party/rooms",
+    "name": "Tạo phòng Party",
+    "title": "Tạo phòng và membership host trong 1 transaction, rồi tạo room trên LiveKit; SFU lỗi thì đóng phòng bù trừ.",
+    "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [EXTERNAL] → [SERVICE]",
+    "roles": [
+      [
+        "CONTROLLER",
+        "Nhận request tạo phòng (giới hạn 5 lần/phút), trả phòng, membership host, token publish và URL LiveKit."
+      ],
+      [
+        "SERVICE",
+        "Kiểm tiêu đề, chốt URL LiveKit theo region host, ghi phòng + host trong 1 transaction; sau commit tạo room SFU, lỗi thì bù trừ bằng cách đóng phòng."
+      ],
+      [
+        "POSTGRES",
+        "Ghi phòng và membership host nguyên tử; unique index 1 user 1 phòng chặn host đang ở phòng khác."
+      ],
+      [
+        "EXTERNAL",
+        "LiveKit: tạo room tường minh (giới hạn người, tự đóng khi trống), rồi ký token publish cho host."
+      ],
+      [
+        "REDIS",
+        "Chỉ dùng khi bù trừ: đóng phòng thì pub/sub báo party.room.closed cho member."
+      ]
+    ],
+    "tables": [
+      [
+        "party_rooms",
+        "dòng phòng mới: host, title, status active, speaker_limit chụp từ config, livekit_url chụp theo region host; đóng với close_reason error khi SFU lỗi."
+      ],
+      [
+        "party_room_members",
+        "dòng membership role host; bị đánh dấu left_at khi phòng bị đóng bù trừ."
+      ],
+      [
+        "users",
+        "chỉ đọc region của host khi bật multi-region, để chọn URL LiveKit."
+      ]
+    ],
+    "redis": [
+      [
+        "realtime:user:{userId}",
+        "chỉ khi bù trừ: publish party.room.closed cho member đang active."
+      ]
+    ],
+    "related": [
+      [
+        "LiveKit (SFU)",
+        "tạo room party-{roomId} với maxParticipants và emptyTimeout; deleteRoom khi đóng phòng; ký token host (canPublish=true)."
+      ],
+      [
+        "User",
+        "getByIdOrThrow lấy region của host (chỉ khi LIVEKIT_REGION_URLS có giá trị)."
+      ],
+      [
+        "PartyRoomSweeper",
+        "backstop: đóng phòng còn trong DB nhưng không còn trên SFU, nếu bù trừ cũng lỗi (chưa chép)."
+      ]
+    ],
+    "nested": true,
+    "skip": [
+      "resolveHostLivekitUrl",
+      "mintToken"
+    ],
+    "steps": [
+      {
+        "at": "@Post()",
+        "text": "Nhận request (user từ JWT, title và category từ body; 5 lần/phút)"
+      },
+      {
+        "at": "const livekitUrl = await this.resolveHostLivekitUrl(user.userId);",
+        "text": "Chốt URL LiveKit theo region của host"
+      },
+      {
+        "at": "({ room, membership } = await this.dataSource.transaction(",
+        "text": "Ghi phòng và membership host trong 1 transaction"
+      },
+      {
+        "at": "await this.livekit.createRoom(partyRoomName(room.id), {",
+        "text": "Sau commit, tạo room tường minh trên LiveKit"
+      },
+      {
+        "at": "await this.closeRoomById(room.id, PartyRoomCloseReason.Error).catch(",
+        "text": "SFU lỗi: đóng phòng vừa tạo để bù trừ"
+      },
+      {
+        "at": "const room = await manager.findOne(PartyRoom, {",
+        "text": "Đóng phòng idempotent: khóa dòng phòng, đã closed thì bỏ qua"
+      },
+      {
+        "at": "if (result.closed) {",
+        "text": "Dọn room trên SFU và báo party.room.closed cho member"
+      },
+      {
+        "at": "throw new ServiceUnavailableException(",
+        "text": "Trả 503 để client thử lại sau"
+      },
+      {
+        "at": "return {",
+        "in": "PartyRoomService.createRoom",
+        "nth": 1,
+        "text": "Ký token publish cho host, trả phòng và URL LiveKit"
+      },
+      {
+        "at": "return JoinPartyRoomDto.from(",
+        "text": "Controller trả phòng, membership host, token và URL LiveKit"
+      }
+    ],
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/party-room/party-room.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post()",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async createRoom(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const livekitUrl = await this.resolveHostLivekitUrl(user.userId);",
+            "text": [
+              "Chốt URL LiveKit theo region của HOST (server suy ra từ User, không nhận từ client) trước khi tạo phòng: phòng ghim 1 endpoint trọn đời, cùng triết lý snapshot với speakerLimit."
+            ],
+            "src": "comment gốc party-room.service.ts L155-156 + doc resolveHostLivekitUrl party-room.service.ts L1144-1148 (User.region do server derive, không nhận từ client)"
+          },
+          {
+            "at": "({ room, membership } = await this.dataSource.transaction(",
+            "text": [
+              "[POSTGRES] Phòng và membership host ghi ATOMIC trong 1 transaction: không bao giờ có phòng vô chủ ngay từ lúc sinh."
+            ],
+            "src": "doc createRoom party-room.service.ts L133-136"
+          },
+          {
+            "at": "speakerLimit: this.config.getOrThrow(",
+            "text": [
+              "Chụp giới hạn speaker lúc tạo: đổi config sau này không ảnh hưởng phòng đang sống."
+            ],
+            "src": "comment gốc party-room.service.ts L170"
+          },
+          {
+            "at": "throw new DomainException(",
+            "text": [
+              "[POSTGRES] Host đang ở phòng active khác thì insert member dính unique index \"1 user 1 phòng\" (xem bên dưới)."
+            ],
+            "src": "comment gốc party-room.service.ts L188"
+          },
+          {
+            "at": "await this.livekit.createRoom(partyRoomName(room.id), {",
+            "text": [
+              "[EXTERNAL] Gọi SFU SAU commit (lệnh mạng không nằm trong atomic của Postgres) và tạo room TƯỜNG MINH với maxParticipants, emptyTimeout thay vì để LiveKit tự tạo khi có người vào."
+            ],
+            "src": "doc createRoom party-room.service.ts L133-136 + doc syncPublishPermissionAfterCommit L1067-1069 + doc ports/livekit-party-room.ts L23"
+          },
+          {
+            "at": "await this.closeRoomById(room.id, PartyRoomCloseReason.Error).catch(",
+            "text": [
+              "Bù trừ: SFU lỗi thì đóng phòng vừa tạo (lý do error); đóng cũng nhả membership host nên host không bị kẹt trong 1 phòng hỏng."
+            ],
+            "src": "doc createRoom L133-137 \"compensate đóng phòng vừa tạo\" + suy ra từ code (closeRoomById set left_at cho member active)"
+          },
+          {
+            "at": "throw new ServiceUnavailableException(",
+            "text": [
+              "Lỗi hạ tầng (5xx) nên không dùng DomainException (chỉ 4xx); client thử lại sau."
+            ],
+            "src": "comment gốc party-room.service.ts L219"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async resolveHostLivekitUrl(",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752700000000-party-room-gift.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE UNIQUE INDEX uq_party_members_active_user",
+            "to": "^    \\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async closeRoomById(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const room = await manager.findOne(PartyRoom, {",
+            "text": [
+              "[POSTGRES] Đóng phòng idempotent: khóa dòng phòng, đã closed thì no-op, nên endpoint host-leave, webhook, sweeper và bù trừ này gọi trùng vẫn an toàn."
+            ],
+            "src": "doc closeRoomById party-room.service.ts L998-1001"
+          },
+          {
+            "at": "if (guard !== undefined && !guard(room)) {",
+            "text": [
+              "`guard` (sweeper dùng, lúc bù trừ này không truyền) chạy TRÊN dòng đã khóa, trong cùng transaction: host kịp nối lại thì guard fail và không đóng nhầm."
+            ],
+            "src": "doc closeRoomById party-room.service.ts L1002-1006"
+          },
+          {
+            "at": "if (result.closed) {",
+            "text": [
+              "Chỉ lời gọi thực hiện transition mới dọn SFU và publish, nên retry không bắn event đôi."
+            ],
+            "src": "doc closeRoomById party-room.service.ts L999-1000"
+          },
+          {
+            "at": "this.logger.debug(",
+            "text": [
+              "Room có thể đã tự đóng (room_finished hoặc empty timeout): không phải lỗi nghiệp vụ."
+            ],
+            "src": "comment gốc party-room.service.ts L1047"
+          },
+          {
+            "at": "publishRealtimeEvent(this.redis, this.logger, uid, envelope),",
+            "text": [
+              "[REDIS] Báo party.room.closed cho từng member đã đóng; best-effort, client còn poll."
+            ],
+            "src": "suy ra từ code (publishRealtimeEvent sau commit) + doc publish-realtime.ts L10-13"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async mintToken(",
+            "to": "^  }$"
+          }
+        ]
+      }
+    ]
+  },
+  "sourceManifest": {
+    "verifiedCodeSha256": true,
+    "mode": "published-presentation",
+    "baselineCommit": "cb30743143bd8f6576b154db4b606380c365c674",
+    "sourceCommit": "d3cb28c",
+    "sources": [
+      "apps/core-api/src/database/migrations/1752700000000-party-room-gift.ts",
+      "apps/core-api/src/modules/party-room/party-room.controller.ts",
+      "apps/core-api/src/modules/party-room/party-room.service.ts"
+    ],
+    "steps": [
+      "Step 1: Nhận request (user từ JWT, title và category từ body; 5 lần/phút)",
+      "Step 2: Chốt URL LiveKit theo region của host",
+      "Step 3: Ghi phòng và membership host trong 1 transaction",
+      "Step 4: Sau commit, tạo room tường minh trên LiveKit",
+      "Step 5: SFU lỗi: đóng phòng vừa tạo để bù trừ",
+      "Step 6: Đóng phòng idempotent: khóa dòng phòng, đã closed thì bỏ qua",
+      "Step 7: Dọn room trên SFU và báo party.room.closed cho member",
+      "Step 8: Trả 503 để client thử lại sau",
+      "Step 9: Ký token publish cho host, trả phòng và URL LiveKit",
+      "Step 10: Controller trả phòng, membership host, token và URL LiveKit"
+    ],
+    "removedOverview": "// ════════════════════════════════════════════════════════════════════════════\n//  POST /api/v1/party/rooms\n//  Tạo phòng và membership host trong 1 transaction, rồi tạo room trên LiveKit; SFU lỗi thì đóng phòng bù trừ.\n// ════════════════════════════════════════════════════════════════════════════\n//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [EXTERNAL] → [SERVICE]\n//\n//  Vai trò từng tầng\n//    [CONTROLLER] Nhận request tạo phòng (giới hạn 5 lần/phút), trả phòng, membership\n//                 host, token publish và URL LiveKit.\n//    [SERVICE]    Kiểm tiêu đề, chốt URL LiveKit theo region host, ghi phòng + host\n//                 trong 1 transaction; sau commit tạo room SFU, lỗi thì bù trừ bằng\n//                 cách đóng phòng.\n//    [POSTGRES]   Ghi phòng và membership host nguyên tử; unique index 1 user 1 phòng\n//                 chặn host đang ở phòng khác.\n//    [EXTERNAL]   LiveKit: tạo room tường minh (giới hạn người, tự đóng khi trống), rồi\n//                 ký token publish cho host.\n//    [REDIS]      Chỉ dùng khi bù trừ: đóng phòng thì pub/sub báo party.room.closed cho\n//                 member.\n//\n//  Bảng       party_rooms — dòng phòng mới: host, title, status active, speaker_limit\n//               chụp từ config, livekit_url chụp theo region host; đóng với\n//               close_reason error khi SFU lỗi.\n//             party_room_members — dòng membership role host; bị đánh dấu left_at khi\n//               phòng bị đóng bù trừ.\n//             users — chỉ đọc region của host khi bật multi-region, để chọn URL\n//               LiveKit.\n//  Redis      realtime:user:{userId} — chỉ khi bù trừ: publish party.room.closed cho\n//               member đang active.\n//  Liên quan  LiveKit (SFU) — tạo room party-{roomId} với maxParticipants và\n//               emptyTimeout; deleteRoom khi đóng phòng; ký token host\n//               (canPublish=true).\n//             User — getByIdOrThrow lấy region của host (chỉ khi LIVEKIT_REGION_URLS có\n//               giá trị).\n//             PartyRoomSweeper — backstop: đóng phòng còn trong DB nhưng không còn trên\n//               SFU, nếu bù trừ cũng lỗi (chưa chép).\n//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi\n//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới\n//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //\n//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các\n//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số\n//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức\n//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong\n//             repo.\n",
+    "baselineBodySha256": "91948c6fe41213d8ae06d0a0945eb620340794b14e949ce9b6738d30754b30c6",
+    "bodySha256": "91948c6fe41213d8ae06d0a0945eb620340794b14e949ce9b6738d30754b30c6",
+    "rawSha256": "488f2031d9fc46f9b69bd6421fbeb85b0f091495eaa3ef496ac60c99a9ccc391",
+    "codeSha256": "488f2031d9fc46f9b69bd6421fbeb85b0f091495eaa3ef496ac60c99a9ccc391"
+  },
+  "code": {
+    "path": "code/04-party-room/02-post-create-room.ts",
+    "sha256": "488f2031d9fc46f9b69bd6421fbeb85b0f091495eaa3ef496ac60c99a9ccc391",
+    "hashAlgorithm": "sha256",
+    "content": "//  POST /api/v1/party/rooms\n//  Tạo phòng và membership host trong 1 transaction, rồi tạo room trên LiveKit; SFU lỗi thì đóng phòng bù trừ.\n//  Step 1: Nhận request (user từ JWT, title và category từ body; 5 lần/phút)\n//  Step 2: Chốt URL LiveKit theo region của host\n//  Step 3: Ghi phòng và membership host trong 1 transaction\n//  Step 4: Sau commit, tạo room tường minh trên LiveKit\n//  Step 5: SFU lỗi: đóng phòng vừa tạo để bù trừ\n//  Step 6: Đóng phòng idempotent: khóa dòng phòng, đã closed thì bỏ qua\n//  Step 7: Dọn room trên SFU và báo party.room.closed cho member\n//  Step 8: Trả 503 để client thử lại sau\n//  Step 9: Ký token publish cho host, trả phòng và URL LiveKit\n//  Step 10: Controller trả phòng, membership host, token và URL LiveKit\n\n// [CONTROLLER] PartyRoomController.create  ·  party-room.controller.ts L46–47, L50–63\n@Controller('party/rooms')\nexport class PartyRoomController {\n  // PartyRoomService\n  private readonly logger = new Logger(PartyRoomService.name);\n  constructor(\n    private readonly partyRoomService: PartyRoomService,\n    // PartyRoomService\n    @InjectDataSource() private readonly dataSource: DataSource,\n    private readonly livekit: PartyLivekitRoomPort,\n    private readonly config: ConfigService<CoreApiEnv, true>,\n    @Inject(PARTY_REDIS) private readonly redis: Redis,\n  ) {}\n\n  // Step 1: Nhận request (user từ JWT, title và category từ body; 5 lần/phút)\n  @Post()\n  @Throttle({ default: { limit: 5, ttl: minutes(1) } })\n  async create(\n    @CurrentUser() user: AuthenticatedUser,\n    @Body() body: CreatePartyRoomDto,\n  ): Promise<JoinPartyRoomDto> {\n    const { room, membership, token, livekitUrl } =\n      await this.partyRoomService.createRoom(user, body.title, body.category);\n\n    // [SERVICE] PartyRoomService.createRoom  ·  party-room.service.ts L138–232\n    const title = body.title;\n    const category = body.category;\n    const cleanTitle = title.trim();\n    const maxLen = this.config.getOrThrow('PARTY_TITLE_MAX_LENGTH', {\n      infer: true,\n    });\n    if (cleanTitle.length === 0 || cleanTitle.length > maxLen) {\n      throw new DomainException(\n        PartyRoomErrors.TITLE_TOO_LONG,\n        `Title phải từ 1 tới ${maxLen} ký tự`,\n        HttpStatus.BAD_REQUEST,\n      );\n    }\n\n    // Step 2: Chốt URL LiveKit theo region của host\n    // Chốt URL LiveKit theo region của HOST (server suy ra từ User, không nhận từ client) trước\n    // khi tạo phòng: phòng ghim 1 endpoint trọn đời, cùng triết lý snapshot với speakerLimit.\n    const livekitUrl = await this.resolveHostLivekitUrl(user.userId);\n\n    let room: PartyRoom;\n    let membership: PartyRoomMember;\n    try {\n\n      // Step 3: Ghi phòng và membership host trong 1 transaction\n      // [POSTGRES] Phòng và membership host ghi ATOMIC trong 1 transaction: không bao giờ có\n      // phòng vô chủ ngay từ lúc sinh.\n      ({ room, membership } = await this.dataSource.transaction(\n        async (manager) => {\n          const createdRoom = await manager.save(\n            manager.create(PartyRoom, {\n              hostUserId: user.userId,\n              title: cleanTitle,\n              category,\n              status: PartyRoomStatus.Active,\n              // Chụp giới hạn speaker lúc tạo: đổi config sau này không ảnh hưởng phòng đang\n              // sống.\n              speakerLimit: this.config.getOrThrow('PARTY_MAX_SPEAKERS', {\n                infer: true,\n              }),\n              livekitUrl,\n            }),\n          );\n          const member = await manager.save(\n            manager.create(PartyRoomMember, {\n              roomId: createdRoom.id,\n              userId: user.userId,\n              role: PartyRole.Host,\n            }),\n          );\n          return { room: createdRoom, membership: member };\n        },\n      ));\n    } catch (err) {\n      if (\n        isUniqueViolation(err) &&\n        violatedConstraint(err, UQ_PARTY_MEMBERS_ACTIVE_USER)\n      ) {\n        // [POSTGRES] Host đang ở phòng active khác thì insert member dính unique index \"1 user 1\n        // phòng\" (xem bên dưới).\n        throw new DomainException(\n          PartyRoomErrors.ALREADY_IN_ANOTHER_ROOM,\n          'Bạn đang ở trong 1 phòng khác — rời phòng đó trước',\n          HttpStatus.CONFLICT,\n        );\n      }\n      throw err;\n    }\n\n    try {\n\n      // Step 4: Sau commit, tạo room tường minh trên LiveKit\n      // [EXTERNAL] Gọi SFU SAU commit (lệnh mạng không nằm trong atomic của Postgres) và tạo room\n      // TƯỜNG MINH với maxParticipants, emptyTimeout thay vì để LiveKit tự tạo khi có người vào.\n      await this.livekit.createRoom(partyRoomName(room.id), {\n        maxParticipants: this.config.getOrThrow('PARTY_MAX_MEMBERS', {\n          infer: true,\n        }),\n        emptyTimeoutSeconds: this.config.getOrThrow(\n          'PARTY_EMPTY_ROOM_TIMEOUT_SECONDS',\n          { infer: true },\n        ),\n      });\n    } catch (err) {\n      this.logger.error(\n        `Tạo LiveKit room cho phòng ${room.id} thất bại: ${err instanceof Error ? err.message : String(err)}`,\n      );\n\n      // Step 5: SFU lỗi: đóng phòng vừa tạo để bù trừ\n      // Bù trừ: SFU lỗi thì đóng phòng vừa tạo (lý do error); đóng cũng nhả membership host nên\n      // host không bị kẹt trong 1 phòng hỏng.\n      await this.closeRoomById(room.id, PartyRoomCloseReason.Error).catch(\n        () => undefined,\n      );\n\n      // [SERVICE] PartyRoomService.closeRoomById  ·  party-room.service.ts L1008–1063\n      const roomId = room.id;\n      const reason = PartyRoomCloseReason.Error;\n      const result = await this.dataSource.transaction(async (manager) => {\n\n        // Step 6: Đóng phòng idempotent: khóa dòng phòng, đã closed thì bỏ qua\n        // [POSTGRES] Đóng phòng idempotent: khóa dòng phòng, đã closed thì no-op, nên endpoint\n        // host-leave, webhook, sweeper và bù trừ này gọi trùng vẫn an toàn.\n        const room = await manager.findOne(PartyRoom, {\n          where: { id: roomId },\n          lock: { mode: 'pessimistic_write' },\n        });\n        if (!room || room.status === PartyRoomStatus.Closed) {\n          return { closed: false, memberIds: [] as string[] };\n        }\n        // `guard` (sweeper dùng, lúc bù trừ này không truyền) chạy TRÊN dòng đã khóa, trong cùng\n        // transaction: host kịp nối lại thì guard fail và không đóng nhầm.\n        if (guard !== undefined && !guard(room)) {\n          return { closed: false, memberIds: [] as string[] };\n        }\n        const activeMembers = await manager.findBy(PartyRoomMember, {\n          roomId,\n          leftAt: IsNull(),\n        });\n        const now = new Date();\n        room.status = PartyRoomStatus.Closed;\n        room.closeReason = reason;\n        room.closedAt = now;\n        await manager.save(room);\n        await onTransition?.(manager, room);\n        if (activeMembers.length > 0) {\n          await manager.update(\n            PartyRoomMember,\n            { roomId, leftAt: IsNull() },\n            { leftAt: now, disconnectedAt: null },\n          );\n        }\n        return { closed: true, memberIds: activeMembers.map((m) => m.userId) };\n      });\n\n      // Step 7: Dọn room trên SFU và báo party.room.closed cho member\n      // Chỉ lời gọi thực hiện transition mới dọn SFU và publish, nên retry không bắn event đôi.\n      if (result.closed) {\n        await this.livekit.deleteRoom(partyRoomName(roomId)).catch((err) => {\n          // Room có thể đã tự đóng (room_finished hoặc empty timeout): không phải lỗi nghiệp vụ.\n          this.logger.debug(\n            `deleteRoom ${partyRoomName(roomId)} bỏ qua: ${err instanceof Error ? err.message : String(err)}`,\n          );\n        });\n        const envelope: RealtimeEnvelope<PartyRoomClosedEventData> = {\n          event: RealtimeEvents.PartyRoomClosed,\n          data: { roomId, reason },\n        };\n        await Promise.all(\n          result.memberIds.map((uid) =>\n            // [REDIS] Báo party.room.closed cho từng member đã đóng; best-effort, client còn\n            // poll.\n            publishRealtimeEvent(this.redis, this.logger, uid, envelope),\n          ),\n        );\n      }\n      return result;\n\n      // Step 8: Trả 503 để client thử lại sau\n      // Lỗi hạ tầng (5xx) nên không dùng DomainException (chỉ 4xx); client thử lại sau.\n      throw new ServiceUnavailableException(\n        PartyRoomErrors.MEDIA_ROOM_CREATE_FAILED,\n        'Không tạo được phòng trên media server — thử lại sau',\n      );\n    }\n\n    // Step 9: Ký token publish cho host, trả phòng và URL LiveKit\n    return {\n      room,\n      membership,\n      token: await this.mintToken(room.id, user.userId, PartyRole.Host),\n      livekitUrl: this.livekitUrlOf(room),\n    };\n\n    // Step 10: Controller trả phòng, membership host, token và URL LiveKit\n    return JoinPartyRoomDto.from(room, membership, token, livekitUrl);\n  }\n}\n\n// [POSTGRES] 1752700000000-party-room-gift.ts  ·  1752700000000-party-room-gift.ts L52–55\nawait queryRunner.query(\n  `CREATE UNIQUE INDEX uq_party_members_active_user\n     ON party_room_members(user_id) WHERE left_at IS NULL`,\n);\n"
+  },
+  "provenance": {
+    "catalog": {
+      "path": "annotated-04-party-room.mjs",
+      "sha256": "420b19a9f733fcbaa3781ec0a13f7f0bb48169a88655bf276363707c366b8bf1"
+    },
+    "displayedCodeSha256": "488f2031d9fc46f9b69bd6421fbeb85b0f091495eaa3ef496ac60c99a9ccc391"
+  }
+}

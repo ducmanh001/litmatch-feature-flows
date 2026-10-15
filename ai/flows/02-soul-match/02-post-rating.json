@@ -1,0 +1,857 @@
+{
+  "id": "02-soul-match/02-post-rating",
+  "featureId": "02-soul-match",
+  "feature": "Soul Match",
+  "summary": "Chat ẩn danh vài phút giữa 2 người đã ghép, đánh giá nhau; cả 2 cùng thích thì thành bạn và giữ lại lịch sử chat.",
+  "name": "Đánh giá đối phương và thành bạn",
+  "title": "Ghi rating bất biến; khi cả 2 cùng like thì tạo Friendship, Conversation và chuyển lịch sử chat trong một transaction.",
+  "method": "POST",
+  "route": "/api/v1/soul-match/sessions/:id/rating",
+  "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.ts",
+  "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/02-soul-match/02-post-rating.json",
+  "diagramUrl": "https://ducmanh001.github.io/litmatch-feature-flows/#02-soul-match",
+  "catalog": "annotated-02-soul-match.mjs",
+  "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [SERVICE] → [POSTGRES] → [REDIS]",
+  "roles": [
+    [
+      "CONTROLLER",
+      "Nhận verdict (rude, boring, like) của user dành cho đối phương; chỉ lấy id phòng từ URL, user lấy từ JWT."
+    ],
+    [
+      "SERVICE",
+      "Kiểm tra phòng còn trong cửa sổ đánh giá, khóa session, ghi rating bất biến, và khi cả 2 cùng like thì nhờ Friend tạo quan hệ bạn kèm chuyển lịch sử chat."
+    ],
+    [
+      "POSTGRES",
+      "Khóa dòng match_sessions để 2 lượt like tuần tự; unique (session_id, rater_user_id) chống ghi trùng; Friendship, Conversation và tin nhắn import cùng một transaction."
+    ],
+    [
+      "REDIS",
+      "Pub/sub báo soul.matched cho cả 2 người, sau commit, khi quan hệ bạn vừa được tạo."
+    ]
+  ],
+  "tables": [
+    [
+      "match_sessions",
+      "dòng bị khóa FOR UPDATE để tuần tự hóa 2 người đánh giá; chỉ khóa, không ghi (Matching là chủ sở hữu)."
+    ],
+    [
+      "soul_match_ratings",
+      "1 dòng cho mỗi người trong mỗi session, không sửa được; unique (session_id, rater_user_id)."
+    ],
+    [
+      "soul_chat_messages",
+      "đọc toàn bộ lịch sử chat ẩn danh của session khi cả 2 cùng like."
+    ],
+    [
+      "friendships",
+      "quan hệ bạn bè 2 chiều, 1 dòng theo cặp canonical (low < high), unique."
+    ],
+    [
+      "conversations",
+      "phòng chat bền vững của cặp, tạo cùng Friendship."
+    ],
+    [
+      "messages",
+      "lịch sử chat ẩn danh được chép sang; idempotency_key import ổn định nên chạy lại không nhân đôi."
+    ]
+  ],
+  "redis": [
+    [
+      "realtime:user:{userId}",
+      "kênh pub/sub theo người nhận; core-api phát soul.matched, signaling-gateway chuyển xuống socket."
+    ]
+  ],
+  "related": [
+    [
+      "Friend",
+      "ensureFriendship và areFriends; ensureFriendship được chép đầy đủ ở dưới vì là cơ chế chính của bước tạo bạn."
+    ],
+    [
+      "Matching",
+      "findSessionById đọc session; Matching giữ quyền ghi trạng thái session."
+    ],
+    [
+      "Soul Match (gửi tin nhắn)",
+      "khóa cùng dòng session: một tin nhắn không thể lọt vào giữa lúc chụp lịch sử chat (xem luồng gửi tin nhắn)."
+    ],
+    [
+      "signaling-gateway",
+      "subscribe kênh realtime của user, đẩy soul.matched xuống client."
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "text": "Nhận request (user từ JWT, id phòng từ URL, verdict trong body)",
+      "line": 30,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L30",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L30"
+    },
+    {
+      "number": 2,
+      "text": "Kiểm tra user thuộc phòng và còn trong cửa sổ đánh giá",
+      "line": 43,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L43",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L43"
+    },
+    {
+      "number": 3,
+      "text": "Trong transaction, khóa dòng session FOR UPDATE",
+      "line": 59,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L59",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L59"
+    },
+    {
+      "number": 4,
+      "text": "Đã đánh giá rồi: cùng verdict thì trả kết quả cũ, khác thì 409",
+      "line": 73,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L73",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L73"
+    },
+    {
+      "number": 5,
+      "text": "Ghi rating (unique session + người đánh giá)",
+      "line": 87,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L87",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L87"
+    },
+    {
+      "number": 6,
+      "text": "Cả 2 cùng like: chụp lịch sử chat ẩn danh theo seq",
+      "line": 107,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L107",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L107"
+    },
+    {
+      "number": 7,
+      "text": "Nhờ Friend tạo Friendship và Conversation, cùng transaction",
+      "line": 124,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L124",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L124"
+    },
+    {
+      "number": 8,
+      "text": "Chép lịch sử chat ẩn danh sang Conversation",
+      "line": 164,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L164",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L164"
+    },
+    {
+      "number": 9,
+      "text": "Double-submit song song: đọc lại rồi replay hoặc 409",
+      "line": 222,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L222",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L222"
+    },
+    {
+      "number": 10,
+      "text": "Sau commit, báo soul.matched qua Redis cho cả 2 người",
+      "line": 238,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L238",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L238"
+    },
+    {
+      "number": 11,
+      "text": "Controller trả verdict và cờ matched",
+      "line": 254,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L254",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L254"
+    }
+  ],
+  "declaredSteps": [
+    {
+      "at": "@Post('sessions/:id/rating')",
+      "text": "Nhận request (user từ JWT, id phòng từ URL, verdict trong body)"
+    },
+    {
+      "at": "const room = await this.getRoomForMember(user, sessionId);",
+      "text": "Kiểm tra user thuộc phòng và còn trong cửa sổ đánh giá"
+    },
+    {
+      "at": "await manager.findOne(MatchSession, {",
+      "text": "Trong transaction, khóa dòng session FOR UPDATE"
+    },
+    {
+      "at": "if (existing) {",
+      "text": "Đã đánh giá rồi: cùng verdict thì trả kết quả cũ, khác thì 409"
+    },
+    {
+      "at": "await manager.save(",
+      "text": "Ghi rating (unique session + người đánh giá)"
+    },
+    {
+      "at": "const anonymousMessages = await manager.find(SoulChatMessage, {",
+      "text": "Cả 2 cùng like: chụp lịch sử chat ẩn danh theo seq"
+    },
+    {
+      "at": "const { created } = await this.friendService.ensureFriendship(",
+      "text": "Nhờ Friend tạo Friendship và Conversation, cùng transaction"
+    },
+    {
+      "at": "if (messageSeeds.length > 0) {",
+      "in": "FriendService.ensureFriendship",
+      "text": "Chép lịch sử chat ẩn danh sang Conversation"
+    },
+    {
+      "at": "if (!isUniqueViolation(err)) throw err;",
+      "text": "Double-submit song song: đọc lại rồi replay hoặc 409"
+    },
+    {
+      "at": "if (newlyMatched) {",
+      "text": "Sau commit, báo soul.matched qua Redis cho cả 2 người"
+    },
+    {
+      "at": "return RatingResultDto.from(",
+      "text": "Controller trả verdict và cờ matched"
+    }
+  ],
+  "whyComments": [
+    {
+      "at": "await manager.findOne(MatchSession, {",
+      "text": [
+        "[POSTGRES] Khóa dòng MatchSession FOR UPDATE TRƯỚC khi ghi rating: 2 lượt like chạy tuần tự. Không khóa thì mỗi bên đều thấy \"bên kia chưa like\" (READ COMMITTED) và không ai tạo Friendship. Chỉ khóa, không ghi."
+      ],
+      "src": "doc gốc soul-match.service.ts L285-290 + comment L310 + docs/services/soul-match-service.md mục 3",
+      "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+    },
+    {
+      "at": "if (existing) {",
+      "text": [
+        "Rating bất biến: gửi lại cùng verdict thì trả kết quả cũ, khác verdict thì 409. Cho đổi ý sẽ mở đường \"like thử xem bên kia like chưa rồi đổi lại\"."
+      ],
+      "src": "soul-match-rating.entity.ts L16-21 + doc gốc soul-match.service.ts L501 (assertSameVerdict)",
+      "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+    },
+    {
+      "at": "const anonymousMessages = await manager.find(SoulChatMessage, {",
+      "text": [
+        "Đủ 2 like thì chụp toàn bộ lịch sử chat ẩn danh theo seq để chép sang Friend Chat. Key import ổn định theo (session, message) nên chạy lại không nhân đôi; dòng gốc vẫn giữ cho T&S."
+      ],
+      "src": "docs/services/soul-match-service.md mục 1 và 3 + doc friendHistoryImportKey soul-match.constants.ts L18",
+      "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+    },
+    {
+      "at": "const { created } = await this.friendService.ensureFriendship(",
+      "text": [
+        "Friendship, Conversation và lịch sử chat nằm CÙNG transaction với rating: hoặc có đủ cả, hoặc không có gì."
+      ],
+      "src": "docs/services/soul-match-service.md mục 3 (check mutual + tạo Friendship trong cùng transaction với insert rating)",
+      "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+    },
+    {
+      "at": "if (!isUniqueViolation(err)) throw err;",
+      "text": [
+        "Double-submit song song của CÙNG user: bên thua unique (session, rater) thì đọc lại rồi replay hoặc 409."
+      ],
+      "src": "comment gốc soul-match.service.ts L376",
+      "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+    },
+    {
+      "at": "if (newlyMatched) {",
+      "text": [
+        "[REDIS] soul.matched phát SAU khi commit, best-effort, và chỉ khi Friendship MỚI được tạo; replay không bắn lại."
+      ],
+      "src": "comment gốc soul-match.service.ts L390 + docs/services/soul-match-service.md mục 7",
+      "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+    },
+    {
+      "at": "await queryRunner.query(`",
+      "text": [
+        "Unique (session_id, rater_user_id) chính là idempotency tự nhiên của rating, không cần Idempotency-Key."
+      ],
+      "src": "soul-match-rating.entity.ts L16-21 + docs/services/soul-match-service.md mục 3",
+      "file": "apps/core-api/src/database/migrations/1752400000000-soul-match.ts"
+    },
+    {
+      "at": "const result = await manager",
+      "text": [
+        "[POSTGRES] ON CONFLICT DO NOTHING trên cặp canonical (low < high): 2 like song song hoặc match lại cặp cũ đều không tạo đôi và không lỗi."
+      ],
+      "src": "doc gốc friend.service.ts L97-103 + comment migration 1752400000000-soul-match.ts (uq_friendships_pair)",
+      "file": "apps/core-api/src/modules/friend/friend.service.ts"
+    },
+    {
+      "at": "await manager",
+      "text": [
+        "Conversation luôn được ensure cùng lúc, dù Friendship mới hay replay: bất biến \"có Friendship thì có Conversation\" không phụ thuộc nhánh nào."
+      ],
+      "src": "comment gốc friend.service.ts L124",
+      "file": "apps/core-api/src/modules/friend/friend.service.ts"
+    },
+    {
+      "at": "if (messageSeeds.length > 0) {",
+      "text": [
+        "Chép lịch sử chat ẩn danh: chèn ON CONFLICT DO NOTHING theo idempotency_key nên chạy lại không nhân đôi. Friend chỉ nhận seed trung lập, không import entity của luồng nguồn."
+      ],
+      "src": "doc friend.service.ts L40-44 (FriendMessageSeed) + docs/services/friend-service.md mục 1",
+      "file": "apps/core-api/src/modules/friend/friend.service.ts"
+    },
+    {
+      "at": "const latestMessageAt = messageSeeds.reduce(",
+      "text": [
+        "Không làm lùi mốc sắp xếp của conversation nếu đây là lần chép lại của một cặp đã chat trước đó."
+      ],
+      "src": "comment gốc friend.service.ts L159-160",
+      "file": "apps/core-api/src/modules/friend/friend.service.ts"
+    }
+  ],
+  "sources": [
+    "apps/core-api/src/database/migrations/1752400000000-soul-match.ts",
+    "apps/core-api/src/modules/friend/friend.service.ts",
+    "apps/core-api/src/modules/soul-match/soul-match.controller.ts",
+    "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+  ],
+  "sourceContext": {
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/soul-match/soul-match.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('sessions/:id/rating')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async rate(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private assertSameVerdict(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "await manager.findOne(MatchSession, {",
+            "text": [
+              "[POSTGRES] Khóa dòng MatchSession FOR UPDATE TRƯỚC khi ghi rating: 2 lượt like chạy tuần tự. Không khóa thì mỗi bên đều thấy \"bên kia chưa like\" (READ COMMITTED) và không ai tạo Friendship. Chỉ khóa, không ghi."
+            ],
+            "src": "doc gốc soul-match.service.ts L285-290 + comment L310 + docs/services/soul-match-service.md mục 3"
+          },
+          {
+            "at": "if (existing) {",
+            "text": [
+              "Rating bất biến: gửi lại cùng verdict thì trả kết quả cũ, khác verdict thì 409. Cho đổi ý sẽ mở đường \"like thử xem bên kia like chưa rồi đổi lại\"."
+            ],
+            "src": "soul-match-rating.entity.ts L16-21 + doc gốc soul-match.service.ts L501 (assertSameVerdict)"
+          },
+          {
+            "at": "const anonymousMessages = await manager.find(SoulChatMessage, {",
+            "text": [
+              "Đủ 2 like thì chụp toàn bộ lịch sử chat ẩn danh theo seq để chép sang Friend Chat. Key import ổn định theo (session, message) nên chạy lại không nhân đôi; dòng gốc vẫn giữ cho T&S."
+            ],
+            "src": "docs/services/soul-match-service.md mục 1 và 3 + doc friendHistoryImportKey soul-match.constants.ts L18"
+          },
+          {
+            "at": "const { created } = await this.friendService.ensureFriendship(",
+            "text": [
+              "Friendship, Conversation và lịch sử chat nằm CÙNG transaction với rating: hoặc có đủ cả, hoặc không có gì."
+            ],
+            "src": "docs/services/soul-match-service.md mục 3 (check mutual + tạo Friendship trong cùng transaction với insert rating)"
+          },
+          {
+            "at": "if (!isUniqueViolation(err)) throw err;",
+            "text": [
+              "Double-submit song song của CÙNG user: bên thua unique (session, rater) thì đọc lại rồi replay hoặc 409."
+            ],
+            "src": "comment gốc soul-match.service.ts L376"
+          },
+          {
+            "at": "if (newlyMatched) {",
+            "text": [
+              "[REDIS] soul.matched phát SAU khi commit, best-effort, và chỉ khi Friendship MỚI được tạo; replay không bắn lại."
+            ],
+            "src": "comment gốc soul-match.service.ts L390 + docs/services/soul-match-service.md mục 7"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752400000000-soul-match.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE soul_match_ratings (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ],
+        "inline": [
+          {
+            "at": "await queryRunner.query(`",
+            "text": [
+              "Unique (session_id, rater_user_id) chính là idempotency tự nhiên của rating, không cần Idempotency-Key."
+            ],
+            "src": "soul-match-rating.entity.ts L16-21 + docs/services/soul-match-service.md mục 3"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/friend/friend.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async ensureFriendship(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const result = await manager",
+            "text": [
+              "[POSTGRES] ON CONFLICT DO NOTHING trên cặp canonical (low < high): 2 like song song hoặc match lại cặp cũ đều không tạo đôi và không lỗi."
+            ],
+            "src": "doc gốc friend.service.ts L97-103 + comment migration 1752400000000-soul-match.ts (uq_friendships_pair)"
+          },
+          {
+            "at": "await manager",
+            "text": [
+              "Conversation luôn được ensure cùng lúc, dù Friendship mới hay replay: bất biến \"có Friendship thì có Conversation\" không phụ thuộc nhánh nào."
+            ],
+            "src": "comment gốc friend.service.ts L124"
+          },
+          {
+            "at": "if (messageSeeds.length > 0) {",
+            "text": [
+              "Chép lịch sử chat ẩn danh: chèn ON CONFLICT DO NOTHING theo idempotency_key nên chạy lại không nhân đôi. Friend chỉ nhận seed trung lập, không import entity của luồng nguồn."
+            ],
+            "src": "doc friend.service.ts L40-44 (FriendMessageSeed) + docs/services/friend-service.md mục 1"
+          },
+          {
+            "at": "const latestMessageAt = messageSeeds.reduce(",
+            "text": [
+              "Không làm lùi mốc sắp xếp của conversation nếu đây là lần chép lại của một cặp đã chat trước đó."
+            ],
+            "src": "comment gốc friend.service.ts L159-160"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752400000000-soul-match.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE friendships (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      }
+    ],
+    "ranges": [
+      {
+        "file": "apps/core-api/src/modules/soul-match/soul-match.controller.ts",
+        "range": {
+          "at": "@Post('sessions/:id/rating')",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts",
+        "range": {
+          "at": "async rate(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts",
+        "range": {
+          "at": "private assertSameVerdict(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/database/migrations/1752400000000-soul-match.ts",
+        "range": {
+          "at": "CREATE TABLE soul_match_ratings (",
+          "to": "^    `\\);$",
+          "pad": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/friend/friend.service.ts",
+        "range": {
+          "at": "async ensureFriendship(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/database/migrations/1752400000000-soul-match.ts",
+        "range": {
+          "at": "CREATE TABLE friendships (",
+          "to": "^    `\\);$",
+          "pad": [
+            1,
+            0
+          ]
+        }
+      }
+    ],
+    "helpers": [],
+    "skip": [
+      "assertSameVerdict"
+    ],
+    "attach": {},
+    "nested": true
+  },
+  "omittedContext": {
+    "note": "Curated source selection; unlisted call bodies, shared request infrastructure, DTOs and other context may be omitted. skip names stay unexpanded; helpers may be substituted; attach controls placement. Flattened scopes are not executable code.",
+    "skip": [
+      "assertSameVerdict"
+    ],
+    "attach": {},
+    "helpers": []
+  },
+  "featureMetadata": {
+    "id": "02-soul-match",
+    "short": "Soul Match",
+    "title": "Soul Match",
+    "summary": "Chat ẩn danh vài phút giữa 2 người đã ghép, đánh giá nhau; cả 2 cùng thích thì thành bạn và giữ lại lịch sử chat.",
+    "diagramAnchor": "02-soul-match"
+  },
+  "endpointCatalog": {
+    "n": "02",
+    "slug": "post-rating",
+    "method": "POST",
+    "short": "/soul-match/sessions/:id/rating",
+    "route": "/api/v1/soul-match/sessions/:id/rating",
+    "name": "Đánh giá đối phương và thành bạn",
+    "title": "Ghi rating bất biến; khi cả 2 cùng like thì tạo Friendship, Conversation và chuyển lịch sử chat trong một transaction.",
+    "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [SERVICE] → [POSTGRES] → [REDIS]",
+    "roles": [
+      [
+        "CONTROLLER",
+        "Nhận verdict (rude, boring, like) của user dành cho đối phương; chỉ lấy id phòng từ URL, user lấy từ JWT."
+      ],
+      [
+        "SERVICE",
+        "Kiểm tra phòng còn trong cửa sổ đánh giá, khóa session, ghi rating bất biến, và khi cả 2 cùng like thì nhờ Friend tạo quan hệ bạn kèm chuyển lịch sử chat."
+      ],
+      [
+        "POSTGRES",
+        "Khóa dòng match_sessions để 2 lượt like tuần tự; unique (session_id, rater_user_id) chống ghi trùng; Friendship, Conversation và tin nhắn import cùng một transaction."
+      ],
+      [
+        "REDIS",
+        "Pub/sub báo soul.matched cho cả 2 người, sau commit, khi quan hệ bạn vừa được tạo."
+      ]
+    ],
+    "tables": [
+      [
+        "match_sessions",
+        "dòng bị khóa FOR UPDATE để tuần tự hóa 2 người đánh giá; chỉ khóa, không ghi (Matching là chủ sở hữu)."
+      ],
+      [
+        "soul_match_ratings",
+        "1 dòng cho mỗi người trong mỗi session, không sửa được; unique (session_id, rater_user_id)."
+      ],
+      [
+        "soul_chat_messages",
+        "đọc toàn bộ lịch sử chat ẩn danh của session khi cả 2 cùng like."
+      ],
+      [
+        "friendships",
+        "quan hệ bạn bè 2 chiều, 1 dòng theo cặp canonical (low < high), unique."
+      ],
+      [
+        "conversations",
+        "phòng chat bền vững của cặp, tạo cùng Friendship."
+      ],
+      [
+        "messages",
+        "lịch sử chat ẩn danh được chép sang; idempotency_key import ổn định nên chạy lại không nhân đôi."
+      ]
+    ],
+    "redis": [
+      [
+        "realtime:user:{userId}",
+        "kênh pub/sub theo người nhận; core-api phát soul.matched, signaling-gateway chuyển xuống socket."
+      ]
+    ],
+    "related": [
+      [
+        "Friend",
+        "ensureFriendship và areFriends; ensureFriendship được chép đầy đủ ở dưới vì là cơ chế chính của bước tạo bạn."
+      ],
+      [
+        "Matching",
+        "findSessionById đọc session; Matching giữ quyền ghi trạng thái session."
+      ],
+      [
+        "Soul Match (gửi tin nhắn)",
+        "khóa cùng dòng session: một tin nhắn không thể lọt vào giữa lúc chụp lịch sử chat (xem luồng gửi tin nhắn)."
+      ],
+      [
+        "signaling-gateway",
+        "subscribe kênh realtime của user, đẩy soul.matched xuống client."
+      ]
+    ],
+    "nested": true,
+    "skip": [
+      "assertSameVerdict"
+    ],
+    "steps": [
+      {
+        "at": "@Post('sessions/:id/rating')",
+        "text": "Nhận request (user từ JWT, id phòng từ URL, verdict trong body)"
+      },
+      {
+        "at": "const room = await this.getRoomForMember(user, sessionId);",
+        "text": "Kiểm tra user thuộc phòng và còn trong cửa sổ đánh giá"
+      },
+      {
+        "at": "await manager.findOne(MatchSession, {",
+        "text": "Trong transaction, khóa dòng session FOR UPDATE"
+      },
+      {
+        "at": "if (existing) {",
+        "text": "Đã đánh giá rồi: cùng verdict thì trả kết quả cũ, khác thì 409"
+      },
+      {
+        "at": "await manager.save(",
+        "text": "Ghi rating (unique session + người đánh giá)"
+      },
+      {
+        "at": "const anonymousMessages = await manager.find(SoulChatMessage, {",
+        "text": "Cả 2 cùng like: chụp lịch sử chat ẩn danh theo seq"
+      },
+      {
+        "at": "const { created } = await this.friendService.ensureFriendship(",
+        "text": "Nhờ Friend tạo Friendship và Conversation, cùng transaction"
+      },
+      {
+        "at": "if (messageSeeds.length > 0) {",
+        "in": "FriendService.ensureFriendship",
+        "text": "Chép lịch sử chat ẩn danh sang Conversation"
+      },
+      {
+        "at": "if (!isUniqueViolation(err)) throw err;",
+        "text": "Double-submit song song: đọc lại rồi replay hoặc 409"
+      },
+      {
+        "at": "if (newlyMatched) {",
+        "text": "Sau commit, báo soul.matched qua Redis cho cả 2 người"
+      },
+      {
+        "at": "return RatingResultDto.from(",
+        "text": "Controller trả verdict và cờ matched"
+      }
+    ],
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/soul-match/soul-match.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('sessions/:id/rating')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async rate(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private assertSameVerdict(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "await manager.findOne(MatchSession, {",
+            "text": [
+              "[POSTGRES] Khóa dòng MatchSession FOR UPDATE TRƯỚC khi ghi rating: 2 lượt like chạy tuần tự. Không khóa thì mỗi bên đều thấy \"bên kia chưa like\" (READ COMMITTED) và không ai tạo Friendship. Chỉ khóa, không ghi."
+            ],
+            "src": "doc gốc soul-match.service.ts L285-290 + comment L310 + docs/services/soul-match-service.md mục 3"
+          },
+          {
+            "at": "if (existing) {",
+            "text": [
+              "Rating bất biến: gửi lại cùng verdict thì trả kết quả cũ, khác verdict thì 409. Cho đổi ý sẽ mở đường \"like thử xem bên kia like chưa rồi đổi lại\"."
+            ],
+            "src": "soul-match-rating.entity.ts L16-21 + doc gốc soul-match.service.ts L501 (assertSameVerdict)"
+          },
+          {
+            "at": "const anonymousMessages = await manager.find(SoulChatMessage, {",
+            "text": [
+              "Đủ 2 like thì chụp toàn bộ lịch sử chat ẩn danh theo seq để chép sang Friend Chat. Key import ổn định theo (session, message) nên chạy lại không nhân đôi; dòng gốc vẫn giữ cho T&S."
+            ],
+            "src": "docs/services/soul-match-service.md mục 1 và 3 + doc friendHistoryImportKey soul-match.constants.ts L18"
+          },
+          {
+            "at": "const { created } = await this.friendService.ensureFriendship(",
+            "text": [
+              "Friendship, Conversation và lịch sử chat nằm CÙNG transaction với rating: hoặc có đủ cả, hoặc không có gì."
+            ],
+            "src": "docs/services/soul-match-service.md mục 3 (check mutual + tạo Friendship trong cùng transaction với insert rating)"
+          },
+          {
+            "at": "if (!isUniqueViolation(err)) throw err;",
+            "text": [
+              "Double-submit song song của CÙNG user: bên thua unique (session, rater) thì đọc lại rồi replay hoặc 409."
+            ],
+            "src": "comment gốc soul-match.service.ts L376"
+          },
+          {
+            "at": "if (newlyMatched) {",
+            "text": [
+              "[REDIS] soul.matched phát SAU khi commit, best-effort, và chỉ khi Friendship MỚI được tạo; replay không bắn lại."
+            ],
+            "src": "comment gốc soul-match.service.ts L390 + docs/services/soul-match-service.md mục 7"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752400000000-soul-match.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE soul_match_ratings (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ],
+        "inline": [
+          {
+            "at": "await queryRunner.query(`",
+            "text": [
+              "Unique (session_id, rater_user_id) chính là idempotency tự nhiên của rating, không cần Idempotency-Key."
+            ],
+            "src": "soul-match-rating.entity.ts L16-21 + docs/services/soul-match-service.md mục 3"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/friend/friend.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async ensureFriendship(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const result = await manager",
+            "text": [
+              "[POSTGRES] ON CONFLICT DO NOTHING trên cặp canonical (low < high): 2 like song song hoặc match lại cặp cũ đều không tạo đôi và không lỗi."
+            ],
+            "src": "doc gốc friend.service.ts L97-103 + comment migration 1752400000000-soul-match.ts (uq_friendships_pair)"
+          },
+          {
+            "at": "await manager",
+            "text": [
+              "Conversation luôn được ensure cùng lúc, dù Friendship mới hay replay: bất biến \"có Friendship thì có Conversation\" không phụ thuộc nhánh nào."
+            ],
+            "src": "comment gốc friend.service.ts L124"
+          },
+          {
+            "at": "if (messageSeeds.length > 0) {",
+            "text": [
+              "Chép lịch sử chat ẩn danh: chèn ON CONFLICT DO NOTHING theo idempotency_key nên chạy lại không nhân đôi. Friend chỉ nhận seed trung lập, không import entity của luồng nguồn."
+            ],
+            "src": "doc friend.service.ts L40-44 (FriendMessageSeed) + docs/services/friend-service.md mục 1"
+          },
+          {
+            "at": "const latestMessageAt = messageSeeds.reduce(",
+            "text": [
+              "Không làm lùi mốc sắp xếp của conversation nếu đây là lần chép lại của một cặp đã chat trước đó."
+            ],
+            "src": "comment gốc friend.service.ts L159-160"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752400000000-soul-match.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE friendships (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "sourceManifest": {
+    "verifiedCodeSha256": true,
+    "mode": "published-presentation",
+    "baselineCommit": "cb30743143bd8f6576b154db4b606380c365c674",
+    "sourceCommit": "d3cb28c",
+    "sources": [
+      "apps/core-api/src/database/migrations/1752400000000-soul-match.ts",
+      "apps/core-api/src/modules/friend/friend.service.ts",
+      "apps/core-api/src/modules/soul-match/soul-match.controller.ts",
+      "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+    ],
+    "steps": [
+      "Step 1: Nhận request (user từ JWT, id phòng từ URL, verdict trong body)",
+      "Step 2: Kiểm tra user thuộc phòng và còn trong cửa sổ đánh giá",
+      "Step 3: Trong transaction, khóa dòng session FOR UPDATE",
+      "Step 4: Đã đánh giá rồi: cùng verdict thì trả kết quả cũ, khác thì 409",
+      "Step 5: Ghi rating (unique session + người đánh giá)",
+      "Step 6: Cả 2 cùng like: chụp lịch sử chat ẩn danh theo seq",
+      "Step 7: Nhờ Friend tạo Friendship và Conversation, cùng transaction",
+      "Step 8: Chép lịch sử chat ẩn danh sang Conversation",
+      "Step 9: Double-submit song song: đọc lại rồi replay hoặc 409",
+      "Step 10: Sau commit, báo soul.matched qua Redis cho cả 2 người",
+      "Step 11: Controller trả verdict và cờ matched"
+    ],
+    "removedOverview": "// ════════════════════════════════════════════════════════════════════════════\n//  POST /api/v1/soul-match/sessions/:id/rating\n//  Ghi rating bất biến; khi cả 2 cùng like thì tạo Friendship, Conversation và chuyển lịch sử chat trong một transaction.\n// ════════════════════════════════════════════════════════════════════════════\n//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [SERVICE] → [POSTGRES] → [REDIS]\n//\n//  Vai trò từng tầng\n//    [CONTROLLER] Nhận verdict (rude, boring, like) của user dành cho đối phương; chỉ\n//                 lấy id phòng từ URL, user lấy từ JWT.\n//    [SERVICE]    Kiểm tra phòng còn trong cửa sổ đánh giá, khóa session, ghi rating\n//                 bất biến, và khi cả 2 cùng like thì nhờ Friend tạo quan hệ bạn kèm\n//                 chuyển lịch sử chat.\n//    [POSTGRES]   Khóa dòng match_sessions để 2 lượt like tuần tự; unique (session_id,\n//                 rater_user_id) chống ghi trùng; Friendship, Conversation và tin nhắn\n//                 import cùng một transaction.\n//    [REDIS]      Pub/sub báo soul.matched cho cả 2 người, sau commit, khi quan hệ bạn\n//                 vừa được tạo.\n//\n//  Bảng       match_sessions — dòng bị khóa FOR UPDATE để tuần tự hóa 2 người đánh giá;\n//               chỉ khóa, không ghi (Matching là chủ sở hữu).\n//             soul_match_ratings — 1 dòng cho mỗi người trong mỗi session, không sửa\n//               được; unique (session_id, rater_user_id).\n//             soul_chat_messages — đọc toàn bộ lịch sử chat ẩn danh của session khi cả\n//               2 cùng like.\n//             friendships — quan hệ bạn bè 2 chiều, 1 dòng theo cặp canonical (low <\n//               high), unique.\n//             conversations — phòng chat bền vững của cặp, tạo cùng Friendship.\n//             messages — lịch sử chat ẩn danh được chép sang; idempotency_key import ổn\n//               định nên chạy lại không nhân đôi.\n//  Redis      realtime:user:{userId} — kênh pub/sub theo người nhận; core-api phát\n//               soul.matched, signaling-gateway chuyển xuống socket.\n//  Liên quan  Friend — ensureFriendship và areFriends; ensureFriendship được chép đầy\n//               đủ ở dưới vì là cơ chế chính của bước tạo bạn.\n//             Matching — findSessionById đọc session; Matching giữ quyền ghi trạng thái\n//               session.\n//             Soul Match (gửi tin nhắn) — khóa cùng dòng session: một tin nhắn không\n//               thể lọt vào giữa lúc chụp lịch sử chat (xem luồng gửi tin nhắn).\n//             signaling-gateway — subscribe kênh realtime của user, đẩy soul.matched\n//               xuống client.\n//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi\n//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới\n//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //\n//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các\n//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số\n//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức\n//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong\n//             repo.\n",
+    "baselineBodySha256": "d4ae8c89092f2035678c22784f9a4151d6e43d3b986dabb00a62efbb1dd954c3",
+    "bodySha256": "d4ae8c89092f2035678c22784f9a4151d6e43d3b986dabb00a62efbb1dd954c3",
+    "rawSha256": "22ae5fb969c355c722c4a25e79f44e96682514f3174ded68c5063fd6ad568a16",
+    "codeSha256": "22ae5fb969c355c722c4a25e79f44e96682514f3174ded68c5063fd6ad568a16"
+  },
+  "code": {
+    "path": "code/02-soul-match/02-post-rating.ts",
+    "sha256": "22ae5fb969c355c722c4a25e79f44e96682514f3174ded68c5063fd6ad568a16",
+    "hashAlgorithm": "sha256",
+    "content": "//  POST /api/v1/soul-match/sessions/:id/rating\n//  Ghi rating bất biến; khi cả 2 cùng like thì tạo Friendship, Conversation và chuyển lịch sử chat trong một transaction.\n//  Step 1: Nhận request (user từ JWT, id phòng từ URL, verdict trong body)\n//  Step 2: Kiểm tra user thuộc phòng và còn trong cửa sổ đánh giá\n//  Step 3: Trong transaction, khóa dòng session FOR UPDATE\n//  Step 4: Đã đánh giá rồi: cùng verdict thì trả kết quả cũ, khác thì 409\n//  Step 5: Ghi rating (unique session + người đánh giá)\n//  Step 6: Cả 2 cùng like: chụp lịch sử chat ẩn danh theo seq\n//  Step 7: Nhờ Friend tạo Friendship và Conversation, cùng transaction\n//  Step 8: Chép lịch sử chat ẩn danh sang Conversation\n//  Step 9: Double-submit song song: đọc lại rồi replay hoặc 409\n//  Step 10: Sau commit, báo soul.matched qua Redis cho cả 2 người\n//  Step 11: Controller trả verdict và cờ matched\n\n// [CONTROLLER] SoulMatchController.rate  ·  soul-match.controller.ts L43–44, L109–123\n@Controller('soul-match')\nexport class SoulMatchController {\n  // SoulMatchService\n  private readonly logger = new Logger(SoulMatchService.name);\n  constructor(\n    private readonly soulMatchService: SoulMatchService,\n    // SoulMatchService\n    @InjectDataSource() private readonly dataSource: DataSource,\n    @InjectRepository(SoulMatchRating)\n    private readonly ratingRepo: Repository<SoulMatchRating>,\n    private readonly friendService: FriendService,\n    @Inject(SOUL_MATCH_REDIS) private readonly redis: Redis,\n  ) {}\n\n  // Step 1: Nhận request (user từ JWT, id phòng từ URL, verdict trong body)\n  @Post('sessions/:id/rating')\n  @HttpCode(HttpStatus.OK)\n  async rate(\n    @CurrentUser() user: AuthenticatedUser,\n    @Param('id', ParseUUIDPipe) id: string,\n    @Body() dto: RateSessionDto,\n  ): Promise<RatingResultDto> {\n    const result = await this.soulMatchService.rate(user, id, dto);\n\n    // [SERVICE] SoulMatchService.rate  ·  soul-match.service.ts L291–403\n    const sessionId = id;\n\n    // Step 2: Kiểm tra user thuộc phòng và còn trong cửa sổ đánh giá\n    const room = await this.getRoomForMember(user, sessionId);\n    if (room.phase === SoulRoomPhase.Closed) {\n      throw new DomainException(\n        SoulMatchErrors.RATING_NOT_OPEN,\n        'Hết cửa sổ đánh giá',\n        HttpStatus.CONFLICT,\n      );\n    }\n    const partnerId = this.partnerIdOf(room.session, user.userId);\n\n    let result: RateResult;\n    let newlyMatched = false;\n    try {\n      result = await this.dataSource.transaction(async (manager) => {\n\n        // Step 3: Trong transaction, khóa dòng session FOR UPDATE\n        // [POSTGRES] Khóa dòng MatchSession FOR UPDATE TRƯỚC khi ghi rating: 2 lượt like chạy\n        // tuần tự. Không khóa thì mỗi bên đều thấy \"bên kia chưa like\" (READ COMMITTED) và không\n        // ai tạo Friendship. Chỉ khóa, không ghi.\n        await manager.findOne(MatchSession, {\n          where: { id: sessionId },\n          lock: { mode: 'pessimistic_write' },\n        });\n\n        const existing = await manager.findOneBy(SoulMatchRating, {\n          sessionId,\n          raterUserId: user.userId,\n        });\n\n        // Step 4: Đã đánh giá rồi: cùng verdict thì trả kết quả cũ, khác thì 409\n        // Rating bất biến: gửi lại cùng verdict thì trả kết quả cũ, khác verdict thì 409. Cho đổi\n        // ý sẽ mở đường \"like thử xem bên kia like chưa rồi đổi lại\".\n        if (existing) {\n          this.assertSameVerdict(existing.verdict, dto.verdict);\n          return {\n            verdict: existing.verdict,\n            matched: await this.friendService.areFriends(\n              user.userId,\n              partnerId,\n            ),\n          };\n        }\n\n        // Step 5: Ghi rating (unique session + người đánh giá)\n        await manager.save(\n          manager.create(SoulMatchRating, {\n            sessionId,\n            raterUserId: user.userId,\n            verdict: dto.verdict,\n          }),\n        );\n\n        let matched = await this.friendService.areFriends(\n          user.userId,\n          partnerId,\n        );\n        if (dto.verdict === SoulMatchVerdict.Like) {\n          const partnerRating = await manager.findOneBy(SoulMatchRating, {\n            sessionId,\n            raterUserId: partnerId,\n          });\n          if (partnerRating?.verdict === SoulMatchVerdict.Like) {\n\n            // Step 6: Cả 2 cùng like: chụp lịch sử chat ẩn danh theo seq\n            // Đủ 2 like thì chụp toàn bộ lịch sử chat ẩn danh theo seq để chép sang Friend Chat.\n            // Key import ổn định theo (session, message) nên chạy lại không nhân đôi; dòng gốc\n            // vẫn giữ cho T&S.\n            const anonymousMessages = await manager.find(SoulChatMessage, {\n              where: { sessionId },\n              order: { seq: 'ASC' },\n            });\n            const messageSeeds: FriendMessageSeed[] = anonymousMessages.map(\n              (message) => ({\n                senderUserId: message.senderUserId,\n                content: message.content,\n                createdAt: message.createdAt,\n                idempotencyKey: friendHistoryImportKey(sessionId, message.id),\n              }),\n            );\n\n            // Step 7: Nhờ Friend tạo Friendship và Conversation, cùng transaction\n            // Friendship, Conversation và lịch sử chat nằm CÙNG transaction với rating: hoặc có\n            // đủ cả, hoặc không có gì.\n            const { created } = await this.friendService.ensureFriendship(\n              manager,\n              user.userId,\n              partnerId,\n              FriendshipSource.SoulMatch,\n              messageSeeds,\n            );\n\n            // [SERVICE] FriendService.ensureFriendship  ·  friend.service.ts L104–179\n            const userAId = user.userId;\n            const userBId = partnerId;\n            const source = FriendshipSource.SoulMatch;\n            if (userAId === userBId) {\n              throw new Error(\n                `Không thể tạo friendship với chính mình (${userAId}) — dữ liệu session hỏng`,\n              );\n            }\n            const [userLowId, userHighId] = canonicalPair(userAId, userBId);\n            // [POSTGRES] ON CONFLICT DO NOTHING trên cặp canonical (low < high): 2 like song song\n            // hoặc match lại cặp cũ đều không tạo đôi và không lỗi.\n            const result = await manager\n              .createQueryBuilder()\n              .insert()\n              .into(Friendship)\n              .values({ userLowId, userHighId, source })\n              .orIgnore()\n              .execute();\n            // Conversation luôn được ensure cùng lúc, dù Friendship mới hay replay: bất biến \"có\n            // Friendship thì có Conversation\" không phụ thuộc nhánh nào.\n            await manager\n              .createQueryBuilder()\n              .insert()\n              .into(Conversation)\n              .values({ userLowId, userHighId, lastMessageAt: null })\n              .orIgnore()\n              .execute();\n\n            // Step 8: Chép lịch sử chat ẩn danh sang Conversation\n            // Chép lịch sử chat ẩn danh: chèn ON CONFLICT DO NOTHING theo idempotency_key nên\n            // chạy lại không nhân đôi. Friend chỉ nhận seed trung lập, không import entity của\n            // luồng nguồn.\n            if (messageSeeds.length > 0) {\n              const conversation = await manager.findOne(Conversation, {\n                where: { userLowId, userHighId },\n              });\n              if (!conversation) {\n                throw new Error(\n                  `Không tìm thấy conversation sau khi ensure friendship ${userLowId}/${userHighId}`,\n                );\n              }\n\n              await manager\n                .createQueryBuilder()\n                .insert()\n                .into(Message)\n                .values(\n                  messageSeeds.map((message) => ({\n                    conversationId: conversation.id,\n                    senderUserId: message.senderUserId,\n                    content: message.content,\n                    idempotencyKey: message.idempotencyKey,\n                    createdAt: message.createdAt,\n                  })),\n                )\n                .orIgnore()\n                .execute();\n\n              // Không làm lùi mốc sắp xếp của conversation nếu đây là lần chép lại của một cặp đã\n              // chat trước đó.\n              const latestMessageAt = messageSeeds.reduce(\n                (latest, message) =>\n                  message.createdAt > latest ? message.createdAt : latest,\n                messageSeeds[0].createdAt,\n              );\n              await manager\n                .createQueryBuilder()\n                .update(Conversation)\n                .set({ lastMessageAt: latestMessageAt })\n                .where('id = :conversationId', { conversationId: conversation.id })\n                .andWhere(\n                  '(last_message_at IS NULL OR last_message_at < :latestMessageAt)',\n                  { latestMessageAt },\n                )\n                .execute();\n            }\n            return { created: result.raw.length > 0 };\n\n            newlyMatched = created;\n            matched = true;\n          }\n        }\n        return { verdict: dto.verdict, matched };\n      });\n    } catch (err) {\n\n      // Step 9: Double-submit song song: đọc lại rồi replay hoặc 409\n      // Double-submit song song của CÙNG user: bên thua unique (session, rater) thì đọc lại rồi\n      // replay hoặc 409.\n      if (!isUniqueViolation(err)) throw err;\n      const existing = await this.ratingRepo.findOneBy({\n        sessionId,\n        raterUserId: user.userId,\n      });\n      if (!existing) throw err;\n      this.assertSameVerdict(existing.verdict, dto.verdict);\n      return {\n        verdict: existing.verdict,\n        matched: await this.friendService.areFriends(user.userId, partnerId),\n      };\n    }\n\n    // Step 10: Sau commit, báo soul.matched qua Redis cho cả 2 người\n    // [REDIS] soul.matched phát SAU khi commit, best-effort, và chỉ khi Friendship MỚI được tạo;\n    // replay không bắn lại.\n    if (newlyMatched) {\n      const envelope: RealtimeEnvelope<SoulMatchedEventData> = {\n        event: RealtimeEvents.SoulMatched,\n        data: { sessionId },\n      };\n      await Promise.all(\n        [user.userId, partnerId].map((uid) =>\n          publishRealtimeEvent(this.redis, this.logger, uid, envelope),\n        ),\n      );\n    }\n    return result;\n\n    // Step 11: Controller trả verdict và cờ matched\n    return RatingResultDto.from(result.verdict, result.matched);\n  }\n}\n\n// [POSTGRES] CREATE TABLE soul_match_ratings  ·  1752400000000-soul-match.ts L33–42\n// Unique (session_id, rater_user_id) chính là idempotency tự nhiên của rating, không cần\n// Idempotency-Key.\nawait queryRunner.query(`\n  CREATE TABLE soul_match_ratings (\n    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n    session_id    uuid        NOT NULL REFERENCES match_sessions(id),\n    rater_user_id uuid        NOT NULL REFERENCES users(id),\n    verdict       varchar(8)  NOT NULL CHECK (verdict IN ('rude','boring','like')),\n    created_at    timestamptz NOT NULL DEFAULT now(),\n    CONSTRAINT uq_soul_match_ratings_session_rater UNIQUE (session_id, rater_user_id)\n  )\n`);\n\n// [POSTGRES] CREATE TABLE friendships  ·  1752400000000-soul-match.ts L16–27\nawait queryRunner.query(`\n  CREATE TABLE friendships (\n    id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n    user_low_id  uuid        NOT NULL REFERENCES users(id),\n    user_high_id uuid        NOT NULL REFERENCES users(id),\n    source       varchar(16) NOT NULL CHECK (source IN ('soul_match','voice_match')),\n    created_at   timestamptz NOT NULL DEFAULT now(),\n    updated_at   timestamptz NOT NULL DEFAULT now(),\n    CONSTRAINT uq_friendships_pair UNIQUE (user_low_id, user_high_id),\n    CONSTRAINT chk_friendships_canonical CHECK (user_low_id < user_high_id)\n  )\n`);\n"
+  },
+  "provenance": {
+    "catalog": {
+      "path": "annotated-02-soul-match.mjs",
+      "sha256": "81b310ffecf97fe0df3db21b577a49fc741213c1d53dea907a6cb6b418494eb7"
+    },
+    "displayedCodeSha256": "22ae5fb969c355c722c4a25e79f44e96682514f3174ded68c5063fd6ad568a16"
+  }
+}

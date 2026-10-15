@@ -1,0 +1,938 @@
+{
+  "id": "16-friend-va-chat-1-1/01-post-send-message",
+  "featureId": "16-friend-va-chat-1-1",
+  "feature": "Friend và Chat 1-1",
+  "summary": "Chat 1-1 bền vững giữa hai người đã là bạn hoặc đã mở chat từ hồ sơ: gửi tin nhắn, streak, realtime và thông báo.",
+  "name": "Gửi tin nhắn chat 1-1",
+  "title": "Gửi tin nhắn idempotent, cập nhật streak ngày, phát realtime cho 2 người và thông báo cho người nhận.",
+  "method": "POST",
+  "route": "/api/v1/conversations/:id/messages",
+  "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.ts",
+  "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/16-friend-va-chat-1-1/01-post-send-message.json",
+  "diagramUrl": "https://ducmanh001.github.io/litmatch-feature-flows/#16-friend-va-chat-1-1",
+  "catalog": "annotated-16-friend-va-chat-1-1.mjs",
+  "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]",
+  "roles": [
+    [
+      "CONTROLLER",
+      "Nhận tin nhắn kèm Idempotency-Key bắt buộc; nếu có imageAssetId thì kiểm quyền sở hữu ảnh rồi đổi thành URL, HTTP chỉ tạo được attachment kiểu ảnh."
+    ],
+    [
+      "SERVICE",
+      "Kiểm tra user thuộc hội thoại và không bị block 2 chiều, ghi tin nhắn idempotent, cập nhật streak, phát realtime cho 2 người, rồi tạo thông báo cho người nhận (trừ khi đã mute)."
+    ],
+    [
+      "POSTGRES",
+      "Unique idempotency_key chặn nhân đôi tin nhắn; seq do DB cấp cho cursor; streak cập nhật trong transaction riêng, khóa dòng FOR UPDATE."
+    ],
+    [
+      "REDIS",
+      "Pub/sub báo friend.message (và friend.streak.increased khi chạm mốc) cho cả 2 người."
+    ]
+  ],
+  "tables": [
+    [
+      "conversations",
+      "hội thoại 1-1 của một cặp (low < high), unique theo cặp; last_message_at cập nhật sau mỗi tin để sắp xếp danh sách chat."
+    ],
+    [
+      "messages",
+      "tin nhắn chỉ thêm: nội dung, attachment, idempotency_key unique, seq tăng dần."
+    ],
+    [
+      "conversation_streaks",
+      "chuỗi ngày cả 2 cùng nhắn của hội thoại; dòng bị khóa FOR UPDATE khi cập nhật."
+    ],
+    [
+      "conversation_member_states",
+      "chỉ đọc: người nhận có đang mute hội thoại hay không."
+    ],
+    [
+      "blocks",
+      "chỉ đọc (qua Safety): dòng block mới nhất của mỗi chiều cho biết đang block hay đã bỏ block."
+    ],
+    [
+      "notifications",
+      "thông báo friend_message cho người nhận, tạo ở transaction riêng và best-effort."
+    ]
+  ],
+  "redis": [
+    [
+      "realtime:user:{userId}",
+      "kênh pub/sub theo người nhận; core-api phát friend.message và friend.streak.increased, signaling-gateway chuyển xuống socket."
+    ]
+  ],
+  "related": [
+    [
+      "Safety",
+      "isBlocked: kiểm block theo từng chiều; bị block trả cùng lỗi 404 với \"không phải thành viên\"."
+    ],
+    [
+      "Media",
+      "resolveImageUrl: kiểm ảnh thuộc user và đã upload, trả URL để làm attachment."
+    ],
+    [
+      "Notification",
+      "create tạo thông báo friend_message, sendPush gửi push; cả hai best-effort sau khi tin đã lưu."
+    ],
+    [
+      "signaling-gateway",
+      "subscribe kênh realtime của user, đẩy friend.message xuống client."
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "text": "Nhận request (user từ JWT, id hội thoại từ URL, Idempotency-Key)",
+      "line": 42,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L42",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L42"
+    },
+    {
+      "number": 2,
+      "text": "Có ảnh đính kèm thì kiểm quyền sở hữu và đổi thành URL",
+      "line": 52,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L52",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L52"
+    },
+    {
+      "number": 3,
+      "text": "Kiểm user thuộc hội thoại",
+      "line": 80,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L80",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L80"
+    },
+    {
+      "number": 4,
+      "text": "Kiểm block 2 chiều, độ dài tin nhắn, tin rỗng",
+      "line": 86,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L86",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L86"
+    },
+    {
+      "number": 5,
+      "text": "Lưu tin nhắn idempotent (retry trả lại tin cũ, khác nội dung thì 409)",
+      "line": 133,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L133",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L133"
+    },
+    {
+      "number": 6,
+      "text": "Cập nhật streak sau khi tin đã lưu, trong transaction riêng",
+      "line": 178,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L178",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L178"
+    },
+    {
+      "number": 7,
+      "text": "Tạo dòng streak nếu chưa có, khóa dòng FOR UPDATE",
+      "line": 194,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L194",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L194"
+    },
+    {
+      "number": 8,
+      "text": "Cả 2 đã nhắn hôm nay thì tăng streak 1 lần/ngày, cứu lỡ 1 ngày",
+      "line": 216,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L216",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L216"
+    },
+    {
+      "number": 9,
+      "text": "Chạm mốc streak thì phát friend.streak.increased qua Redis",
+      "line": 246,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L246",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L246"
+    },
+    {
+      "number": 10,
+      "text": "Phát friend.message cho cả 2 người qua Redis (sau khi lưu)",
+      "line": 268,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L268",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L268"
+    },
+    {
+      "number": 11,
+      "text": "Tạo thông báo và push cho người nhận, trừ khi đã mute",
+      "line": 290,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L290",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L290"
+    },
+    {
+      "number": 12,
+      "text": "Controller trả tin nhắn vừa lưu",
+      "line": 319,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L319",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L319"
+    }
+  ],
+  "declaredSteps": [
+    {
+      "at": "@Post('conversations/:id/messages')",
+      "text": "Nhận request (user từ JWT, id hội thoại từ URL, Idempotency-Key)"
+    },
+    {
+      "at": "const imageUrl = dto.imageAssetId",
+      "text": "Có ảnh đính kèm thì kiểm quyền sở hữu và đổi thành URL"
+    },
+    {
+      "at": "const conversation = await this.getConversationForMember(",
+      "text": "Kiểm user thuộc hội thoại"
+    },
+    {
+      "at": "const partnerId =",
+      "text": "Kiểm block 2 chiều, độ dài tin nhắn, tin rỗng"
+    },
+    {
+      "at": "const prefixedKey = messageIdempotencyKey(senderUserId, idempotencyKey);",
+      "text": "Lưu tin nhắn idempotent (retry trả lại tin cũ, khác nội dung thì 409)"
+    },
+    {
+      "at": "const { milestoneHit } = await this.streakService.recordActivity(",
+      "text": "Cập nhật streak sau khi tin đã lưu, trong transaction riêng"
+    },
+    {
+      "at": "await manager.query(",
+      "text": "Tạo dòng streak nếu chưa có, khóa dòng FOR UPDATE"
+    },
+    {
+      "at": "if (bothActiveToday && row.lastConfirmedDate !== today) {",
+      "text": "Cả 2 đã nhắn hôm nay thì tăng streak 1 lần/ngày, cứu lỡ 1 ngày"
+    },
+    {
+      "at": "if (milestoneHit !== null) {",
+      "text": "Chạm mốc streak thì phát friend.streak.increased qua Redis"
+    },
+    {
+      "at": "const envelope: RealtimeEnvelope<FriendMessageEventData> = {",
+      "text": "Phát friend.message cho cả 2 người qua Redis (sau khi lưu)"
+    },
+    {
+      "at": "const partnerState = await this.memberStateRepo.findOne({",
+      "text": "Tạo thông báo và push cho người nhận, trừ khi đã mute"
+    },
+    {
+      "at": "return MessageDto.from(message);",
+      "text": "Controller trả tin nhắn vừa lưu"
+    }
+  ],
+  "whyComments": [
+    {
+      "at": "imageUrl !== undefined",
+      "text": [
+        "HTTP chỉ tạo được attachment kiểu ảnh, từ asset đã được xác thực. Các kind khác (vd story_reply) chỉ đi qua DI giữa module, client không tự gắn tùy ý."
+      ],
+      "src": "comment gốc friend.controller.ts L221-222 + doc friend.service.ts L327-329",
+      "file": "apps/core-api/src/modules/friend/friend.controller.ts"
+    },
+    {
+      "at": "const partnerId =",
+      "text": [
+        "Block kiểm cả 2 chiều và trả CÙNG mã lỗi 404 với \"không phải thành viên\", để không ai biết ai block ai qua mã lỗi."
+      ],
+      "src": "doc gốc friend.service.ts L323-326",
+      "file": "apps/core-api/src/modules/friend/friend.service.ts"
+    },
+    {
+      "at": "const { milestoneHit } = await this.streakService.recordActivity(",
+      "text": [
+        "Streak chạy SAU khi tin đã lưu, trong transaction RIÊNG: nếu chung transaction với insert tin thì lần dính unique của retry làm cả transaction bị abort. Replay gọi lại cũng không tăng streak lần 2."
+      ],
+      "src": "comment gốc friend.service.ts L383-385 + docs/services/streak-service.md mục 2",
+      "file": "apps/core-api/src/modules/friend/friend.service.ts"
+    },
+    {
+      "at": "this.logger.error(",
+      "text": [
+        "Streak là phụ: lỗi tính streak chỉ ghi log, không rollback tin đã gửi."
+      ],
+      "src": "comment gốc friend.service.ts L404",
+      "file": "apps/core-api/src/modules/friend/friend.service.ts"
+    },
+    {
+      "at": "await Promise.all(",
+      "text": [
+        "[REDIS] Phát friend.message cho cả 2 thành viên qua kênh realtime:user:{id}, SAU khi lưu. Best-effort, không dùng outbox: client vẫn poll được GET /conversations/:id/messages."
+      ],
+      "src": "docs/services/friend-service.md mục 5 + doc common/realtime/publish-realtime.ts",
+      "file": "apps/core-api/src/modules/friend/friend.service.ts"
+    },
+    {
+      "at": "if (partnerState?.mutedAt != null) return message;",
+      "text": [
+        "Người nhận đã mute thì bỏ qua cả in-app lẫn push; tin nhắn, realtime và unread vẫn chạy bình thường."
+      ],
+      "src": "comment gốc friend.service.ts L433-434",
+      "file": "apps/core-api/src/modules/friend/friend.service.ts"
+    },
+    {
+      "at": "const notification = await this.notificationService.create({",
+      "text": [
+        "Thông báo chạy transaction riêng và best-effort: tin đã lưu xong nên lỗi ở đây không được làm hỏng luồng gửi. Chat không ẩn danh nên lộ senderUserId là đúng."
+      ],
+      "src": "comment gốc friend.service.ts L429-432",
+      "file": "apps/core-api/src/modules/friend/friend.service.ts"
+    },
+    {
+      "at": "const prefixedKey = messageIdempotencyKey(senderUserId, idempotencyKey);",
+      "text": [
+        "[POSTGRES] Key của client được gắn prefix friend:msg:{userId}: unique ở DB (xem bên dưới), retry không nhân đôi tin nhắn."
+      ],
+      "src": "message.entity.ts L49 (doc idempotencyKey)",
+      "file": "apps/core-api/src/modules/friend/services/conversation.service.ts"
+    },
+    {
+      "at": "if (!isUniqueViolation(err)) throw err;",
+      "text": [
+        "Retry sau timeout mạng: dính unique thì đọc lại. Cùng hội thoại và cùng nội dung thì trả tin cũ (replay); khác thì 409."
+      ],
+      "src": "suy ra từ code: nhánh catch so existing.conversationId và content; comment gốc conversation.service.ts L181",
+      "file": "apps/core-api/src/modules/friend/services/conversation.service.ts"
+    },
+    {
+      "at": "await this.conversationRepo.update(",
+      "text": [
+        "last_message_at chỉ để sắp xếp danh sách chat, không phải nguồn sự thật nên không cần chung transaction."
+      ],
+      "src": "comment gốc conversation.service.ts L189",
+      "file": "apps/core-api/src/modules/friend/services/conversation.service.ts"
+    },
+    {
+      "at": "await queryRunner.query(`",
+      "text": [
+        "Unique idempotency_key là chốt chặn thật chống nhân đôi tin nhắn. seq bigint IDENTITY là thứ tự do DB cấp cho cursor, tránh trùng hoặc mất dòng khi phân trang theo created_at."
+      ],
+      "src": "comment migration 1752600000000-friend-chat.ts + message.entity.ts L34-35",
+      "file": "apps/core-api/src/database/migrations/1752600000000-friend-chat.ts"
+    },
+    {
+      "at": "await manager.query(",
+      "text": [
+        "[POSTGRES] Tạo dòng streak khi cần bằng ON CONFLICT DO NOTHING rồi khóa FOR UPDATE: 2 bên nhắn gần như cùng lúc vẫn tăng streak đúng 1 lần."
+      ],
+      "src": "doc class streak.service.ts L30-36 + docs/services/streak-service.md mục 2",
+      "file": "apps/core-api/src/modules/friend/services/streak.service.ts"
+    },
+    {
+      "at": "if (bothActiveToday && row.lastConfirmedDate !== today) {",
+      "text": [
+        "Chỉ tăng khi cả 2 đã nhắn hôm nay và hôm nay chưa xác nhận, nên gọi lại trong cùng ngày không tăng lần 2. Ngày tính theo UTC của server, không theo múi giờ client."
+      ],
+      "src": "doc recordActivity streak.service.ts L48-50 + docs/services/streak-service.md mục 3",
+      "file": "apps/core-api/src/modules/friend/services/streak.service.ts"
+    },
+    {
+      "at": "row.currentStreak += 1;",
+      "nth": 1,
+      "text": [
+        "Lỡ đúng 1 ngày vẫn được cứu: vẫn +1 chứ không reset, ghi lại ngày được cứu. Lỡ từ 2 ngày trở lên thì reset về 1."
+      ],
+      "src": "comment gốc streak.service.ts L85 + docs/services/streak-service.md mục 3",
+      "file": "apps/core-api/src/modules/friend/services/streak.service.ts"
+    }
+  ],
+  "sources": [
+    "apps/core-api/src/database/migrations/1752600000000-friend-chat.ts",
+    "apps/core-api/src/modules/friend/friend.controller.ts",
+    "apps/core-api/src/modules/friend/friend.service.ts",
+    "apps/core-api/src/modules/friend/services/conversation.service.ts",
+    "apps/core-api/src/modules/friend/services/streak.service.ts"
+  ],
+  "sourceContext": {
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/friend/friend.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('conversations/:id/messages')",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "imageUrl !== undefined",
+            "text": [
+              "HTTP chỉ tạo được attachment kiểu ảnh, từ asset đã được xác thực. Các kind khác (vd story_reply) chỉ đi qua DI giữa module, client không tự gắn tùy ý."
+            ],
+            "src": "comment gốc friend.controller.ts L221-222 + doc friend.service.ts L327-329"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/friend/friend.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async sendMessage(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async getConversationForMember(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const partnerId =",
+            "text": [
+              "Block kiểm cả 2 chiều và trả CÙNG mã lỗi 404 với \"không phải thành viên\", để không ai biết ai block ai qua mã lỗi."
+            ],
+            "src": "doc gốc friend.service.ts L323-326"
+          },
+          {
+            "at": "const { milestoneHit } = await this.streakService.recordActivity(",
+            "text": [
+              "Streak chạy SAU khi tin đã lưu, trong transaction RIÊNG: nếu chung transaction với insert tin thì lần dính unique của retry làm cả transaction bị abort. Replay gọi lại cũng không tăng streak lần 2."
+            ],
+            "src": "comment gốc friend.service.ts L383-385 + docs/services/streak-service.md mục 2"
+          },
+          {
+            "at": "this.logger.error(",
+            "text": [
+              "Streak là phụ: lỗi tính streak chỉ ghi log, không rollback tin đã gửi."
+            ],
+            "src": "comment gốc friend.service.ts L404"
+          },
+          {
+            "at": "await Promise.all(",
+            "text": [
+              "[REDIS] Phát friend.message cho cả 2 thành viên qua kênh realtime:user:{id}, SAU khi lưu. Best-effort, không dùng outbox: client vẫn poll được GET /conversations/:id/messages."
+            ],
+            "src": "docs/services/friend-service.md mục 5 + doc common/realtime/publish-realtime.ts"
+          },
+          {
+            "at": "if (partnerState?.mutedAt != null) return message;",
+            "text": [
+              "Người nhận đã mute thì bỏ qua cả in-app lẫn push; tin nhắn, realtime và unread vẫn chạy bình thường."
+            ],
+            "src": "comment gốc friend.service.ts L433-434"
+          },
+          {
+            "at": "const notification = await this.notificationService.create({",
+            "text": [
+              "Thông báo chạy transaction riêng và best-effort: tin đã lưu xong nên lỗi ở đây không được làm hỏng luồng gửi. Chat không ẩn danh nên lộ senderUserId là đúng."
+            ],
+            "src": "comment gốc friend.service.ts L429-432"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/friend/services/conversation.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async sendMessage(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const prefixedKey = messageIdempotencyKey(senderUserId, idempotencyKey);",
+            "text": [
+              "[POSTGRES] Key của client được gắn prefix friend:msg:{userId}: unique ở DB (xem bên dưới), retry không nhân đôi tin nhắn."
+            ],
+            "src": "message.entity.ts L49 (doc idempotencyKey)"
+          },
+          {
+            "at": "if (!isUniqueViolation(err)) throw err;",
+            "text": [
+              "Retry sau timeout mạng: dính unique thì đọc lại. Cùng hội thoại và cùng nội dung thì trả tin cũ (replay); khác thì 409."
+            ],
+            "src": "suy ra từ code: nhánh catch so existing.conversationId và content; comment gốc conversation.service.ts L181"
+          },
+          {
+            "at": "await this.conversationRepo.update(",
+            "text": [
+              "last_message_at chỉ để sắp xếp danh sách chat, không phải nguồn sự thật nên không cần chung transaction."
+            ],
+            "src": "comment gốc conversation.service.ts L189"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752600000000-friend-chat.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE messages (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ],
+        "inline": [
+          {
+            "at": "await queryRunner.query(`",
+            "text": [
+              "Unique idempotency_key là chốt chặn thật chống nhân đôi tin nhắn. seq bigint IDENTITY là thứ tự do DB cấp cho cursor, tránh trùng hoặc mất dòng khi phân trang theo created_at."
+            ],
+            "src": "comment migration 1752600000000-friend-chat.ts + message.entity.ts L34-35"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/friend/services/streak.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async recordActivity(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "await manager.query(",
+            "text": [
+              "[POSTGRES] Tạo dòng streak khi cần bằng ON CONFLICT DO NOTHING rồi khóa FOR UPDATE: 2 bên nhắn gần như cùng lúc vẫn tăng streak đúng 1 lần."
+            ],
+            "src": "doc class streak.service.ts L30-36 + docs/services/streak-service.md mục 2"
+          },
+          {
+            "at": "if (bothActiveToday && row.lastConfirmedDate !== today) {",
+            "text": [
+              "Chỉ tăng khi cả 2 đã nhắn hôm nay và hôm nay chưa xác nhận, nên gọi lại trong cùng ngày không tăng lần 2. Ngày tính theo UTC của server, không theo múi giờ client."
+            ],
+            "src": "doc recordActivity streak.service.ts L48-50 + docs/services/streak-service.md mục 3"
+          },
+          {
+            "at": "row.currentStreak += 1;",
+            "nth": 1,
+            "text": [
+              "Lỡ đúng 1 ngày vẫn được cứu: vẫn +1 chứ không reset, ghi lại ngày được cứu. Lỡ từ 2 ngày trở lên thì reset về 1."
+            ],
+            "src": "comment gốc streak.service.ts L85 + docs/services/streak-service.md mục 3"
+          }
+        ]
+      }
+    ],
+    "ranges": [
+      {
+        "file": "apps/core-api/src/modules/friend/friend.controller.ts",
+        "range": {
+          "at": "@Post('conversations/:id/messages')",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/friend/friend.service.ts",
+        "range": {
+          "at": "async sendMessage(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/friend/friend.service.ts",
+        "range": {
+          "at": "private async getConversationForMember(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/friend/services/conversation.service.ts",
+        "range": {
+          "at": "async sendMessage(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/database/migrations/1752600000000-friend-chat.ts",
+        "range": {
+          "at": "CREATE TABLE messages (",
+          "to": "^    `\\);$",
+          "pad": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/friend/services/streak.service.ts",
+        "range": {
+          "at": "async recordActivity(",
+          "to": "^  }$"
+        }
+      }
+    ],
+    "helpers": [],
+    "skip": [
+      "getConversationForMember"
+    ],
+    "attach": {},
+    "nested": true
+  },
+  "omittedContext": {
+    "note": "Curated source selection; unlisted call bodies, shared request infrastructure, DTOs and other context may be omitted. skip names stay unexpanded; helpers may be substituted; attach controls placement. Flattened scopes are not executable code.",
+    "skip": [
+      "getConversationForMember"
+    ],
+    "attach": {},
+    "helpers": []
+  },
+  "featureMetadata": {
+    "id": "16-friend-va-chat-1-1",
+    "short": "Friend và Chat 1-1",
+    "title": "Friend và Chat 1-1",
+    "summary": "Chat 1-1 bền vững giữa hai người đã là bạn hoặc đã mở chat từ hồ sơ: gửi tin nhắn, streak, realtime và thông báo.",
+    "diagramAnchor": "16-friend-va-chat-1-1"
+  },
+  "endpointCatalog": {
+    "n": "01",
+    "slug": "post-send-message",
+    "method": "POST",
+    "short": "/conversations/:id/messages",
+    "route": "/api/v1/conversations/:id/messages",
+    "name": "Gửi tin nhắn chat 1-1",
+    "title": "Gửi tin nhắn idempotent, cập nhật streak ngày, phát realtime cho 2 người và thông báo cho người nhận.",
+    "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]",
+    "roles": [
+      [
+        "CONTROLLER",
+        "Nhận tin nhắn kèm Idempotency-Key bắt buộc; nếu có imageAssetId thì kiểm quyền sở hữu ảnh rồi đổi thành URL, HTTP chỉ tạo được attachment kiểu ảnh."
+      ],
+      [
+        "SERVICE",
+        "Kiểm tra user thuộc hội thoại và không bị block 2 chiều, ghi tin nhắn idempotent, cập nhật streak, phát realtime cho 2 người, rồi tạo thông báo cho người nhận (trừ khi đã mute)."
+      ],
+      [
+        "POSTGRES",
+        "Unique idempotency_key chặn nhân đôi tin nhắn; seq do DB cấp cho cursor; streak cập nhật trong transaction riêng, khóa dòng FOR UPDATE."
+      ],
+      [
+        "REDIS",
+        "Pub/sub báo friend.message (và friend.streak.increased khi chạm mốc) cho cả 2 người."
+      ]
+    ],
+    "tables": [
+      [
+        "conversations",
+        "hội thoại 1-1 của một cặp (low < high), unique theo cặp; last_message_at cập nhật sau mỗi tin để sắp xếp danh sách chat."
+      ],
+      [
+        "messages",
+        "tin nhắn chỉ thêm: nội dung, attachment, idempotency_key unique, seq tăng dần."
+      ],
+      [
+        "conversation_streaks",
+        "chuỗi ngày cả 2 cùng nhắn của hội thoại; dòng bị khóa FOR UPDATE khi cập nhật."
+      ],
+      [
+        "conversation_member_states",
+        "chỉ đọc: người nhận có đang mute hội thoại hay không."
+      ],
+      [
+        "blocks",
+        "chỉ đọc (qua Safety): dòng block mới nhất của mỗi chiều cho biết đang block hay đã bỏ block."
+      ],
+      [
+        "notifications",
+        "thông báo friend_message cho người nhận, tạo ở transaction riêng và best-effort."
+      ]
+    ],
+    "redis": [
+      [
+        "realtime:user:{userId}",
+        "kênh pub/sub theo người nhận; core-api phát friend.message và friend.streak.increased, signaling-gateway chuyển xuống socket."
+      ]
+    ],
+    "related": [
+      [
+        "Safety",
+        "isBlocked: kiểm block theo từng chiều; bị block trả cùng lỗi 404 với \"không phải thành viên\"."
+      ],
+      [
+        "Media",
+        "resolveImageUrl: kiểm ảnh thuộc user và đã upload, trả URL để làm attachment."
+      ],
+      [
+        "Notification",
+        "create tạo thông báo friend_message, sendPush gửi push; cả hai best-effort sau khi tin đã lưu."
+      ],
+      [
+        "signaling-gateway",
+        "subscribe kênh realtime của user, đẩy friend.message xuống client."
+      ]
+    ],
+    "nested": true,
+    "skip": [
+      "getConversationForMember"
+    ],
+    "steps": [
+      {
+        "at": "@Post('conversations/:id/messages')",
+        "text": "Nhận request (user từ JWT, id hội thoại từ URL, Idempotency-Key)"
+      },
+      {
+        "at": "const imageUrl = dto.imageAssetId",
+        "text": "Có ảnh đính kèm thì kiểm quyền sở hữu và đổi thành URL"
+      },
+      {
+        "at": "const conversation = await this.getConversationForMember(",
+        "text": "Kiểm user thuộc hội thoại"
+      },
+      {
+        "at": "const partnerId =",
+        "text": "Kiểm block 2 chiều, độ dài tin nhắn, tin rỗng"
+      },
+      {
+        "at": "const prefixedKey = messageIdempotencyKey(senderUserId, idempotencyKey);",
+        "text": "Lưu tin nhắn idempotent (retry trả lại tin cũ, khác nội dung thì 409)"
+      },
+      {
+        "at": "const { milestoneHit } = await this.streakService.recordActivity(",
+        "text": "Cập nhật streak sau khi tin đã lưu, trong transaction riêng"
+      },
+      {
+        "at": "await manager.query(",
+        "text": "Tạo dòng streak nếu chưa có, khóa dòng FOR UPDATE"
+      },
+      {
+        "at": "if (bothActiveToday && row.lastConfirmedDate !== today) {",
+        "text": "Cả 2 đã nhắn hôm nay thì tăng streak 1 lần/ngày, cứu lỡ 1 ngày"
+      },
+      {
+        "at": "if (milestoneHit !== null) {",
+        "text": "Chạm mốc streak thì phát friend.streak.increased qua Redis"
+      },
+      {
+        "at": "const envelope: RealtimeEnvelope<FriendMessageEventData> = {",
+        "text": "Phát friend.message cho cả 2 người qua Redis (sau khi lưu)"
+      },
+      {
+        "at": "const partnerState = await this.memberStateRepo.findOne({",
+        "text": "Tạo thông báo và push cho người nhận, trừ khi đã mute"
+      },
+      {
+        "at": "return MessageDto.from(message);",
+        "text": "Controller trả tin nhắn vừa lưu"
+      }
+    ],
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/friend/friend.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('conversations/:id/messages')",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "imageUrl !== undefined",
+            "text": [
+              "HTTP chỉ tạo được attachment kiểu ảnh, từ asset đã được xác thực. Các kind khác (vd story_reply) chỉ đi qua DI giữa module, client không tự gắn tùy ý."
+            ],
+            "src": "comment gốc friend.controller.ts L221-222 + doc friend.service.ts L327-329"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/friend/friend.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async sendMessage(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async getConversationForMember(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const partnerId =",
+            "text": [
+              "Block kiểm cả 2 chiều và trả CÙNG mã lỗi 404 với \"không phải thành viên\", để không ai biết ai block ai qua mã lỗi."
+            ],
+            "src": "doc gốc friend.service.ts L323-326"
+          },
+          {
+            "at": "const { milestoneHit } = await this.streakService.recordActivity(",
+            "text": [
+              "Streak chạy SAU khi tin đã lưu, trong transaction RIÊNG: nếu chung transaction với insert tin thì lần dính unique của retry làm cả transaction bị abort. Replay gọi lại cũng không tăng streak lần 2."
+            ],
+            "src": "comment gốc friend.service.ts L383-385 + docs/services/streak-service.md mục 2"
+          },
+          {
+            "at": "this.logger.error(",
+            "text": [
+              "Streak là phụ: lỗi tính streak chỉ ghi log, không rollback tin đã gửi."
+            ],
+            "src": "comment gốc friend.service.ts L404"
+          },
+          {
+            "at": "await Promise.all(",
+            "text": [
+              "[REDIS] Phát friend.message cho cả 2 thành viên qua kênh realtime:user:{id}, SAU khi lưu. Best-effort, không dùng outbox: client vẫn poll được GET /conversations/:id/messages."
+            ],
+            "src": "docs/services/friend-service.md mục 5 + doc common/realtime/publish-realtime.ts"
+          },
+          {
+            "at": "if (partnerState?.mutedAt != null) return message;",
+            "text": [
+              "Người nhận đã mute thì bỏ qua cả in-app lẫn push; tin nhắn, realtime và unread vẫn chạy bình thường."
+            ],
+            "src": "comment gốc friend.service.ts L433-434"
+          },
+          {
+            "at": "const notification = await this.notificationService.create({",
+            "text": [
+              "Thông báo chạy transaction riêng và best-effort: tin đã lưu xong nên lỗi ở đây không được làm hỏng luồng gửi. Chat không ẩn danh nên lộ senderUserId là đúng."
+            ],
+            "src": "comment gốc friend.service.ts L429-432"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/friend/services/conversation.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async sendMessage(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const prefixedKey = messageIdempotencyKey(senderUserId, idempotencyKey);",
+            "text": [
+              "[POSTGRES] Key của client được gắn prefix friend:msg:{userId}: unique ở DB (xem bên dưới), retry không nhân đôi tin nhắn."
+            ],
+            "src": "message.entity.ts L49 (doc idempotencyKey)"
+          },
+          {
+            "at": "if (!isUniqueViolation(err)) throw err;",
+            "text": [
+              "Retry sau timeout mạng: dính unique thì đọc lại. Cùng hội thoại và cùng nội dung thì trả tin cũ (replay); khác thì 409."
+            ],
+            "src": "suy ra từ code: nhánh catch so existing.conversationId và content; comment gốc conversation.service.ts L181"
+          },
+          {
+            "at": "await this.conversationRepo.update(",
+            "text": [
+              "last_message_at chỉ để sắp xếp danh sách chat, không phải nguồn sự thật nên không cần chung transaction."
+            ],
+            "src": "comment gốc conversation.service.ts L189"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752600000000-friend-chat.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE messages (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ],
+        "inline": [
+          {
+            "at": "await queryRunner.query(`",
+            "text": [
+              "Unique idempotency_key là chốt chặn thật chống nhân đôi tin nhắn. seq bigint IDENTITY là thứ tự do DB cấp cho cursor, tránh trùng hoặc mất dòng khi phân trang theo created_at."
+            ],
+            "src": "comment migration 1752600000000-friend-chat.ts + message.entity.ts L34-35"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/friend/services/streak.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async recordActivity(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "await manager.query(",
+            "text": [
+              "[POSTGRES] Tạo dòng streak khi cần bằng ON CONFLICT DO NOTHING rồi khóa FOR UPDATE: 2 bên nhắn gần như cùng lúc vẫn tăng streak đúng 1 lần."
+            ],
+            "src": "doc class streak.service.ts L30-36 + docs/services/streak-service.md mục 2"
+          },
+          {
+            "at": "if (bothActiveToday && row.lastConfirmedDate !== today) {",
+            "text": [
+              "Chỉ tăng khi cả 2 đã nhắn hôm nay và hôm nay chưa xác nhận, nên gọi lại trong cùng ngày không tăng lần 2. Ngày tính theo UTC của server, không theo múi giờ client."
+            ],
+            "src": "doc recordActivity streak.service.ts L48-50 + docs/services/streak-service.md mục 3"
+          },
+          {
+            "at": "row.currentStreak += 1;",
+            "nth": 1,
+            "text": [
+              "Lỡ đúng 1 ngày vẫn được cứu: vẫn +1 chứ không reset, ghi lại ngày được cứu. Lỡ từ 2 ngày trở lên thì reset về 1."
+            ],
+            "src": "comment gốc streak.service.ts L85 + docs/services/streak-service.md mục 3"
+          }
+        ]
+      }
+    ]
+  },
+  "sourceManifest": {
+    "verifiedCodeSha256": true,
+    "mode": "published-presentation",
+    "baselineCommit": "cb30743143bd8f6576b154db4b606380c365c674",
+    "sourceCommit": "d3cb28c",
+    "sources": [
+      "apps/core-api/src/database/migrations/1752600000000-friend-chat.ts",
+      "apps/core-api/src/modules/friend/friend.controller.ts",
+      "apps/core-api/src/modules/friend/friend.service.ts",
+      "apps/core-api/src/modules/friend/services/conversation.service.ts",
+      "apps/core-api/src/modules/friend/services/streak.service.ts"
+    ],
+    "steps": [
+      "Step 1: Nhận request (user từ JWT, id hội thoại từ URL, Idempotency-Key)",
+      "Step 2: Có ảnh đính kèm thì kiểm quyền sở hữu và đổi thành URL",
+      "Step 3: Kiểm user thuộc hội thoại",
+      "Step 4: Kiểm block 2 chiều, độ dài tin nhắn, tin rỗng",
+      "Step 5: Lưu tin nhắn idempotent (retry trả lại tin cũ, khác nội dung thì 409)",
+      "Step 6: Cập nhật streak sau khi tin đã lưu, trong transaction riêng",
+      "Step 7: Tạo dòng streak nếu chưa có, khóa dòng FOR UPDATE",
+      "Step 8: Cả 2 đã nhắn hôm nay thì tăng streak 1 lần/ngày, cứu lỡ 1 ngày",
+      "Step 9: Chạm mốc streak thì phát friend.streak.increased qua Redis",
+      "Step 10: Phát friend.message cho cả 2 người qua Redis (sau khi lưu)",
+      "Step 11: Tạo thông báo và push cho người nhận, trừ khi đã mute",
+      "Step 12: Controller trả tin nhắn vừa lưu"
+    ],
+    "removedOverview": "// ════════════════════════════════════════════════════════════════════════════\n//  POST /api/v1/conversations/:id/messages\n//  Gửi tin nhắn idempotent, cập nhật streak ngày, phát realtime cho 2 người và thông báo cho người nhận.\n// ════════════════════════════════════════════════════════════════════════════\n//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]\n//\n//  Vai trò từng tầng\n//    [CONTROLLER] Nhận tin nhắn kèm Idempotency-Key bắt buộc; nếu có imageAssetId thì\n//                 kiểm quyền sở hữu ảnh rồi đổi thành URL, HTTP chỉ tạo được attachment\n//                 kiểu ảnh.\n//    [SERVICE]    Kiểm tra user thuộc hội thoại và không bị block 2 chiều, ghi tin nhắn\n//                 idempotent, cập nhật streak, phát realtime cho 2 người, rồi tạo thông\n//                 báo cho người nhận (trừ khi đã mute).\n//    [POSTGRES]   Unique idempotency_key chặn nhân đôi tin nhắn; seq do DB cấp cho\n//                 cursor; streak cập nhật trong transaction riêng, khóa dòng FOR\n//                 UPDATE.\n//    [REDIS]      Pub/sub báo friend.message (và friend.streak.increased khi chạm mốc)\n//                 cho cả 2 người.\n//\n//  Bảng       conversations — hội thoại 1-1 của một cặp (low < high), unique theo cặp;\n//               last_message_at cập nhật sau mỗi tin để sắp xếp danh sách chat.\n//             messages — tin nhắn chỉ thêm: nội dung, attachment, idempotency_key\n//               unique, seq tăng dần.\n//             conversation_streaks — chuỗi ngày cả 2 cùng nhắn của hội thoại; dòng bị\n//               khóa FOR UPDATE khi cập nhật.\n//             conversation_member_states — chỉ đọc: người nhận có đang mute hội thoại\n//               hay không.\n//             blocks — chỉ đọc (qua Safety): dòng block mới nhất của mỗi chiều cho biết\n//               đang block hay đã bỏ block.\n//             notifications — thông báo friend_message cho người nhận, tạo ở\n//               transaction riêng và best-effort.\n//  Redis      realtime:user:{userId} — kênh pub/sub theo người nhận; core-api phát\n//               friend.message và friend.streak.increased, signaling-gateway chuyển\n//               xuống socket.\n//  Liên quan  Safety — isBlocked: kiểm block theo từng chiều; bị block trả cùng lỗi 404\n//               với \"không phải thành viên\".\n//             Media — resolveImageUrl: kiểm ảnh thuộc user và đã upload, trả URL để làm\n//               attachment.\n//             Notification — create tạo thông báo friend_message, sendPush gửi push; cả\n//               hai best-effort sau khi tin đã lưu.\n//             signaling-gateway — subscribe kênh realtime của user, đẩy friend.message\n//               xuống client.\n//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi\n//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới\n//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //\n//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các\n//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số\n//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức\n//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong\n//             repo.\n",
+    "baselineBodySha256": "b18b3f01862bda28187e46a2c027ee4d14fbb433abb4a53dfc8ba60c81ecfc44",
+    "bodySha256": "b18b3f01862bda28187e46a2c027ee4d14fbb433abb4a53dfc8ba60c81ecfc44",
+    "rawSha256": "29a70a6f4284495552857f9dda03d94dabaf2887087fa6940e5c85226cb4f5cc",
+    "codeSha256": "29a70a6f4284495552857f9dda03d94dabaf2887087fa6940e5c85226cb4f5cc"
+  },
+  "code": {
+    "path": "code/16-friend-va-chat-1-1/01-post-send-message.ts",
+    "sha256": "29a70a6f4284495552857f9dda03d94dabaf2887087fa6940e5c85226cb4f5cc",
+    "hashAlgorithm": "sha256",
+    "content": "//  POST /api/v1/conversations/:id/messages\n//  Gửi tin nhắn idempotent, cập nhật streak ngày, phát realtime cho 2 người và thông báo cho người nhận.\n//  Step 1: Nhận request (user từ JWT, id hội thoại từ URL, Idempotency-Key)\n//  Step 2: Có ảnh đính kèm thì kiểm quyền sở hữu và đổi thành URL\n//  Step 3: Kiểm user thuộc hội thoại\n//  Step 4: Kiểm block 2 chiều, độ dài tin nhắn, tin rỗng\n//  Step 5: Lưu tin nhắn idempotent (retry trả lại tin cũ, khác nội dung thì 409)\n//  Step 6: Cập nhật streak sau khi tin đã lưu, trong transaction riêng\n//  Step 7: Tạo dòng streak nếu chưa có, khóa dòng FOR UPDATE\n//  Step 8: Cả 2 đã nhắn hôm nay thì tăng streak 1 lần/ngày, cứu lỡ 1 ngày\n//  Step 9: Chạm mốc streak thì phát friend.streak.increased qua Redis\n//  Step 10: Phát friend.message cho cả 2 người qua Redis (sau khi lưu)\n//  Step 11: Tạo thông báo và push cho người nhận, trừ khi đã mute\n//  Step 12: Controller trả tin nhắn vừa lưu\n\n// [CONTROLLER] FriendController.sendMessage  ·  friend.controller.ts L47–48, L198–228\n@Controller()\nexport class FriendController {\n  // FriendService\n  private readonly logger = new Logger(FriendService.name);\n  constructor(\n    private readonly friendService: FriendService,\n    private readonly mediaService: MediaService,\n    // FriendService\n    @InjectRepository(ConversationMemberState)\n    private readonly memberStateRepo: Repository<ConversationMemberState>,\n    private readonly conversationService: ConversationService,\n    private readonly streakService: StreakService,\n    private readonly safetyService: SafetyService,\n    private readonly notificationService: NotificationService,\n    private readonly config: ConfigService<CoreApiEnv, true>,\n    @Inject(FRIEND_REDIS) private readonly redis: Redis,\n    // ConversationService\n    @InjectRepository(Conversation)\n    private readonly conversationRepo: Repository<Conversation>,\n    @InjectRepository(Message)\n    private readonly messageRepo: Repository<Message>,\n    // StreakService\n    @InjectDataSource() private readonly dataSource: DataSource,\n  ) {}\n\n  // Step 1: Nhận request (user từ JWT, id hội thoại từ URL, Idempotency-Key)\n  @Post('conversations/:id/messages')\n  @HttpCode(HttpStatus.CREATED)\n  async sendMessage(\n    @CurrentUser() user: AuthenticatedUser,\n    @Param('id', ParseUUIDPipe) id: string,\n    @Body() dto: SendFriendMessageDto,\n    @IdempotencyKey() idempotencyKey: string,\n  ): Promise<MessageDto> {\n\n    // Step 2: Có ảnh đính kèm thì kiểm quyền sở hữu và đổi thành URL\n    const imageUrl = dto.imageAssetId\n      ? await this.mediaService.resolveImageUrl(\n          user.userId,\n          dto.imageAssetId,\n          ImageAssetPurpose.Message,\n        )\n      : undefined;\n    const message = await this.friendService.sendMessage(\n      user.userId,\n      id,\n      dto.content ?? '',\n      idempotencyKey,\n      // HTTP chỉ tạo được attachment kiểu ảnh, từ asset đã được xác thực. Các kind khác (vd\n      // story_reply) chỉ đi qua DI giữa module, client không tự gắn tùy ý.\n      imageUrl !== undefined\n        ? { kind: 'image', payload: { url: imageUrl } }\n        : null,\n    );\n\n    // [SERVICE] FriendService.sendMessage  ·  friend.service.ts L330–459\n    const userId = user.userId;\n    const conversationId = id;\n    const content = dto.content ?? '';\n    const attachment = imageUrl !== undefined\n      ? { kind: 'image', payload: { url: imageUrl } }\n      : null;\n\n    // Step 3: Kiểm user thuộc hội thoại\n    const conversation = await this.getConversationForMember(\n      userId,\n      conversationId,\n    );\n\n    // Step 4: Kiểm block 2 chiều, độ dài tin nhắn, tin rỗng\n    // Block kiểm cả 2 chiều và trả CÙNG mã lỗi 404 với \"không phải thành viên\", để không ai biết\n    // ai block ai qua mã lỗi.\n    const partnerId =\n      conversation.userLowId === userId\n        ? conversation.userHighId\n        : conversation.userLowId;\n    if (\n      (await this.safetyService.isBlocked(userId, partnerId)) ||\n      (await this.safetyService.isBlocked(partnerId, userId))\n    ) {\n      throw new DomainException(\n        FriendErrors.CONVERSATION_NOT_FOUND,\n        'Không tìm thấy conversation',\n        HttpStatus.NOT_FOUND,\n      );\n    }\n    const maxLength = this.config.getOrThrow('FRIEND_MESSAGE_MAX_LENGTH', {\n      infer: true,\n    });\n    if (content.length > maxLength) {\n      throw new DomainException(\n        FriendErrors.MESSAGE_TOO_LONG,\n        `Message dài quá ${maxLength} ký tự`,\n        HttpStatus.UNPROCESSABLE_ENTITY,\n        { maxLength },\n      );\n    }\n    if (content.trim().length === 0 && attachment === null) {\n      throw new DomainException(\n        FriendErrors.MESSAGE_EMPTY,\n        'Nhập nội dung hoặc đính kèm ảnh',\n        HttpStatus.UNPROCESSABLE_ENTITY,\n      );\n    }\n\n    const message = await this.conversationService.sendMessage(\n      conversation,\n      userId,\n      content,\n      idempotencyKey,\n      attachment,\n    );\n\n    // [SERVICE] ConversationService.sendMessage  ·  conversation.service.ts L152–195\n    const senderUserId = userId;\n\n    // Step 5: Lưu tin nhắn idempotent (retry trả lại tin cũ, khác nội dung thì 409)\n    // [POSTGRES] Key của client được gắn prefix friend:msg:{userId}: unique ở DB (xem bên dưới),\n    // retry không nhân đôi tin nhắn.\n    const prefixedKey = messageIdempotencyKey(senderUserId, idempotencyKey);\n    let message: Message;\n    try {\n      message = await this.messageRepo.save(\n        this.messageRepo.create({\n          conversationId: conversation.id,\n          senderUserId,\n          content,\n          idempotencyKey: prefixedKey,\n          attachment,\n        }),\n      );\n    } catch (err) {\n      // Retry sau timeout mạng: dính unique thì đọc lại. Cùng hội thoại và cùng nội dung thì trả\n      // tin cũ (replay); khác thì 409.\n      if (!isUniqueViolation(err)) throw err;\n      const existing = await this.messageRepo.findOneBy({\n        idempotencyKey: prefixedKey,\n      });\n      if (\n        existing &&\n        existing.conversationId === conversation.id &&\n        existing.content === content\n      ) {\n        return existing;\n      }\n      throw new DomainException(\n        FriendErrors.MESSAGE_IDEMPOTENCY_CONFLICT,\n        'Idempotency-Key đã dùng cho 1 message khác nội dung',\n        HttpStatus.CONFLICT,\n      );\n    }\n    // last_message_at chỉ để sắp xếp danh sách chat, không phải nguồn sự thật nên không cần chung\n    // transaction.\n    await this.conversationRepo.update(\n      { id: conversation.id },\n      { lastMessageAt: message.createdAt },\n    );\n    return message;\n\n    try {\n\n      // Step 6: Cập nhật streak sau khi tin đã lưu, trong transaction riêng\n      // Streak chạy SAU khi tin đã lưu, trong transaction RIÊNG: nếu chung transaction với insert\n      // tin thì lần dính unique của retry làm cả transaction bị abort. Replay gọi lại cũng không\n      // tăng streak lần 2.\n      const { milestoneHit } = await this.streakService.recordActivity(\n        conversation,\n        userId,\n      );\n\n      // [SERVICE] StreakService.recordActivity  ·  streak.service.ts L52–103\n      // senderUserId = userId\n      const isLow = conversation.userLowId === senderUserId;\n      const today = todayUtc();\n\n      return this.dataSource.transaction(async (manager) => {\n\n        // Step 7: Tạo dòng streak nếu chưa có, khóa dòng FOR UPDATE\n        // [POSTGRES] Tạo dòng streak khi cần bằng ON CONFLICT DO NOTHING rồi khóa FOR UPDATE: 2\n        // bên nhắn gần như cùng lúc vẫn tăng streak đúng 1 lần.\n        await manager.query(\n          `INSERT INTO conversation_streaks (conversation_id) VALUES ($1)\n           ON CONFLICT (conversation_id) DO NOTHING`,\n          [conversation.id],\n        );\n        const row = await manager\n          .createQueryBuilder(ConversationStreak, 'cs')\n          .where('cs.conversationId = :id', { id: conversation.id })\n          .setLock('pessimistic_write')\n          .getOneOrFail();\n\n        if (isLow) row.userLowLastActiveDate = today;\n        else row.userHighLastActiveDate = today;\n\n        let milestoneHit: number | null = null;\n        const bothActiveToday =\n          row.userLowLastActiveDate === today &&\n          row.userHighLastActiveDate === today;\n\n        // Step 8: Cả 2 đã nhắn hôm nay thì tăng streak 1 lần/ngày, cứu lỡ 1 ngày\n        // Chỉ tăng khi cả 2 đã nhắn hôm nay và hôm nay chưa xác nhận, nên gọi lại trong cùng ngày\n        // không tăng lần 2. Ngày tính theo UTC của server, không theo múi giờ client.\n        if (bothActiveToday && row.lastConfirmedDate !== today) {\n          const gapDays = row.lastConfirmedDate\n            ? daysBetweenUtc(row.lastConfirmedDate, today)\n            : null;\n          if (gapDays === null || gapDays === 1) {\n            row.currentStreak += 1;\n          } else if (gapDays === 2) {\n            // Lỡ đúng 1 ngày vẫn được cứu: vẫn +1 chứ không reset, ghi lại ngày được cứu. Lỡ từ 2\n            // ngày trở lên thì reset về 1.\n            row.currentStreak += 1;\n            row.graceUsedForDate = addDaysUtc(row.lastConfirmedDate as string, 1);\n          } else {\n            row.currentStreak = 1;\n          }\n          row.longestStreak = Math.max(row.longestStreak, row.currentStreak);\n          row.lastConfirmedDate = today;\n\n          const milestones = this.parseMilestoneDays();\n          if (milestones.includes(row.currentStreak)) {\n            milestoneHit = row.currentStreak;\n          }\n        }\n\n        await manager.save(row);\n        return { streak: row, milestoneHit };\n      });\n\n      // Step 9: Chạm mốc streak thì phát friend.streak.increased qua Redis\n      if (milestoneHit !== null) {\n        const streakEnvelope: RealtimeEnvelope<FriendStreakIncreasedEventData> =\n          {\n            event: RealtimeEvents.FriendStreakIncreased,\n            data: { conversationId, currentStreak: milestoneHit },\n          };\n        await Promise.all(\n          [userId, partnerId].map((uid) =>\n            publishRealtimeEvent(this.redis, this.logger, uid, streakEnvelope),\n          ),\n        );\n      }\n    } catch (err) {\n      // Streak là phụ: lỗi tính streak chỉ ghi log, không rollback tin đã gửi.\n      this.logger.error(\n        `Tính streak cho conversation ${conversationId} lỗi (bỏ qua, message vẫn gửi thành công): ${\n          err instanceof Error ? err.message : String(err)\n        }`,\n      );\n    }\n\n    // Step 10: Phát friend.message cho cả 2 người qua Redis (sau khi lưu)\n    const envelope: RealtimeEnvelope<FriendMessageEventData> = {\n      event: RealtimeEvents.FriendMessage,\n      data: {\n        conversationId,\n        messageId: message.id,\n        senderUserId: message.senderUserId,\n        content: message.content,\n        attachment: message.attachment,\n        sentAt: message.createdAt.toISOString(),\n      },\n    };\n    // [REDIS] Phát friend.message cho cả 2 thành viên qua kênh realtime:user:{id}, SAU khi lưu.\n    // Best-effort, không dùng outbox: client vẫn poll được GET /conversations/:id/messages.\n    await Promise.all(\n      [userId, partnerId].map((uid) =>\n        publishRealtimeEvent(this.redis, this.logger, uid, envelope),\n      ),\n    );\n\n    try {\n\n      // Step 11: Tạo thông báo và push cho người nhận, trừ khi đã mute\n      const partnerState = await this.memberStateRepo.findOne({\n        where: { conversationId, userId: partnerId },\n      });\n      // Người nhận đã mute thì bỏ qua cả in-app lẫn push; tin nhắn, realtime và unread vẫn chạy\n      // bình thường.\n      if (partnerState?.mutedAt != null) return message;\n      // Thông báo chạy transaction riêng và best-effort: tin đã lưu xong nên lỗi ở đây không được\n      // làm hỏng luồng gửi. Chat không ẩn danh nên lộ senderUserId là đúng.\n      const notification = await this.notificationService.create({\n        userId: partnerId,\n        type: NotificationType.FriendMessage,\n        payload: {\n          conversationId,\n          senderUserId: userId,\n          preview: message.content,\n        },\n      });\n      await this.notificationService.sendPush(notification);\n    } catch (err) {\n      this.logger.warn(\n        `Tạo notification friend_message lỗi (bỏ qua, message vẫn gửi thành công): ${\n          err instanceof Error ? err.message : String(err)\n        }`,\n      );\n    }\n\n    return message;\n\n    // Step 12: Controller trả tin nhắn vừa lưu\n    return MessageDto.from(message);\n  }\n}\n\n// [POSTGRES] CREATE TABLE messages  ·  1752600000000-friend-chat.ts L30–41\n// Unique idempotency_key là chốt chặn thật chống nhân đôi tin nhắn. seq bigint IDENTITY là thứ tự\n// do DB cấp cho cursor, tránh trùng hoặc mất dòng khi phân trang theo created_at.\nawait queryRunner.query(`\n  CREATE TABLE messages (\n    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n    seq             bigint GENERATED ALWAYS AS IDENTITY,\n    conversation_id uuid         NOT NULL REFERENCES conversations(id),\n    sender_user_id  uuid         NOT NULL REFERENCES users(id),\n    content         text         NOT NULL,\n    idempotency_key varchar(255) NOT NULL,\n    created_at      timestamptz  NOT NULL DEFAULT now(),\n    CONSTRAINT uq_messages_idempotency_key UNIQUE (idempotency_key)\n  )\n`);\n"
+  },
+  "provenance": {
+    "catalog": {
+      "path": "annotated-16-friend-va-chat-1-1.mjs",
+      "sha256": "f78d33538af6c0cdaf73de878dd7d96f6a3713da25259c478af819c735253d74"
+    },
+    "displayedCodeSha256": "29a70a6f4284495552857f9dda03d94dabaf2887087fa6940e5c85226cb4f5cc"
+  }
+}

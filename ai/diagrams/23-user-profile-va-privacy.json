@@ -1,0 +1,317 @@
+{
+  "id": "23-user-profile-va-privacy",
+  "title": "User Profile và Privacy",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#23-user-profile-va-privacy",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/23-user-profile-va-privacy.json",
+  "feature": {
+    "id": "23-user-profile-va-privacy",
+    "title": "User Profile và Privacy",
+    "sources": [
+      "apps/core-api/src/modules/user/user.controller.ts",
+      "apps/core-api/src/modules/user/user.service.ts",
+      "apps/core-api/src/modules/user/services/privacy-settings.service.ts",
+      "docs/services/discovery-service.md"
+    ],
+    "core": [
+      "User: profile + privacy",
+      "PresenceReader: Redis read",
+      "Auth phone search / Discovery"
+    ],
+    "rest": "REST: users/me, privacy, presence",
+    "dataLabel": "User, PrivacySetting",
+    "redisLabel": "Presence đọc từ gateway leases",
+    "realtime": false,
+    "external": null,
+    "archNotes": {
+      "important": "User và PrivacySetting thuộc PostgreSQL. Profile update validate tại backend; privacy PUT lưu đầy đủ bốn cờ. UserPresenceReader đọc Redis presence do signaling-gateway ghi, không tự quyết user online.",
+      "caution": "hideProfile không làm GET /users/:id thành endpoint có block/privacy gate; controller hiện trả PublicProfileDto trực tiếp. showDistance tác động Nearby bucket, searchableByPhone tác động phone search; không suy quyền toàn hệ thống từ một cờ."
+    },
+    "flowNotes": {
+      "important": "PrivacySetting có default khi chưa có row; PUT upsert toàn bộ preferences. showOnlineStatus=false trả offline mà không đọc presence, showDistance=false ẩn distanceBucket của target.",
+      "caution": "Nearby opt-in là DiscoverySetting riêng, tắt opt-in mới xoá UserLocation; không đánh đồng với showDistance. Public profile DTO không chứa birthDate, region, trustScore hoặc seeking preferences."
+    },
+    "flow": []
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Mở profile/settings; chọn hành động",
+        "edge": ""
+      },
+      {
+        "actor": "Frontend",
+        "branch": "Sửa profile, privacy hay xem presence?",
+        "options": [
+          {
+            "label": "PROFILE",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Gửi fields được phép của chính mình",
+                "edge": "REST · PATCH /users/me"
+              },
+              {
+                "actor": "core-api · User",
+                "text": "Validate birthDate, interests, region, seekingAgeMin ≤ Max",
+                "edge": "SQL · UPDATE User"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Lưu User profile",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · User",
+                "text": "Trả MyProfileDto của chính caller",
+                "edge": "REST result"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Hiển thị profile server; public DTO chỉ có fields công khai",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          },
+          {
+            "label": "PRIVACY",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Gửi đủ bốn cờ privacy",
+                "edge": "REST · PUT /users/me/privacy"
+              },
+              {
+                "actor": "core-api · User.Privacy",
+                "text": "Upsert settings theo userId JWT",
+                "edge": "SQL · UPSERT PrivacySetting"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Lưu showOnlineStatus, showDistance, searchableByPhone và hideProfile",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · User.Privacy",
+                "text": "Trả settings đã lưu; defaults khi chưa có row",
+                "edge": "REST result"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Hiển thị settings; Nearby opt-in là hành động riêng",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          },
+          {
+            "label": "PRESENCE",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Xem presence trên profile được mở",
+                "edge": "REST · GET /users/:id/presence"
+              },
+              {
+                "actor": "core-api · User",
+                "text": "Đọc showOnlineStatus",
+                "edge": "SQL · SELECT PrivacySetting"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Trả flag, default true khi chưa có setting",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · User",
+                "text": "Nếu flag true: đọc lease; false trả offline ngay",
+                "edge": "Redis · ZREMRANGEBYSCORE + ZCARD khi cho phép"
+              },
+              {
+                "actor": "Redis · Presence",
+                "text": "Dọn expired lease members và trả số lease còn sống",
+                "edge": "Redis result · count"
+              },
+              {
+                "actor": "core-api · User",
+                "text": "Trả isOnline; Redis lỗi cũng trả offline",
+                "edge": "REST result"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Hiển thị trạng thái theo server",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          }
+        ]
+      }
+    ],
+    "followup": "Phone search kiểm searchableByPhone và user active; Nearby kiểm hideProfile/showDistance theo scope. Tắt nearbyVisible thuộc Discovery, xoá UserLocation cùng transaction.",
+    "sources": [
+      "apps/core-api/src/modules/user/user.controller.ts",
+      "apps/core-api/src/modules/user/services/privacy-settings.service.ts",
+      "apps/core-api/src/modules/user/redis/redis-presence-reader.adapter.ts"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "User",
+        "uses": "Profile + privacy + presence API",
+        "entities": [
+          "User",
+          "PrivacySetting"
+        ],
+        "actions": [
+          "PATCH me; PUT privacy; public profile"
+        ]
+      },
+      {
+        "name": "Auth.PhoneSearch",
+        "uses": "Search theo phone nếu opt-in",
+        "entities": [
+          "AuthIdentity"
+        ],
+        "actions": [
+          "Privacy-off/nonexistent/banned đều null"
+        ]
+      },
+      {
+        "name": "Discovery.Nearby",
+        "uses": "Consumer showDistance + hideProfile",
+        "entities": [
+          "UserLocation",
+          "DiscoverySetting"
+        ],
+        "actions": [
+          "Nearby opt-in riêng; filter privacy khi đọc"
+        ]
+      }
+    ],
+    "entities": [
+      "User",
+      "PrivacySetting"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "presence",
+          "label": "UserPresenceReader đọc realtime:presence leases",
+          "direction": "read"
+        }
+      ],
+      "signaling": false,
+      "mediaCluster": false
+    },
+    "externals": [],
+    "operations": [
+      "Presence reader dọn expired members rồi ZCARD; lỗi trả offline",
+      "Privacy defaults derive khi chưa có row; full PUT upsert"
+    ],
+    "notes": "Privacy không phải active telemetry consent. Gateway owns presence write/quota; User reader không tạo lease. Nearby opt-in tắt xoá location, khác showDistance chỉ ẩn bucket.",
+    "sources": [
+      "apps/core-api/src/modules/user/user.module.ts",
+      "apps/core-api/src/modules/user/user.controller.ts",
+      "apps/core-api/src/modules/user/services/privacy-settings.service.ts",
+      "apps/core-api/src/modules/user/redis/redis-presence-reader.adapter.ts",
+      "apps/core-api/src/modules/auth/services/phone-search.service.ts",
+      "apps/core-api/src/modules/discovery/nearby.service.ts"
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "redis",
+        "label": "Redis"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      },
+      {
+        "id": "core-redis",
+        "from": "redis",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "presence"
+      }
+    ]
+  },
+  "featureSequence": [],
+  "layerSequence": [
+    "1. Frontend: Mở profile/settings; chọn hành động",
+    "2. Frontend: Sửa profile, privacy hay xem presence?",
+    "2.1. PROFILE [continues=false]",
+    "2.1.1. Frontend: Gửi fields được phép của chính mình [REST · PATCH /users/me]",
+    "2.1.2. core-api · User: Validate birthDate, interests, region, seekingAgeMin ≤ Max [SQL · UPDATE User]",
+    "2.1.3. PostgreSQL: Lưu User profile [SQL result · trả core-api]",
+    "2.1.4. core-api · User: Trả MyProfileDto của chính caller [REST result]",
+    "2.1.5. Frontend: Hiển thị profile server; public DTO chỉ có fields công khai",
+    "2.2. PRIVACY [continues=false]",
+    "2.2.1. Frontend: Gửi đủ bốn cờ privacy [REST · PUT /users/me/privacy]",
+    "2.2.2. core-api · User.Privacy: Upsert settings theo userId JWT [SQL · UPSERT PrivacySetting]",
+    "2.2.3. PostgreSQL: Lưu showOnlineStatus, showDistance, searchableByPhone và hideProfile [SQL result · trả core-api]",
+    "2.2.4. core-api · User.Privacy: Trả settings đã lưu; defaults khi chưa có row [REST result]",
+    "2.2.5. Frontend: Hiển thị settings; Nearby opt-in là hành động riêng",
+    "2.3. PRESENCE [continues=false]",
+    "2.3.1. Frontend: Xem presence trên profile được mở [REST · GET /users/:id/presence]",
+    "2.3.2. core-api · User: Đọc showOnlineStatus [SQL · SELECT PrivacySetting]",
+    "2.3.3. PostgreSQL: Trả flag, default true khi chưa có setting [SQL result · trả core-api]",
+    "2.3.4. core-api · User: Nếu flag true: đọc lease; false trả offline ngay [Redis · ZREMRANGEBYSCORE + ZCARD khi cho phép]",
+    "2.3.5. Redis · Presence: Dọn expired lease members và trả số lease còn sống [Redis result · count]",
+    "2.3.6. core-api · User: Trả isOnline; Redis lỗi cũng trả offline [REST result]",
+    "2.3.7. Frontend: Hiển thị trạng thái theo server"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

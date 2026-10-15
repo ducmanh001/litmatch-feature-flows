@@ -1,0 +1,659 @@
+{
+  "id": "09-diamond-top-up-va-vip",
+  "title": "Diamond, Top-up và VIP",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#09-diamond-top-up-va-vip",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/09-diamond-top-up-va-vip.json",
+  "feature": {
+    "id": "09-diamond-top-up-va-vip",
+    "title": "Diamond, Top-up và VIP",
+    "sources": [
+      "docs/services/economy-service.md",
+      "apps/core-api/src/modules/economy/economy.controller.ts"
+    ],
+    "core": [
+      "Economy: catalog + verifier",
+      "Ledger: writer duy nhất",
+      "Reconciliation + outbox"
+    ],
+    "rest": "REST: products, top-up, VIP, wallet",
+    "dataLabel": "LedgerEntry, tx, Wallet",
+    "redisLabel": "",
+    "realtime": false,
+    "external": {
+      "lines": [
+        "payOS / Apple / Google",
+        "Payment + receipt / refund"
+      ],
+      "control": "Verify receipt / signed webhook",
+      "direct": "Client → provider: checkout",
+      "kind": "provider"
+    },
+    "archNotes": {
+      "important": "Economy và Ledger là module nội bộ core-api. PostgreSQL giữ Transaction DB-unique idempotencyKey, LedgerEntry double-entry append-only và Wallet snapshot; outbox ghi cùng transaction, relay Kafka chỉ khi bật.",
+      "caution": "Provider phải xác minh server-side trước credit; credential/config quyết định availability. Ledger cũ có DB trigger chặn sửa/xoá, corrections dùng reversal; Redis không phải nguồn số dư."
+    },
+    "flow": [
+      {
+        "text": "Client lấy catalog + capabilities\nGiá và số Diamond từ server"
+      },
+      {
+        "branch": "Top-up hay mua VIP?",
+        "options": [
+          {
+            "label": "TOP-UP",
+            "text": "Tạo payOS order hoặc gửi receipt IAP\nChờ provider xác minh payment\nChưa verify thì chưa credit",
+            "continues": true
+          },
+          {
+            "label": "VIP",
+            "text": "Đọc plan active + snapshot giá\nLock wallet + đủ Diamond\nChuẩn bị debit và gia hạn",
+            "continues": true
+          }
+        ]
+      },
+      {
+        "text": "Claim Transaction idempotencyKey\nDB unique; khác payload: conflict"
+      },
+      {
+        "text": "Ledger ghi double-entry\nCân từng currency; append-only"
+      },
+      {
+        "text": "Cùng transaction: Wallet snapshot\nTop-up: order / receipt credited\nVIP: cộng expiry + outbox"
+      },
+      {
+        "text": "Sau commit: trả kết quả / đọc ví\nRetry cùng key trả giao dịch cũ\nVIP active theo giờ server"
+      },
+      {
+        "branch": "Có refund / chargeback xác minh?",
+        "options": [
+          {
+            "label": "REFUND",
+            "text": "Ghi transaction reversal mới\nĐảo entries; giữ giao dịch gốc\nWallet có thể âm do nợ Diamond",
+            "continues": false
+          },
+          {
+            "label": "KHÔNG",
+            "text": "Giữ lịch sử và snapshot\nReconciliation read-only\nPhát hiện lệch để điều tra",
+            "continues": true
+          }
+        ]
+      }
+    ],
+    "flowNotes": {
+      "important": "Payment pending không phải Diamond đã nạp. Credit/debit, Wallet snapshot và metadata giá commit cùng nhau; mọi retry tiền có idempotency DB, không chỉ cache.",
+      "caution": "Refund không clamp số dư về 0 và không xoá ledger; nợ Diamond có thể làm Wallet âm, guard chặn tiêu tiếp. Reconciliation phát hiện lệch, không tự sửa giao dịch.",
+      "followup": "Avatar, Gift và các luồng tiêu Diamond gọi facade Economy trong cùng core-api; provider readiness phải đọc runtime contract."
+    }
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Yêu cầu products/plans và capabilities",
+        "edge": "REST · Economy catalog"
+      },
+      {
+        "actor": "core-api · Economy",
+        "text": "Trả catalog và capability đang áp dụng",
+        "edge": "REST result"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Hiển thị catalog; chọn phương thức mua",
+        "edge": "Chọn thao tác"
+      },
+      {
+        "actor": "Frontend",
+        "branch": "Nạp IAP, payOS hay mua VIP bằng Diamond?",
+        "options": [
+          {
+            "label": "IAP",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Mua product qua IAP store",
+                "edge": "StoreKit / Play Billing"
+              },
+              {
+                "actor": "Apple / Google",
+                "text": "Trả receipt/purchase token",
+                "edge": "Store result"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Gửi receipt/purchase token và key",
+                "edge": "REST · IAP purchase"
+              },
+              {
+                "actor": "core-api · Economy",
+                "text": "Gọi IapVerifier ở server",
+                "edge": "Provider HTTP · verify"
+              },
+              {
+                "actor": "Apple / Google",
+                "text": "Trả verification result",
+                "edge": "HTTP result"
+              },
+              {
+                "actor": "core-api · Economy",
+                "text": "Xác định provider transaction và Diamond từ catalog",
+                "edge": "in-process · credit chuẩn bị ledger"
+              }
+            ],
+            "continues": true
+          },
+          {
+            "label": "PAYOS",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Gửi packageId + Idempotency-Key",
+                "edge": "REST · payOS order"
+              },
+              {
+                "actor": "core-api · Economy",
+                "text": "Snapshot giá/Diamond; tạo order idempotent",
+                "edge": "SQL · INSERT order"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Lưu order và unique order_code",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · Economy",
+                "text": "Yêu cầu payment link theo order",
+                "edge": "payOS HTTP · create link"
+              },
+              {
+                "actor": "payOS",
+                "text": "Trả checkout URL/QR",
+                "edge": "HTTP result"
+              },
+              {
+                "actor": "core-api · Economy",
+                "text": "Trả checkout URL/QR cho caller",
+                "edge": "REST result"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Mở checkout và thanh toán",
+                "edge": "HTTPS · checkout"
+              },
+              {
+                "actor": "payOS",
+                "text": "Gửi payment webhook có HMAC",
+                "edge": "HTTP · signed webhook"
+              },
+              {
+                "actor": "core-api · Economy",
+                "text": "Verify HMAC tại server; lock và đối chiếu order snapshot",
+                "edge": "in-process · credit chuẩn bị ledger"
+              }
+            ],
+            "continues": true
+          },
+          {
+            "label": "VIP",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Gửi planId + Idempotency-Key",
+                "edge": "REST · VIP purchase"
+              },
+              {
+                "actor": "core-api · Economy",
+                "text": "Đọc plan active/giá; lock Wallet và đủ balance",
+                "edge": "in-process · debit chuẩn bị ledger"
+              }
+            ],
+            "continues": true
+          }
+        ]
+      },
+      {
+        "actor": "core-api · Ledger",
+        "text": "Claim unique LedgerTransaction key; snapshot giá và ghi entries cân currency",
+        "edge": "SQL · entries + Wallet + metadata/outbox"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Commit append-only double-entry, Wallet snapshot, receipt/order credit hoặc VIP expiry",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Economy",
+        "text": "Hoàn tất credit/VIP; trả kết quả cho API caller hoặc ACK webhook",
+        "edge": "Giai đoạn Frontend đọc lại trạng thái"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Yêu cầu đọc Wallet/VIP sau mua hoặc khi quay lại checkout",
+        "edge": "REST · Wallet / VIP"
+      },
+      {
+        "actor": "core-api · Economy",
+        "text": "Đọc số dư/VIP đã commit theo user",
+        "edge": "SQL · SELECT Wallet / VIP"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Trả Wallet snapshot và VIP expiry hiện tại",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Economy",
+        "text": "Trả trạng thái hiện tại; pending chưa được credit",
+        "edge": "REST result"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Hiển thị số dư/VIP từ server; pending payment không phải đã credit",
+        "edge": ""
+      },
+      {
+        "actor": "core-api · Economy",
+        "branch": "Có refund/chargeback được verify sau này?",
+        "options": [
+          {
+            "label": "REFUND",
+            "steps": [
+              {
+                "actor": "core-api · RefundService",
+                "text": "Tạo reversal mới; không sửa ledger cũ",
+                "edge": "SQL · reversal + Wallet/receipt state"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit đảo entries; wallet có thể âm khi đã tiêu",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · Economy",
+                "text": "Giữ debt đúng ledger; chặn spend khi thiếu balance",
+                "edge": "REST result · debt state"
+              }
+            ],
+            "continues": false
+          },
+          {
+            "label": "KHÔNG",
+            "steps": [
+              {
+                "actor": "core-api · Reconciliation",
+                "text": "Job read-only kiểm double-entry, receipts và wallet",
+                "edge": "SQL · reconciliation reads"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Trả ledger-derived checks; không auto-correct",
+                "edge": "SQL result · trả core-api"
+              }
+            ],
+            "continues": false
+          }
+        ]
+      }
+    ],
+    "caution": "Apple signed refund/revoke và polling refund history; Google RTDN chỉ tín hiệu, Voided Purchases polling mới refund. Outbox relay Kafka tùy config; không Notification consumer Kafka giả.",
+    "sources": [
+      "docs/services/economy-service.md",
+      "apps/core-api/src/modules/economy/webhooks/economy-webhooks.controller.ts"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "Economy",
+        "uses": "Catalog + top-up + VIP + refund",
+        "entities": [
+          "IapProduct",
+          "IapReceipt",
+          "PayosPackage",
+          "PayosPaymentOrder",
+          "VipPlan"
+        ],
+        "actions": [
+          "Verify receipt / verified payOS webhook",
+          "Lock Wallet; credit/debit/VIP/reversal"
+        ]
+      },
+      {
+        "name": "Ledger",
+        "uses": "Writer duy nhất trong Economy",
+        "entities": [
+          "LedgerAccount",
+          "LedgerTransaction",
+          "LedgerEntry",
+          "Wallet",
+          "OutboxEvent"
+        ],
+        "actions": [
+          "LedgerTransaction.idempotencyKey unique DB",
+          "LedgerEntry append-only double-entry theo currency"
+        ]
+      },
+      {
+        "name": "Events infrastructure",
+        "uses": "Relay outbox ra Kafka khi bật",
+        "entities": [
+          "OutboxEvent"
+        ],
+        "actions": [
+          "EventBusPort → KafkaEventBusAdapter",
+          "SKIP LOCKED; retry + dead-letter marker"
+        ]
+      }
+    ],
+    "entities": [
+      "LedgerAccount",
+      "LedgerTransaction",
+      "LedgerEntry",
+      "Wallet",
+      "OutboxEvent",
+      "IapProduct",
+      "IapReceipt",
+      "PayosPackage",
+      "PayosPaymentOrder",
+      "VipPlan"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "rate limit",
+          "label": "HTTP throttle nếu THROTTLE_STORAGE=redis",
+          "direction": "both"
+        }
+      ],
+      "signaling": false,
+      "mediaCluster": false
+    },
+    "externals": [
+      {
+        "id": "payos",
+        "lines": [
+          "payOS",
+          "Payment link / VietQR"
+        ],
+        "request": "Tạo/cancel payment link theo server order",
+        "callback": "/api/v1/economy/webhooks/payos: HMAC rồi credit",
+        "direct": "Client → payOS checkout / payment",
+        "direction": "both",
+        "redis": "",
+        "condition": "PAYOS credentials + redirect URL"
+      },
+      {
+        "id": "apple-iap",
+        "lines": [
+          "Apple App Store",
+          "Receipt + refund history"
+        ],
+        "request": "Server verify receipt + Get Refund History",
+        "callback": "/api/v1/economy/webhooks/apple: signed refund/revoke",
+        "direct": "Client → Apple: IAP purchase",
+        "direction": "both",
+        "redis": "",
+        "condition": "Store verifier + credentials; dev chỉ non-production"
+      },
+      {
+        "id": "google-iap",
+        "lines": [
+          "Google Play",
+          "Purchase token + Voided Purchases"
+        ],
+        "request": "Verify token; poll Voided Purchases API",
+        "callback": "/api/v1/economy/webhooks/google/rtdn: OIDC, tín hiệu phụ",
+        "direct": "Client → Google: IAP purchase",
+        "direction": "both",
+        "redis": "",
+        "condition": "Google service account; RTDN không tự refund"
+      },
+      {
+        "id": "broker",
+        "lines": [
+          "Kafka",
+          "Economy events + dead letter"
+        ],
+        "request": "OutboxRelay → litmatch.economy.events / DLQ",
+        "callback": "",
+        "direct": "",
+        "direction": "to-provider",
+        "redis": "",
+        "condition": "ECONOMY_OUTBOX_RELAY_ENABLED; chưa có domain consumer đăng ký"
+      }
+    ],
+    "operations": [
+      "OutboxRelayService: publish/retry/dead-letter nếu bật",
+      "ReconciliationService: fast + deep read-only ledger checks",
+      "IapRefundPollService: Apple refund lookup + Google voided purchases",
+      "VIP active xác định khi đọc; corrections bằng reversal"
+    ],
+    "notes": "PostgreSQL là nguồn tài chính; số dư không nằm Redis. LedgerTransaction là tên entity code cho bảng transactions. Google RTDN không đảo tiền, polling voided là nguồn refund chính. Outbox ghi dù relay tắt; chưa có domain consumer Kafka đăng ký.",
+    "sources": [
+      "apps/core-api/src/modules/economy/economy.module.ts",
+      "apps/core-api/src/modules/economy/entities/transaction.entity.ts",
+      "apps/core-api/src/modules/economy/entities/iap.entities.ts",
+      "apps/core-api/src/modules/economy/entities/payos.entities.ts",
+      "apps/core-api/src/modules/economy/webhooks/economy-webhooks.controller.ts",
+      "apps/core-api/src/modules/economy/jobs/outbox-relay.service.ts",
+      "apps/core-api/src/modules/economy/jobs/reconciliation.service.ts",
+      "apps/core-api/src/modules/economy/jobs/iap-refund-poll.service.ts",
+      "apps/core-api/src/common/events/events.module.ts",
+      "apps/core-api/src/app/app.module.ts"
+    ],
+    "links": [
+      {
+        "from": "Economy",
+        "to": "Ledger",
+        "label": "Record entries + Wallet + metadata",
+        "condition": ""
+      },
+      {
+        "from": "Economy",
+        "to": "Events infrastructure",
+        "label": "OutboxRelay gọi EventBusPort.publish",
+        "condition": "ECONOMY_OUTBOX_RELAY_ENABLED"
+      },
+      {
+        "from": "Economy",
+        "to": "Ledger",
+        "label": "Refund → reversal entries mới",
+        "condition": "Refund đã verify"
+      }
+    ],
+    "entityRelations": [
+      {
+        "from": "LedgerEntry",
+        "to": "LedgerTransaction",
+        "label": "transactionId; append-only"
+      },
+      {
+        "from": "LedgerEntry",
+        "to": "LedgerAccount",
+        "label": "accountId + currency"
+      },
+      {
+        "from": "Wallet",
+        "to": "LedgerEntry",
+        "label": "Snapshot dẫn xuất từ ledger"
+      }
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "payos",
+        "label": "payOS"
+      },
+      {
+        "id": "apple-iap",
+        "label": "Apple App Store"
+      },
+      {
+        "id": "google-iap",
+        "label": "Google Play"
+      },
+      {
+        "id": "broker",
+        "label": "Kafka"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      },
+      {
+        "id": "core-payos",
+        "from": "core",
+        "to": "payos",
+        "bidirectional": true,
+        "protocol": "payment · webhook"
+      },
+      {
+        "id": "core-apple-iap",
+        "from": "core",
+        "to": "apple-iap",
+        "bidirectional": true,
+        "protocol": "receipt · webhook"
+      },
+      {
+        "id": "core-google-iap",
+        "from": "core",
+        "to": "google-iap",
+        "bidirectional": true,
+        "protocol": "verify · RTDN"
+      },
+      {
+        "id": "core-broker",
+        "from": "core",
+        "to": "broker",
+        "bidirectional": false,
+        "protocol": "stream (tuỳ cấu hình)"
+      },
+      {
+        "id": "client-payos",
+        "from": "client",
+        "to": "payos",
+        "bidirectional": true,
+        "protocol": "payment"
+      },
+      {
+        "id": "client-apple-iap",
+        "from": "client",
+        "to": "apple-iap",
+        "bidirectional": true,
+        "protocol": "payment"
+      },
+      {
+        "id": "client-google-iap",
+        "from": "client",
+        "to": "google-iap",
+        "bidirectional": true,
+        "protocol": "payment"
+      }
+    ]
+  },
+  "featureSequence": [
+    "1. Client lấy catalog + capabilities\nGiá và số Diamond từ server",
+    "2. Top-up hay mua VIP?",
+    "2.1. TOP-UP: Tạo payOS order hoặc gửi receipt IAP\nChờ provider xác minh payment\nChưa verify thì chưa credit",
+    "2.2. VIP: Đọc plan active + snapshot giá\nLock wallet + đủ Diamond\nChuẩn bị debit và gia hạn",
+    "3. Claim Transaction idempotencyKey\nDB unique; khác payload: conflict",
+    "4. Ledger ghi double-entry\nCân từng currency; append-only",
+    "5. Cùng transaction: Wallet snapshot\nTop-up: order / receipt credited\nVIP: cộng expiry + outbox",
+    "6. Sau commit: trả kết quả / đọc ví\nRetry cùng key trả giao dịch cũ\nVIP active theo giờ server",
+    "7. Có refund / chargeback xác minh?",
+    "7.1. REFUND [continues=false]: Ghi transaction reversal mới\nĐảo entries; giữ giao dịch gốc\nWallet có thể âm do nợ Diamond",
+    "7.2. KHÔNG: Giữ lịch sử và snapshot\nReconciliation read-only\nPhát hiện lệch để điều tra"
+  ],
+  "layerSequence": [
+    "1. Frontend: Yêu cầu products/plans và capabilities [REST · Economy catalog]",
+    "2. core-api · Economy: Trả catalog và capability đang áp dụng [REST result]",
+    "3. Frontend: Hiển thị catalog; chọn phương thức mua [Chọn thao tác]",
+    "4. Frontend: Nạp IAP, payOS hay mua VIP bằng Diamond?",
+    "4.1. IAP",
+    "4.1.1. Frontend: Mua product qua IAP store [StoreKit / Play Billing]",
+    "4.1.2. Apple / Google: Trả receipt/purchase token [Store result]",
+    "4.1.3. Frontend: Gửi receipt/purchase token và key [REST · IAP purchase]",
+    "4.1.4. core-api · Economy: Gọi IapVerifier ở server [Provider HTTP · verify]",
+    "4.1.5. Apple / Google: Trả verification result [HTTP result]",
+    "4.1.6. core-api · Economy: Xác định provider transaction và Diamond từ catalog [in-process · credit chuẩn bị ledger]",
+    "4.2. PAYOS",
+    "4.2.1. Frontend: Gửi packageId + Idempotency-Key [REST · payOS order]",
+    "4.2.2. core-api · Economy: Snapshot giá/Diamond; tạo order idempotent [SQL · INSERT order]",
+    "4.2.3. PostgreSQL: Lưu order và unique order_code [SQL result · trả core-api]",
+    "4.2.4. core-api · Economy: Yêu cầu payment link theo order [payOS HTTP · create link]",
+    "4.2.5. payOS: Trả checkout URL/QR [HTTP result]",
+    "4.2.6. core-api · Economy: Trả checkout URL/QR cho caller [REST result]",
+    "4.2.7. Frontend: Mở checkout và thanh toán [HTTPS · checkout]",
+    "4.2.8. payOS: Gửi payment webhook có HMAC [HTTP · signed webhook]",
+    "4.2.9. core-api · Economy: Verify HMAC tại server; lock và đối chiếu order snapshot [in-process · credit chuẩn bị ledger]",
+    "4.3. VIP",
+    "4.3.1. Frontend: Gửi planId + Idempotency-Key [REST · VIP purchase]",
+    "4.3.2. core-api · Economy: Đọc plan active/giá; lock Wallet và đủ balance [in-process · debit chuẩn bị ledger]",
+    "5. core-api · Ledger: Claim unique LedgerTransaction key; snapshot giá và ghi entries cân currency [SQL · entries + Wallet + metadata/outbox]",
+    "6. PostgreSQL: Commit append-only double-entry, Wallet snapshot, receipt/order credit hoặc VIP expiry [SQL result · trả core-api]",
+    "7. core-api · Economy: Hoàn tất credit/VIP; trả kết quả cho API caller hoặc ACK webhook [Giai đoạn Frontend đọc lại trạng thái]",
+    "8. Frontend: Yêu cầu đọc Wallet/VIP sau mua hoặc khi quay lại checkout [REST · Wallet / VIP]",
+    "9. core-api · Economy: Đọc số dư/VIP đã commit theo user [SQL · SELECT Wallet / VIP]",
+    "10. PostgreSQL: Trả Wallet snapshot và VIP expiry hiện tại [SQL result · trả core-api]",
+    "11. core-api · Economy: Trả trạng thái hiện tại; pending chưa được credit [REST result]",
+    "12. Frontend: Hiển thị số dư/VIP từ server; pending payment không phải đã credit",
+    "13. core-api · Economy: Có refund/chargeback được verify sau này?",
+    "13.1. REFUND [continues=false]",
+    "13.1.1. core-api · RefundService: Tạo reversal mới; không sửa ledger cũ [SQL · reversal + Wallet/receipt state]",
+    "13.1.2. PostgreSQL: Commit đảo entries; wallet có thể âm khi đã tiêu [SQL result · trả core-api]",
+    "13.1.3. core-api · Economy: Giữ debt đúng ledger; chặn spend khi thiếu balance [REST result · debt state]",
+    "13.2. KHÔNG [continues=false]",
+    "13.2.1. core-api · Reconciliation: Job read-only kiểm double-entry, receipts và wallet [SQL · reconciliation reads]",
+    "13.2.2. PostgreSQL: Trả ledger-derived checks; không auto-correct [SQL result · trả core-api]"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

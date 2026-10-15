@@ -1,0 +1,383 @@
+{
+  "id": "06-palm-match",
+  "title": "Palm Match",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#06-palm-match",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/06-palm-match.json",
+  "feature": {
+    "id": "06-palm-match",
+    "title": "Palm Match",
+    "sources": [
+      "docs/services/palm-match-service.md",
+      "apps/core-api/src/modules/palm-match/palm-match.service.ts"
+    ],
+    "core": [
+      "PalmMatch: template reading",
+      "Queue + flip + rating",
+      "Friend / Safety qua DI"
+    ],
+    "rest": "REST: reading, current, flip, rate",
+    "dataLabel": "Templates, queue, session",
+    "redisLabel": "",
+    "realtime": false,
+    "external": null,
+    "archNotes": {
+      "important": "Bài đọc chọn từ templates trong PostgreSQL bằng seed user, category và ngày UTC. Flow ghép ẩn danh có queue và session snapshot trong cùng module PalmMatch; matcher dùng advisory lock PostgreSQL.",
+      "caution": "Không dùng AI provider, Economy hay service ghép riêng. Redis không giữ queue Palm; client lấy current state qua REST. Reading không có lịch sử riêng, còn session snapshot giữ kết quả ghép để reload."
+    },
+    "flow": [
+      {
+        "text": "Chọn bài đọc hoặc ghép ẩn danh"
+      },
+      {
+        "branch": "Entry point nào?",
+        "options": [
+          {
+            "label": "BÀI ĐỌC",
+            "text": "Lấy templates active\nSeed theo user + category + ngày UTC\nTrả reading ổn định trong ngày",
+            "continues": false
+          },
+          {
+            "label": "GHÉP ẨN DANH",
+            "text": "Enqueue PostgreSQL\nAdvisory lock; lấy candidate cũ nhất\nRe-check Safety; tạo session snapshot",
+            "continues": true
+          }
+        ]
+      },
+      {
+        "text": "REST current trả state ẩn danh\nChưa reveal lá của đối phương"
+      },
+      {
+        "text": "Mỗi user chỉ flip lá của mình\nIdentity lấy từ JWT"
+      },
+      {
+        "text": "Đủ hai flip: reveal kết quả chung\nMở rating; quá hạn thì lazy-expire"
+      },
+      {
+        "branch": "Rating like / skip?",
+        "options": [
+          {
+            "label": "HAI LIKE",
+            "text": "Lock session; verdict immutable\nTạo Friendship + Conversation\nChốt matched, reveal profile",
+            "continues": true
+          },
+          {
+            "label": "CHƯA ĐỦ LIKE",
+            "text": "Một like: tiếp tục chờ\nBất kỳ skip: not_matched ngay\nKhông reveal profile",
+            "continues": false
+          }
+        ]
+      },
+      {
+        "text": "REST reload đọc lại kết quả\nDismiss active: cancel cho cả hai\nDismiss terminal: nhả current pointer"
+      }
+    ],
+    "flowNotes": {
+      "important": "Sign của từng người hiện khi người đó flip; compatibility và fortune chỉ hiện sau hai flip, cùng lúc rating mở. Mutual-like tạo quan hệ trong cùng transaction; skip chốt not_matched ngay, một like riêng vẫn phải chờ.",
+      "caution": "Reading deterministic không có nghĩa kết quả cố định khi catalog thay đổi. Queue ghép serialize qua một advisory lock toàn cục, phù hợp pilot và chưa phải Redis shard.",
+      "followup": "Friendship sau matched mở Friend Chat; Palm không thưởng Diamond."
+    }
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Chọn daily reading hoặc ghép ẩn danh",
+        "edge": ""
+      },
+      {
+        "actor": "Frontend",
+        "branch": "Entry point Palm?",
+        "options": [
+          {
+            "label": "READING",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Chọn category/targetName",
+                "edge": "REST · GET reading"
+              },
+              {
+                "actor": "core-api · PalmMatch",
+                "text": "Lấy templates active; seed theo user/category/ngày UTC",
+                "edge": "SQL · SELECT templates"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Trả PalmReadingTemplate catalog",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · PalmMatch",
+                "text": "Chọn nội dung deterministic trong ngày",
+                "edge": "REST result"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Hiển thị reading; không có history riêng",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          },
+          {
+            "label": "ANONYMOUS",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Enqueue Palm",
+                "edge": "REST · enqueue"
+              },
+              {
+                "actor": "core-api · PalmMatch → Safety",
+                "text": "Advisory transaction lock; FIFO candidate; canPair",
+                "edge": "SQL · queue/session snapshot + COMMIT"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit PalmMatchSession và active participants",
+                "edge": "SQL result · trả core-api"
+              }
+            ],
+            "continues": true
+          }
+        ]
+      },
+      {
+        "actor": "core-api · PalmMatch",
+        "text": "Trả current state ẩn danh",
+        "edge": "REST result"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Mỗi người chỉ flip lá của mình",
+        "edge": "REST · flip"
+      },
+      {
+        "actor": "core-api · PalmMatch",
+        "text": "JWT xác định lá; lock session; lazy-expire nếu quá hạn",
+        "edge": "SQL · UPDATE flippedAt"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lưu flip; sign mỗi người hiện khi người đó flip",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · PalmMatch",
+        "text": "Chỉ đủ hai flip mới có compatibility/fortune và mở rating",
+        "edge": "REST result"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Gửi like hoặc skip sau khi rating mở",
+        "edge": "REST · rate"
+      },
+      {
+        "actor": "core-api · PalmMatch",
+        "text": "Lock session; verdict immutable; skip terminal, mutual tạo Friend",
+        "edge": "SQL · ratings/outcome + relations"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Commit result snapshot; một like chưa matched, skip not_matched, hai like matched",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · PalmMatch",
+        "text": "Trả outcome; partnerUserId chỉ khi matched",
+        "edge": "REST result"
+      },
+      {
+        "actor": "Frontend",
+        "text": "REST reload giữ kết quả; dismiss active sẽ cancel cho cả hai",
+        "edge": ""
+      }
+    ],
+    "caution": "Palm không có realtime producer, AI hay Economy. Queue và advisory lock ở PostgreSQL; dismiss terminal nhả pointer để enqueue lần mới.",
+    "sources": [
+      "docs/services/palm-match-service.md",
+      "apps/core-api/src/modules/palm-match/palm-match.service.ts"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "PalmMatch",
+        "uses": "Reading + anonymous session",
+        "entities": [
+          "PalmReadingTemplate",
+          "PalmMatchQueueEntry",
+          "PalmMatchSession",
+          "PalmMatchActiveParticipant"
+        ],
+        "actions": [
+          "Seed reading theo user/category/ngày UTC",
+          "PG advisory lock; flip + immutable rating"
+        ]
+      },
+      {
+        "name": "Friend",
+        "uses": "Quan hệ + chat lâu dài",
+        "entities": [
+          "Friendship",
+          "Conversation",
+          "Message"
+        ],
+        "actions": [
+          "ensureFriendship cùng transaction",
+          "Import chat nếu flow có message seed"
+        ]
+      },
+      {
+        "name": "Safety",
+        "uses": "Chặn block/report tại hành động",
+        "entities": [
+          "Block",
+          "Report"
+        ],
+        "actions": [
+          "canPair / isBlocked / hidden-set",
+          "Đọc log PostgreSQL hiện tại"
+        ]
+      }
+    ],
+    "entities": [
+      "PalmReadingTemplate",
+      "PalmMatchQueueEntry",
+      "PalmMatchSession",
+      "PalmMatchActiveParticipant"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "rate limit",
+          "label": "HTTP throttle nếu THROTTLE_STORAGE=redis",
+          "direction": "both"
+        }
+      ],
+      "signaling": false,
+      "mediaCluster": false
+    },
+    "externals": [],
+    "operations": [
+      "Lazy-expire queue/session; dismiss active cancel cho cả hai",
+      "Mutual-like tạo Friendship + Conversation cùng transaction",
+      "Không realtime producer, không AI provider, không Economy"
+    ],
+    "notes": "Palm có PostgreSQL queue, advisory lock và session snapshot; không có Redis matcher/queue riêng. Redis chỉ có HTTP throttle chung nếu bật. Sign hiện khi chủ lá flip; compatibility/fortune và rating cần đủ hai flip.",
+    "sources": [
+      "apps/core-api/src/modules/palm-match/palm-match.module.ts",
+      "apps/core-api/src/modules/palm-match/palm-match.service.ts",
+      "apps/core-api/src/modules/palm-match/entities/palm-match-session.entity.ts",
+      "apps/core-api/src/app/app.module.ts"
+    ],
+    "links": [
+      {
+        "from": "PalmMatch",
+        "to": "Safety",
+        "label": "canPair tại thời điểm ghép",
+        "condition": ""
+      },
+      {
+        "from": "PalmMatch",
+        "to": "Friend",
+        "label": "Hai likes → ensureFriendship",
+        "condition": ""
+      }
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững · queue"
+      }
+    ]
+  },
+  "featureSequence": [
+    "1. Chọn bài đọc hoặc ghép ẩn danh",
+    "2. Entry point nào?",
+    "2.1. BÀI ĐỌC [continues=false]: Lấy templates active\nSeed theo user + category + ngày UTC\nTrả reading ổn định trong ngày",
+    "2.2. GHÉP ẨN DANH: Enqueue PostgreSQL\nAdvisory lock; lấy candidate cũ nhất\nRe-check Safety; tạo session snapshot",
+    "3. REST current trả state ẩn danh\nChưa reveal lá của đối phương",
+    "4. Mỗi user chỉ flip lá của mình\nIdentity lấy từ JWT",
+    "5. Đủ hai flip: reveal kết quả chung\nMở rating; quá hạn thì lazy-expire",
+    "6. Rating like / skip?",
+    "6.1. HAI LIKE: Lock session; verdict immutable\nTạo Friendship + Conversation\nChốt matched, reveal profile",
+    "6.2. CHƯA ĐỦ LIKE [continues=false]: Một like: tiếp tục chờ\nBất kỳ skip: not_matched ngay\nKhông reveal profile",
+    "7. REST reload đọc lại kết quả\nDismiss active: cancel cho cả hai\nDismiss terminal: nhả current pointer"
+  ],
+  "layerSequence": [
+    "1. Frontend: Chọn daily reading hoặc ghép ẩn danh",
+    "2. Frontend: Entry point Palm?",
+    "2.1. READING [continues=false]",
+    "2.1.1. Frontend: Chọn category/targetName [REST · GET reading]",
+    "2.1.2. core-api · PalmMatch: Lấy templates active; seed theo user/category/ngày UTC [SQL · SELECT templates]",
+    "2.1.3. PostgreSQL: Trả PalmReadingTemplate catalog [SQL result · trả core-api]",
+    "2.1.4. core-api · PalmMatch: Chọn nội dung deterministic trong ngày [REST result]",
+    "2.1.5. Frontend: Hiển thị reading; không có history riêng",
+    "2.2. ANONYMOUS",
+    "2.2.1. Frontend: Enqueue Palm [REST · enqueue]",
+    "2.2.2. core-api · PalmMatch → Safety: Advisory transaction lock; FIFO candidate; canPair [SQL · queue/session snapshot + COMMIT]",
+    "2.2.3. PostgreSQL: Commit PalmMatchSession và active participants [SQL result · trả core-api]",
+    "3. core-api · PalmMatch: Trả current state ẩn danh [REST result]",
+    "4. Frontend: Mỗi người chỉ flip lá của mình [REST · flip]",
+    "5. core-api · PalmMatch: JWT xác định lá; lock session; lazy-expire nếu quá hạn [SQL · UPDATE flippedAt]",
+    "6. PostgreSQL: Lưu flip; sign mỗi người hiện khi người đó flip [SQL result · trả core-api]",
+    "7. core-api · PalmMatch: Chỉ đủ hai flip mới có compatibility/fortune và mở rating [REST result]",
+    "8. Frontend: Gửi like hoặc skip sau khi rating mở [REST · rate]",
+    "9. core-api · PalmMatch: Lock session; verdict immutable; skip terminal, mutual tạo Friend [SQL · ratings/outcome + relations]",
+    "10. PostgreSQL: Commit result snapshot; một like chưa matched, skip not_matched, hai like matched [SQL result · trả core-api]",
+    "11. core-api · PalmMatch: Trả outcome; partnerUserId chỉ khi matched [REST result]",
+    "12. Frontend: REST reload giữ kết quả; dismiss active sẽ cancel cho cả hai"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

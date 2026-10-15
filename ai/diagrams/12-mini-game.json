@@ -1,0 +1,366 @@
+{
+  "id": "12-mini-game",
+  "title": "Mini Game",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#12-mini-game",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/12-mini-game.json",
+  "feature": {
+    "id": "12-mini-game",
+    "title": "Mini Game",
+    "sources": [
+      "docs/services/mini-game-service.md"
+    ],
+    "core": [
+      "MiniGame: session + moves",
+      "Resolve rock-paper-scissors",
+      "Friend: kiểm tra quan hệ"
+    ],
+    "rest": "REST: session, move, cancel",
+    "dataLabel": "Session, moves, winner",
+    "redisLabel": "Pub/Sub: minigame.*",
+    "realtime": true,
+    "external": null,
+    "archNotes": {
+      "important": "MiniGame module trong core-api giữ session, hai moves và winner ở PostgreSQL. Gateway chỉ fanout session started/resolved; REST state là đường phục hồi khi mất event.",
+      "caution": "Chỉ rock-paper-scissors giữa hai người đã có Friendship. Move được ghi bằng conditional UPDATE, chưa resolved thì DTO không lộ opponentMove; không có event trung gian cho một move."
+    },
+    "flow": [
+      {
+        "text": "Một user chọn người bạn\nYêu cầu tạo / lấy session"
+      },
+      {
+        "text": "Core API kiểm tra Friendship\nTạo / lấy session waiting_moves\nMọi endpoint chỉ dành participant"
+      },
+      {
+        "text": "Mỗi bên submit một move\nConditional UPDATE khi move còn null"
+      },
+      {
+        "branch": "Đã có đủ hai moves?",
+        "options": [
+          {
+            "label": "ĐỦ HAI",
+            "text": "Tính thắng / thua / hoà\nLưu resolved + winner\nMở cả hai moves",
+            "continues": true
+          },
+          {
+            "label": "CHƯA ĐỦ",
+            "text": "Giữ waiting_moves\nTrả myMove + opponentHasMoved\nKhông reveal move đối phương",
+            "continues": false
+          }
+        ]
+      },
+      {
+        "text": "Sau commit: session.resolved\nGateway fanout cho hai participant"
+      },
+      {
+        "text": "REST đọc lại kết quả đã lưu\nChat vẫn qua Conversation riêng"
+      }
+    ],
+    "flowNotes": {
+      "important": "Move đã nộp không đổi được; kết quả resolved lưu trong DB. Participant có thể cancel khi waiting_moves; conditional transition ngăn cancel ghi đè ván vừa resolved.",
+      "caution": "Một move không đồng nghĩa ván đã hoàn tất. Slice này không có timer, phần thưởng Diamond hay tự động chèn kết quả vào chat."
+    }
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Chọn bạn và tạo rock-paper-scissors session",
+        "edge": "REST · POST MiniGame session"
+      },
+      {
+        "actor": "core-api · MiniGame → Friend",
+        "text": "areFriends; reserve active participant slots",
+        "edge": "SQL · INSERT session/participants"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Commit waiting_moves; same pair replay lấy session cũ",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · MiniGame",
+        "text": "Trả session và phát started sau commit",
+        "edge": "REST result / Pub/Sub · started"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Mỗi participant submit rock/paper/scissors của chính mình",
+        "edge": "REST · POST move"
+      },
+      {
+        "actor": "core-api · MiniGame",
+        "text": "Participant guard; conditional move IS NULL, status waiting_moves",
+        "edge": "SQL · UPDATE move + đọc session"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lưu move immutable; trả session trong transaction",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · MiniGame",
+        "branch": "Đủ hai moves?",
+        "options": [
+          {
+            "label": "ĐỦ HAI",
+            "steps": [
+              {
+                "actor": "core-api · MiniGame",
+                "text": "Tính winner/tie; yêu cầu resolved và nhả slots",
+                "edge": "SQL · COMMIT result"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit resolved + winnerUserId, cả hai moves",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · MiniGame",
+                "text": "Sau commit: phát minigame.session.resolved cho recipients đã authorize",
+                "edge": "Redis · PUBLISH"
+              },
+              {
+                "actor": "Redis · Pub/Sub",
+                "text": "Chuyển minigame.session.resolved trên per-user channel",
+                "edge": "Pub/Sub · PSUBSCRIBE"
+              },
+              {
+                "actor": "signaling-gateway",
+                "text": "Relay envelope tới socket room từ JWT",
+                "edge": "WebSocket · minigame.session.resolved"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Đọc lại kết quả; chỉ bây giờ thấy opponentMove",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          },
+          {
+            "label": "CHƯA ĐỦ",
+            "steps": [
+              {
+                "actor": "core-api · MiniGame",
+                "text": "Không resolve và không publish move trung gian",
+                "edge": "SQL · COMMIT một move"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Giữ waiting_moves",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · MiniGame",
+                "text": "Trả myMove/opponentHasMoved; không opponentMove",
+                "edge": "REST result"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Tiếp tục chờ hoặc cancel ván waiting",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          }
+        ]
+      }
+    ],
+    "caution": "Cancel conditional ngăn ghi đè resolved; không có timer, Economy reward hay tự động chat message cho kết quả.",
+    "sources": [
+      "docs/services/mini-game-service.md",
+      "apps/core-api/src/modules/mini-game/mini-game.service.ts"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "MiniGame",
+        "uses": "Rock-paper-scissors",
+        "entities": [
+          "MiniGameSession",
+          "MiniGameActiveParticipant"
+        ],
+        "actions": [
+          "Unique active participant; one immutable move/user",
+          "Resolve hai moves; cancel có điều kiện"
+        ]
+      },
+      {
+        "name": "Friend",
+        "uses": "Chỉ người đã có Friendship",
+        "entities": [
+          "Friendship"
+        ],
+        "actions": [
+          "areFriends trước khi tạo session"
+        ]
+      }
+    ],
+    "entities": [
+      "MiniGameSession",
+      "MiniGameActiveParticipant"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "rate limit",
+          "label": "HTTP throttle nếu THROTTLE_STORAGE=redis",
+          "direction": "both"
+        },
+        {
+          "role": "Pub/Sub",
+          "label": "minigame.session.started / resolved",
+          "direction": "write"
+        }
+      ],
+      "signaling": true,
+      "mediaCluster": false
+    },
+    "externals": [],
+    "operations": [
+      "Conditional move/cancel transition; nhả active slots khi terminal",
+      "Không timer/sweeper/reward trong slice này"
+    ],
+    "notes": "Moves/result ở PostgreSQL; chỉ resolved mới công bố opponentMove. MiniGame không tạo message, không gọi Economy hay Notification. Signaling Redis giữ transport quota/presence, không game state.",
+    "sources": [
+      "apps/core-api/src/modules/mini-game/mini-game.module.ts",
+      "apps/core-api/src/modules/mini-game/mini-game.service.ts",
+      "apps/core-api/src/modules/mini-game/entities/mini-game-active-participant.entity.ts",
+      "apps/core-api/src/app/app.module.ts"
+    ],
+    "links": [
+      {
+        "from": "MiniGame",
+        "to": "Friend",
+        "label": "areFriends trước createSession",
+        "condition": ""
+      }
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "redis",
+        "label": "Redis"
+      },
+      {
+        "id": "gateway",
+        "label": "signaling-gateway"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      },
+      {
+        "id": "core-redis",
+        "from": "core",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "Pub/Sub"
+      },
+      {
+        "id": "redis-gateway",
+        "from": "redis",
+        "to": "gateway",
+        "bidirectional": false,
+        "protocol": "realtime Pub/Sub"
+      },
+      {
+        "id": "gateway-redis",
+        "from": "gateway",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "presence · quota"
+      },
+      {
+        "id": "gateway-client",
+        "from": "gateway",
+        "to": "client",
+        "bidirectional": true,
+        "protocol": "Socket: realtime"
+      }
+    ]
+  },
+  "featureSequence": [
+    "1. Một user chọn người bạn\nYêu cầu tạo / lấy session",
+    "2. Core API kiểm tra Friendship\nTạo / lấy session waiting_moves\nMọi endpoint chỉ dành participant",
+    "3. Mỗi bên submit một move\nConditional UPDATE khi move còn null",
+    "4. Đã có đủ hai moves?",
+    "4.1. ĐỦ HAI: Tính thắng / thua / hoà\nLưu resolved + winner\nMở cả hai moves",
+    "4.2. CHƯA ĐỦ [continues=false]: Giữ waiting_moves\nTrả myMove + opponentHasMoved\nKhông reveal move đối phương",
+    "5. Sau commit: session.resolved\nGateway fanout cho hai participant",
+    "6. REST đọc lại kết quả đã lưu\nChat vẫn qua Conversation riêng"
+  ],
+  "layerSequence": [
+    "1. Frontend: Chọn bạn và tạo rock-paper-scissors session [REST · POST MiniGame session]",
+    "2. core-api · MiniGame → Friend: areFriends; reserve active participant slots [SQL · INSERT session/participants]",
+    "3. PostgreSQL: Commit waiting_moves; same pair replay lấy session cũ [SQL result · trả core-api]",
+    "4. core-api · MiniGame: Trả session và phát started sau commit [REST result / Pub/Sub · started]",
+    "5. Frontend: Mỗi participant submit rock/paper/scissors của chính mình [REST · POST move]",
+    "6. core-api · MiniGame: Participant guard; conditional move IS NULL, status waiting_moves [SQL · UPDATE move + đọc session]",
+    "7. PostgreSQL: Lưu move immutable; trả session trong transaction [SQL result · trả core-api]",
+    "8. core-api · MiniGame: Đủ hai moves?",
+    "8.1. ĐỦ HAI [continues=false]",
+    "8.1.1. core-api · MiniGame: Tính winner/tie; yêu cầu resolved và nhả slots [SQL · COMMIT result]",
+    "8.1.2. PostgreSQL: Commit resolved + winnerUserId, cả hai moves [SQL result · trả core-api]",
+    "8.1.3. core-api · MiniGame: Sau commit: phát minigame.session.resolved cho recipients đã authorize [Redis · PUBLISH]",
+    "8.1.4. Redis · Pub/Sub: Chuyển minigame.session.resolved trên per-user channel [Pub/Sub · PSUBSCRIBE]",
+    "8.1.5. signaling-gateway: Relay envelope tới socket room từ JWT [WebSocket · minigame.session.resolved]",
+    "8.1.6. Frontend: Đọc lại kết quả; chỉ bây giờ thấy opponentMove",
+    "8.2. CHƯA ĐỦ [continues=false]",
+    "8.2.1. core-api · MiniGame: Không resolve và không publish move trung gian [SQL · COMMIT một move]",
+    "8.2.2. PostgreSQL: Giữ waiting_moves [SQL result · trả core-api]",
+    "8.2.3. core-api · MiniGame: Trả myMove/opponentHasMoved; không opponentMove [REST result]",
+    "8.2.4. Frontend: Tiếp tục chờ hoặc cancel ván waiting"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

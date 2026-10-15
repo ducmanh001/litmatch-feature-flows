@@ -1,0 +1,729 @@
+{
+  "id": "04-party-room/01-post-join-room",
+  "featureId": "04-party-room",
+  "feature": "Party Room",
+  "summary": "Phòng audio nhiều người trên LiveKit: host mở phòng, audience vào nghe, host mời speaker lên nói.",
+  "name": "Vào phòng Party (join hoặc join lại)",
+  "title": "Vào phòng Party làm audience, hoặc vào lại khi rớt mạng, rồi nhận token LiveKit theo role hiện tại (audience không được publish).",
+  "method": "POST",
+  "route": "/api/v1/party/rooms/:id/join",
+  "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.ts",
+  "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.html",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/04-party-room/01-post-join-room.json",
+  "diagramUrl": "https://ducmanh001.github.io/litmatch-feature-flows/#04-party-room",
+  "catalog": "annotated-04-party-room.mjs",
+  "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS] → [EXTERNAL]",
+  "roles": [
+    [
+      "CONTROLLER",
+      "Nhận request join (giới hạn 20 lần/phút), gom user và id phòng, trả phòng, membership, token và URL LiveKit."
+    ],
+    [
+      "SERVICE",
+      "Khóa phòng, nhận ra join lại, kiểm sức chứa, tạo membership audience; sau commit mới bắn realtime và ký token."
+    ],
+    [
+      "POSTGRES",
+      "Nguồn sự thật của phòng và membership; khóa dòng phòng (FOR UPDATE) và partial unique index chống ghi trùng."
+    ],
+    [
+      "REDIS",
+      "Pub/sub báo cho các member còn lại, mỗi người một kênh riêng; signaling-gateway đẩy event xuống socket."
+    ],
+    [
+      "EXTERNAL",
+      "LiveKit: token là JWT chứa quyền publish; audience canPublish=false nên SFU tự chặn việc tự unmute."
+    ]
+  ],
+  "tables": [
+    [
+      "party_rooms",
+      "dòng phòng bị khóa FOR UPDATE: đọc status, livekitUrl; xóa mốc host rớt (host_disconnected_at) khi host nối lại."
+    ],
+    [
+      "party_room_members",
+      "membership theo dòng (active = left_at IS NULL): đếm sức chứa, tạo dòng role audience, hoặc xóa mốc disconnected khi join lại."
+    ]
+  ],
+  "redis": [
+    [
+      "realtime:user:{userId}",
+      "kênh pub/sub riêng của từng member; core-api publish party.member.joined (hoặc reconnected), signaling-gateway subscribe rồi đẩy xuống socket."
+    ]
+  ],
+  "related": [
+    [
+      "LiveKit (SFU)",
+      "áp quyền publish theo token; maxParticipants ở SFU là chốt chặn sức chứa thứ hai sau giới hạn trong DB."
+    ],
+    [
+      "PartyRoomSweeper",
+      "job nền đóng phòng khi host rớt quá thời gian chờ; tranh cùng dòng phòng với join nên không đóng nhầm phòng vừa hồi phục (chưa chép)."
+    ],
+    [
+      "signaling-gateway",
+      "subscribe pub/sub và đẩy event party.* xuống socket của từng member."
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "text": "Nhận request (user từ JWT, id phòng từ URL; tối đa 20 lần/phút)",
+      "line": 28,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.html#L28",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/01-post-join-room.ts#L28"
+    },
+    {
+      "number": 2,
+      "text": "Trong transaction, khóa dòng phòng FOR UPDATE",
+      "line": 44,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.html#L44",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/01-post-join-room.ts#L44"
+    },
+    {
+      "number": 3,
+      "text": "Join lại khi rớt mạng: xóa mốc rớt, không tạo membership mới",
+      "line": 76,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.html#L76",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/01-post-join-room.ts#L76"
+    },
+    {
+      "number": 4,
+      "text": "Đếm member đang ở phòng, so với sức chứa",
+      "line": 106,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.html#L106",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/01-post-join-room.ts#L106"
+    },
+    {
+      "number": 5,
+      "text": "Tạo membership audience (unique index chặn đang ở phòng khác)",
+      "line": 126,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.html#L126",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/01-post-join-room.ts#L126"
+    },
+    {
+      "number": 6,
+      "text": "Sau commit, báo party.member.joined cho các member còn lại",
+      "line": 159,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.html#L159",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/01-post-join-room.ts#L159"
+    },
+    {
+      "number": 7,
+      "text": "Chốt URL LiveKit của phòng, ký token theo role hiện tại",
+      "line": 214,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.html#L214",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/01-post-join-room.ts#L214"
+    },
+    {
+      "number": 8,
+      "text": "Controller trả phòng, membership, token và URL LiveKit",
+      "line": 236,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.html#L236",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/01-post-join-room.ts#L236"
+    }
+  ],
+  "declaredSteps": [
+    {
+      "at": "@Post(':id/join')",
+      "text": "Nhận request (user từ JWT, id phòng từ URL; tối đa 20 lần/phút)"
+    },
+    {
+      "at": "const lockedRoom = await this.lockActiveRoom(manager, roomId);",
+      "text": "Trong transaction, khóa dòng phòng FOR UPDATE"
+    },
+    {
+      "at": "if (existing) {",
+      "text": "Join lại khi rớt mạng: xóa mốc rớt, không tạo membership mới"
+    },
+    {
+      "at": "const activeCount = await manager.countBy(PartyRoomMember, {",
+      "text": "Đếm member đang ở phòng, so với sức chứa"
+    },
+    {
+      "at": "const member = await manager.save(",
+      "text": "Tạo membership audience (unique index chặn đang ở phòng khác)"
+    },
+    {
+      "at": "if (isNewJoin) {",
+      "text": "Sau commit, báo party.member.joined cho các member còn lại"
+    },
+    {
+      "at": "return {",
+      "in": "PartyRoomService.joinRoom",
+      "nth": 2,
+      "text": "Chốt URL LiveKit của phòng, ký token theo role hiện tại"
+    },
+    {
+      "at": "return JoinPartyRoomDto.from(",
+      "text": "Controller trả phòng, membership, token và URL LiveKit"
+    }
+  ],
+  "whyComments": [
+    {
+      "at": "const lockedRoom = await this.lockActiveRoom(manager, roomId);",
+      "text": [
+        "[POSTGRES] Khóa dòng phòng (FOR UPDATE) trước mọi việc khác: join, leave, đổi role, close đều xếp hàng qua đúng 1 dòng này, nên việc đếm bên dưới không bị race."
+      ],
+      "src": "doc class party-room.service.ts L106-111 + doc lockActiveRoom L1166",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    },
+    {
+      "at": "if (existing) {",
+      "text": [
+        "Rớt mạng rồi join lại là hợp lệ: không tạo membership mới, chỉ xóa mốc rớt và cấp token mới theo role hiện tại trong DB."
+      ],
+      "src": "doc joinRoom party-room.service.ts L234-237",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    },
+    {
+      "at": "const hostReconnected =",
+      "text": [
+        "Host nối lại trong lúc chờ thì hủy lịch đóng phòng. Lock CÙNG dòng phòng với grace-check của sweeper nên Postgres tự xếp thứ tự: bên nào lock trước thắng, không đóng nhầm phòng vừa hồi phục."
+      ],
+      "src": "comment gốc party-room.service.ts L252-254",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    },
+    {
+      "at": "const activeCount = await manager.countBy(PartyRoomMember, {",
+      "text": [
+        "Đếm member DƯỚI lock phòng; DB và SFU (maxParticipants) dùng chung 1 giới hạn từ 1 config, SFU là chốt chặn thứ hai."
+      ],
+      "src": "comment gốc party-room.service.ts L278 + docs/services/party-room-service.md mục 3",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    },
+    {
+      "at": "const member = await manager.save(",
+      "text": [
+        "[POSTGRES] 1 user chỉ ở 1 phòng active: khóa phòng chỉ xếp hàng trong từng phòng, nên chốt chặn là unique index trên user_id (xem bên dưới), không phải check-rồi-insert. Dính unique = user đang ở phòng khác."
+      ],
+      "src": "suy ra từ code (lock theo từng phòng, UQ_PARTY_MEMBERS_ACTIVE_USER toàn hệ thống) + docs/services/party-room-service.md mục 3 \"chốt chặn cuối là partial unique index\"",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    },
+    {
+      "at": "if (isNewJoin) {",
+      "text": [
+        "[REDIS] Realtime bắn SAU commit và best-effort; join lại (isNewJoin = false) không bắn \"joined\", và không bắn cho chính người vừa join."
+      ],
+      "src": "docs/services/party-room-service.md mục 8 \"Publish luôn SAU commit, best-effort\" + suy ra từ code (isNewJoin, excludeUserId)",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    },
+    {
+      "at": "livekitUrl: this.livekitUrlOf(room),",
+      "text": [
+        "URL là snapshot của PHÒNG, không phải region người join: mọi người về đúng endpoint đã chốt lúc tạo, kể cả khi khác region với host."
+      ],
+      "src": "comment gốc party-room.service.ts L357-358",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    },
+    {
+      "at": "publishRealtimeEvent(this.redis, this.logger, m.userId, envelope),",
+      "text": [
+        "[REDIS] Mỗi member nhận event qua kênh riêng realtime:user:{userId}; không có kênh theo phòng nên gateway không chứa logic. Publish lỗi chỉ log, không phá join đã commit."
+      ],
+      "src": "comment gốc party-room.service.ts L1315 + doc publish-realtime.ts L6-13",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    },
+    {
+      "at": "{ canPublish: role === PartyRole.Host",
+      "text": [
+        "Audience canPublish=false NGAY TỪ TOKEN: quyền publish nằm trong JWT (ký bằng API secret LiveKit), nên SFU tự chặn việc tự unmute, không chỉ chặn ở UI và không tin client."
+      ],
+      "src": "comment gốc party-room.service.ts L1310 + docs/services/party-room-service.md mục 2 (enforce ở SFU, không tin client) + livekit-sdk.client.ts mintJoinToken (AccessToken ký bằng apiKey/apiSecret, toJwt) + doc ports/livekit-party-room.ts L29",
+      "file": "apps/core-api/src/modules/party-room/party-room.service.ts"
+    }
+  ],
+  "sources": [
+    "apps/core-api/src/database/migrations/1752700000000-party-room-gift.ts",
+    "apps/core-api/src/modules/party-room/party-room.controller.ts",
+    "apps/core-api/src/modules/party-room/party-room.service.ts"
+  ],
+  "sourceContext": {
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/party-room/party-room.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post(':id/join')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async joinRoom(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const lockedRoom = await this.lockActiveRoom(manager, roomId);",
+            "text": [
+              "[POSTGRES] Khóa dòng phòng (FOR UPDATE) trước mọi việc khác: join, leave, đổi role, close đều xếp hàng qua đúng 1 dòng này, nên việc đếm bên dưới không bị race."
+            ],
+            "src": "doc class party-room.service.ts L106-111 + doc lockActiveRoom L1166"
+          },
+          {
+            "at": "if (existing) {",
+            "text": [
+              "Rớt mạng rồi join lại là hợp lệ: không tạo membership mới, chỉ xóa mốc rớt và cấp token mới theo role hiện tại trong DB."
+            ],
+            "src": "doc joinRoom party-room.service.ts L234-237"
+          },
+          {
+            "at": "const hostReconnected =",
+            "text": [
+              "Host nối lại trong lúc chờ thì hủy lịch đóng phòng. Lock CÙNG dòng phòng với grace-check của sweeper nên Postgres tự xếp thứ tự: bên nào lock trước thắng, không đóng nhầm phòng vừa hồi phục."
+            ],
+            "src": "comment gốc party-room.service.ts L252-254"
+          },
+          {
+            "at": "const activeCount = await manager.countBy(PartyRoomMember, {",
+            "text": [
+              "Đếm member DƯỚI lock phòng; DB và SFU (maxParticipants) dùng chung 1 giới hạn từ 1 config, SFU là chốt chặn thứ hai."
+            ],
+            "src": "comment gốc party-room.service.ts L278 + docs/services/party-room-service.md mục 3"
+          },
+          {
+            "at": "const member = await manager.save(",
+            "text": [
+              "[POSTGRES] 1 user chỉ ở 1 phòng active: khóa phòng chỉ xếp hàng trong từng phòng, nên chốt chặn là unique index trên user_id (xem bên dưới), không phải check-rồi-insert. Dính unique = user đang ở phòng khác."
+            ],
+            "src": "suy ra từ code (lock theo từng phòng, UQ_PARTY_MEMBERS_ACTIVE_USER toàn hệ thống) + docs/services/party-room-service.md mục 3 \"chốt chặn cuối là partial unique index\""
+          },
+          {
+            "at": "if (isNewJoin) {",
+            "text": [
+              "[REDIS] Realtime bắn SAU commit và best-effort; join lại (isNewJoin = false) không bắn \"joined\", và không bắn cho chính người vừa join."
+            ],
+            "src": "docs/services/party-room-service.md mục 8 \"Publish luôn SAU commit, best-effort\" + suy ra từ code (isNewJoin, excludeUserId)"
+          },
+          {
+            "at": "livekitUrl: this.livekitUrlOf(room),",
+            "text": [
+              "URL là snapshot của PHÒNG, không phải region người join: mọi người về đúng endpoint đã chốt lúc tạo, kể cả khi khác region với host."
+            ],
+            "src": "comment gốc party-room.service.ts L357-358"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async lockActiveRoom(",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752700000000-party-room-gift.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE UNIQUE INDEX uq_party_members_active_user",
+            "to": "^    \\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async publishToRoomMembers(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "publishRealtimeEvent(this.redis, this.logger, m.userId, envelope),",
+            "text": [
+              "[REDIS] Mỗi member nhận event qua kênh riêng realtime:user:{userId}; không có kênh theo phòng nên gateway không chứa logic. Publish lỗi chỉ log, không phá join đã commit."
+            ],
+            "src": "comment gốc party-room.service.ts L1315 + doc publish-realtime.ts L6-13"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async mintToken(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "{ canPublish: role === PartyRole.Host",
+            "text": [
+              "Audience canPublish=false NGAY TỪ TOKEN: quyền publish nằm trong JWT (ký bằng API secret LiveKit), nên SFU tự chặn việc tự unmute, không chỉ chặn ở UI và không tin client."
+            ],
+            "src": "comment gốc party-room.service.ts L1310 + docs/services/party-room-service.md mục 2 (enforce ở SFU, không tin client) + livekit-sdk.client.ts mintJoinToken (AccessToken ký bằng apiKey/apiSecret, toJwt) + doc ports/livekit-party-room.ts L29"
+          }
+        ]
+      }
+    ],
+    "ranges": [
+      {
+        "file": "apps/core-api/src/modules/party-room/party-room.controller.ts",
+        "range": {
+          "at": "@Post(':id/join')",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "range": {
+          "at": "async joinRoom(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "range": {
+          "at": "private async lockActiveRoom(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/database/migrations/1752700000000-party-room-gift.ts",
+        "range": {
+          "at": "CREATE UNIQUE INDEX uq_party_members_active_user",
+          "to": "^    \\);$",
+          "pad": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "range": {
+          "at": "private async publishToRoomMembers(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "range": {
+          "at": "private async mintToken(",
+          "to": "^  }$"
+        }
+      }
+    ],
+    "helpers": [],
+    "skip": [],
+    "attach": {},
+    "nested": true
+  },
+  "omittedContext": {
+    "note": "Curated source selection; unlisted call bodies, shared request infrastructure, DTOs and other context may be omitted. skip names stay unexpanded; helpers may be substituted; attach controls placement. Flattened scopes are not executable code.",
+    "skip": [],
+    "attach": {},
+    "helpers": []
+  },
+  "featureMetadata": {
+    "id": "04-party-room",
+    "short": "Party Room",
+    "title": "Party Room",
+    "summary": "Phòng audio nhiều người trên LiveKit: host mở phòng, audience vào nghe, host mời speaker lên nói.",
+    "diagramAnchor": "04-party-room"
+  },
+  "endpointCatalog": {
+    "n": "01",
+    "slug": "post-join-room",
+    "method": "POST",
+    "short": "/party/rooms/:id/join",
+    "route": "/api/v1/party/rooms/:id/join",
+    "name": "Vào phòng Party (join hoặc join lại)",
+    "title": "Vào phòng Party làm audience, hoặc vào lại khi rớt mạng, rồi nhận token LiveKit theo role hiện tại (audience không được publish).",
+    "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS] → [EXTERNAL]",
+    "roles": [
+      [
+        "CONTROLLER",
+        "Nhận request join (giới hạn 20 lần/phút), gom user và id phòng, trả phòng, membership, token và URL LiveKit."
+      ],
+      [
+        "SERVICE",
+        "Khóa phòng, nhận ra join lại, kiểm sức chứa, tạo membership audience; sau commit mới bắn realtime và ký token."
+      ],
+      [
+        "POSTGRES",
+        "Nguồn sự thật của phòng và membership; khóa dòng phòng (FOR UPDATE) và partial unique index chống ghi trùng."
+      ],
+      [
+        "REDIS",
+        "Pub/sub báo cho các member còn lại, mỗi người một kênh riêng; signaling-gateway đẩy event xuống socket."
+      ],
+      [
+        "EXTERNAL",
+        "LiveKit: token là JWT chứa quyền publish; audience canPublish=false nên SFU tự chặn việc tự unmute."
+      ]
+    ],
+    "tables": [
+      [
+        "party_rooms",
+        "dòng phòng bị khóa FOR UPDATE: đọc status, livekitUrl; xóa mốc host rớt (host_disconnected_at) khi host nối lại."
+      ],
+      [
+        "party_room_members",
+        "membership theo dòng (active = left_at IS NULL): đếm sức chứa, tạo dòng role audience, hoặc xóa mốc disconnected khi join lại."
+      ]
+    ],
+    "redis": [
+      [
+        "realtime:user:{userId}",
+        "kênh pub/sub riêng của từng member; core-api publish party.member.joined (hoặc reconnected), signaling-gateway subscribe rồi đẩy xuống socket."
+      ]
+    ],
+    "related": [
+      [
+        "LiveKit (SFU)",
+        "áp quyền publish theo token; maxParticipants ở SFU là chốt chặn sức chứa thứ hai sau giới hạn trong DB."
+      ],
+      [
+        "PartyRoomSweeper",
+        "job nền đóng phòng khi host rớt quá thời gian chờ; tranh cùng dòng phòng với join nên không đóng nhầm phòng vừa hồi phục (chưa chép)."
+      ],
+      [
+        "signaling-gateway",
+        "subscribe pub/sub và đẩy event party.* xuống socket của từng member."
+      ]
+    ],
+    "nested": true,
+    "skip": [],
+    "steps": [
+      {
+        "at": "@Post(':id/join')",
+        "text": "Nhận request (user từ JWT, id phòng từ URL; tối đa 20 lần/phút)"
+      },
+      {
+        "at": "const lockedRoom = await this.lockActiveRoom(manager, roomId);",
+        "text": "Trong transaction, khóa dòng phòng FOR UPDATE"
+      },
+      {
+        "at": "if (existing) {",
+        "text": "Join lại khi rớt mạng: xóa mốc rớt, không tạo membership mới"
+      },
+      {
+        "at": "const activeCount = await manager.countBy(PartyRoomMember, {",
+        "text": "Đếm member đang ở phòng, so với sức chứa"
+      },
+      {
+        "at": "const member = await manager.save(",
+        "text": "Tạo membership audience (unique index chặn đang ở phòng khác)"
+      },
+      {
+        "at": "if (isNewJoin) {",
+        "text": "Sau commit, báo party.member.joined cho các member còn lại"
+      },
+      {
+        "at": "return {",
+        "in": "PartyRoomService.joinRoom",
+        "nth": 2,
+        "text": "Chốt URL LiveKit của phòng, ký token theo role hiện tại"
+      },
+      {
+        "at": "return JoinPartyRoomDto.from(",
+        "text": "Controller trả phòng, membership, token và URL LiveKit"
+      }
+    ],
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/party-room/party-room.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post(':id/join')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async joinRoom(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const lockedRoom = await this.lockActiveRoom(manager, roomId);",
+            "text": [
+              "[POSTGRES] Khóa dòng phòng (FOR UPDATE) trước mọi việc khác: join, leave, đổi role, close đều xếp hàng qua đúng 1 dòng này, nên việc đếm bên dưới không bị race."
+            ],
+            "src": "doc class party-room.service.ts L106-111 + doc lockActiveRoom L1166"
+          },
+          {
+            "at": "if (existing) {",
+            "text": [
+              "Rớt mạng rồi join lại là hợp lệ: không tạo membership mới, chỉ xóa mốc rớt và cấp token mới theo role hiện tại trong DB."
+            ],
+            "src": "doc joinRoom party-room.service.ts L234-237"
+          },
+          {
+            "at": "const hostReconnected =",
+            "text": [
+              "Host nối lại trong lúc chờ thì hủy lịch đóng phòng. Lock CÙNG dòng phòng với grace-check của sweeper nên Postgres tự xếp thứ tự: bên nào lock trước thắng, không đóng nhầm phòng vừa hồi phục."
+            ],
+            "src": "comment gốc party-room.service.ts L252-254"
+          },
+          {
+            "at": "const activeCount = await manager.countBy(PartyRoomMember, {",
+            "text": [
+              "Đếm member DƯỚI lock phòng; DB và SFU (maxParticipants) dùng chung 1 giới hạn từ 1 config, SFU là chốt chặn thứ hai."
+            ],
+            "src": "comment gốc party-room.service.ts L278 + docs/services/party-room-service.md mục 3"
+          },
+          {
+            "at": "const member = await manager.save(",
+            "text": [
+              "[POSTGRES] 1 user chỉ ở 1 phòng active: khóa phòng chỉ xếp hàng trong từng phòng, nên chốt chặn là unique index trên user_id (xem bên dưới), không phải check-rồi-insert. Dính unique = user đang ở phòng khác."
+            ],
+            "src": "suy ra từ code (lock theo từng phòng, UQ_PARTY_MEMBERS_ACTIVE_USER toàn hệ thống) + docs/services/party-room-service.md mục 3 \"chốt chặn cuối là partial unique index\""
+          },
+          {
+            "at": "if (isNewJoin) {",
+            "text": [
+              "[REDIS] Realtime bắn SAU commit và best-effort; join lại (isNewJoin = false) không bắn \"joined\", và không bắn cho chính người vừa join."
+            ],
+            "src": "docs/services/party-room-service.md mục 8 \"Publish luôn SAU commit, best-effort\" + suy ra từ code (isNewJoin, excludeUserId)"
+          },
+          {
+            "at": "livekitUrl: this.livekitUrlOf(room),",
+            "text": [
+              "URL là snapshot của PHÒNG, không phải region người join: mọi người về đúng endpoint đã chốt lúc tạo, kể cả khi khác region với host."
+            ],
+            "src": "comment gốc party-room.service.ts L357-358"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async lockActiveRoom(",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752700000000-party-room-gift.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE UNIQUE INDEX uq_party_members_active_user",
+            "to": "^    \\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async publishToRoomMembers(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "publishRealtimeEvent(this.redis, this.logger, m.userId, envelope),",
+            "text": [
+              "[REDIS] Mỗi member nhận event qua kênh riêng realtime:user:{userId}; không có kênh theo phòng nên gateway không chứa logic. Publish lỗi chỉ log, không phá join đã commit."
+            ],
+            "src": "comment gốc party-room.service.ts L1315 + doc publish-realtime.ts L6-13"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/party-room/party-room.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async mintToken(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "{ canPublish: role === PartyRole.Host",
+            "text": [
+              "Audience canPublish=false NGAY TỪ TOKEN: quyền publish nằm trong JWT (ký bằng API secret LiveKit), nên SFU tự chặn việc tự unmute, không chỉ chặn ở UI và không tin client."
+            ],
+            "src": "comment gốc party-room.service.ts L1310 + docs/services/party-room-service.md mục 2 (enforce ở SFU, không tin client) + livekit-sdk.client.ts mintJoinToken (AccessToken ký bằng apiKey/apiSecret, toJwt) + doc ports/livekit-party-room.ts L29"
+          }
+        ]
+      }
+    ]
+  },
+  "sourceManifest": {
+    "verifiedCodeSha256": true,
+    "mode": "published-presentation",
+    "baselineCommit": "cb30743143bd8f6576b154db4b606380c365c674",
+    "sourceCommit": "d3cb28c",
+    "sources": [
+      "apps/core-api/src/database/migrations/1752700000000-party-room-gift.ts",
+      "apps/core-api/src/modules/party-room/party-room.controller.ts",
+      "apps/core-api/src/modules/party-room/party-room.service.ts"
+    ],
+    "steps": [
+      "Step 1: Nhận request (user từ JWT, id phòng từ URL; tối đa 20 lần/phút)",
+      "Step 2: Trong transaction, khóa dòng phòng FOR UPDATE",
+      "Step 3: Join lại khi rớt mạng: xóa mốc rớt, không tạo membership mới",
+      "Step 4: Đếm member đang ở phòng, so với sức chứa",
+      "Step 5: Tạo membership audience (unique index chặn đang ở phòng khác)",
+      "Step 6: Sau commit, báo party.member.joined cho các member còn lại",
+      "Step 7: Chốt URL LiveKit của phòng, ký token theo role hiện tại",
+      "Step 8: Controller trả phòng, membership, token và URL LiveKit"
+    ],
+    "removedOverview": "// ════════════════════════════════════════════════════════════════════════════\n//  POST /api/v1/party/rooms/:id/join\n//  Vào phòng Party làm audience, hoặc vào lại khi rớt mạng, rồi nhận token LiveKit theo role hiện tại (audience không được publish).\n// ════════════════════════════════════════════════════════════════════════════\n//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS] → [EXTERNAL]\n//\n//  Vai trò từng tầng\n//    [CONTROLLER] Nhận request join (giới hạn 20 lần/phút), gom user và id phòng, trả\n//                 phòng, membership, token và URL LiveKit.\n//    [SERVICE]    Khóa phòng, nhận ra join lại, kiểm sức chứa, tạo membership audience;\n//                 sau commit mới bắn realtime và ký token.\n//    [POSTGRES]   Nguồn sự thật của phòng và membership; khóa dòng phòng (FOR UPDATE)\n//                 và partial unique index chống ghi trùng.\n//    [REDIS]      Pub/sub báo cho các member còn lại, mỗi người một kênh riêng;\n//                 signaling-gateway đẩy event xuống socket.\n//    [EXTERNAL]   LiveKit: token là JWT chứa quyền publish; audience canPublish=false\n//                 nên SFU tự chặn việc tự unmute.\n//\n//  Bảng       party_rooms — dòng phòng bị khóa FOR UPDATE: đọc status, livekitUrl; xóa\n//               mốc host rớt (host_disconnected_at) khi host nối lại.\n//             party_room_members — membership theo dòng (active = left_at IS NULL): đếm\n//               sức chứa, tạo dòng role audience, hoặc xóa mốc disconnected khi join\n//               lại.\n//  Redis      realtime:user:{userId} — kênh pub/sub riêng của từng member; core-api\n//               publish party.member.joined (hoặc reconnected), signaling-gateway\n//               subscribe rồi đẩy xuống socket.\n//  Liên quan  LiveKit (SFU) — áp quyền publish theo token; maxParticipants ở SFU là\n//               chốt chặn sức chứa thứ hai sau giới hạn trong DB.\n//             PartyRoomSweeper — job nền đóng phòng khi host rớt quá thời gian chờ;\n//               tranh cùng dòng phòng với join nên không đóng nhầm phòng vừa hồi phục\n//               (chưa chép).\n//             signaling-gateway — subscribe pub/sub và đẩy event party.* xuống socket\n//               của từng member.\n//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi\n//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới\n//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //\n//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các\n//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số\n//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức\n//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong\n//             repo.\n",
+    "baselineBodySha256": "5e4e42d1356e9c6bfc4c512b6b44b8454249e31759253f262563715038656c68",
+    "bodySha256": "5e4e42d1356e9c6bfc4c512b6b44b8454249e31759253f262563715038656c68",
+    "rawSha256": "e7df2eb41ae9835a1339dca2876299b88fb2d3ef1b383b2caaefaa49a995263d",
+    "codeSha256": "e7df2eb41ae9835a1339dca2876299b88fb2d3ef1b383b2caaefaa49a995263d"
+  },
+  "code": {
+    "path": "code/04-party-room/01-post-join-room.ts",
+    "sha256": "e7df2eb41ae9835a1339dca2876299b88fb2d3ef1b383b2caaefaa49a995263d",
+    "hashAlgorithm": "sha256",
+    "content": "//  POST /api/v1/party/rooms/:id/join\n//  Vào phòng Party làm audience, hoặc vào lại khi rớt mạng, rồi nhận token LiveKit theo role hiện tại (audience không được publish).\n//  Step 1: Nhận request (user từ JWT, id phòng từ URL; tối đa 20 lần/phút)\n//  Step 2: Trong transaction, khóa dòng phòng FOR UPDATE\n//  Step 3: Join lại khi rớt mạng: xóa mốc rớt, không tạo membership mới\n//  Step 4: Đếm member đang ở phòng, so với sức chứa\n//  Step 5: Tạo membership audience (unique index chặn đang ở phòng khác)\n//  Step 6: Sau commit, báo party.member.joined cho các member còn lại\n//  Step 7: Chốt URL LiveKit của phòng, ký token theo role hiện tại\n//  Step 8: Controller trả phòng, membership, token và URL LiveKit\n\n// [CONTROLLER] PartyRoomController.join  ·  party-room.controller.ts L46–47, L132–147\n@Controller('party/rooms')\nexport class PartyRoomController {\n  // PartyRoomService\n  private readonly logger = new Logger(PartyRoomService.name);\n  constructor(\n    private readonly partyRoomService: PartyRoomService,\n    // PartyRoomService\n    @InjectDataSource() private readonly dataSource: DataSource,\n    @InjectRepository(PartyRoomMember)\n    private readonly memberRepo: Repository<PartyRoomMember>,\n    private readonly livekit: PartyLivekitRoomPort,\n    private readonly config: ConfigService<CoreApiEnv, true>,\n    @Inject(PARTY_REDIS) private readonly redis: Redis,\n  ) {}\n\n  // Step 1: Nhận request (user từ JWT, id phòng từ URL; tối đa 20 lần/phút)\n  @Post(':id/join')\n  @HttpCode(HttpStatus.OK)\n  @Throttle({ default: { limit: 20, ttl: minutes(1) } })\n  async join(\n    @CurrentUser() user: AuthenticatedUser,\n    @Param('id', ParseUUIDPipe) id: string,\n  ): Promise<JoinPartyRoomDto> {\n    const { room, membership, token, livekitUrl } =\n      await this.partyRoomService.joinRoom(user, id);\n\n    // [SERVICE] PartyRoomService.joinRoom  ·  party-room.service.ts L238–362\n    const roomId = id;\n    const { room, membership, isNewJoin, hostReconnected, memberReconnected } =\n      await this.dataSource.transaction(async (manager) => {\n\n        // Step 2: Trong transaction, khóa dòng phòng FOR UPDATE\n        // [POSTGRES] Khóa dòng phòng (FOR UPDATE) trước mọi việc khác: join, leave, đổi role,\n        // close đều xếp hàng qua đúng 1 dòng này, nên việc đếm bên dưới không bị race.\n        const lockedRoom = await this.lockActiveRoom(manager, roomId);\n\n        // [SERVICE] PartyRoomService.lockActiveRoom  ·  party-room.service.ts L1167–1190\n        const room = await manager.findOne(PartyRoom, {\n          where: { id: roomId },\n          lock: { mode: 'pessimistic_write' },\n        });\n        if (!room) {\n          throw new DomainException(\n            PartyRoomErrors.ROOM_NOT_FOUND,\n            'Không tìm thấy phòng',\n            HttpStatus.NOT_FOUND,\n          );\n        }\n        if (room.status !== PartyRoomStatus.Active) {\n          throw new DomainException(\n            PartyRoomErrors.ROOM_CLOSED,\n            'Phòng đã đóng',\n            HttpStatus.CONFLICT,\n          );\n        }\n        return room;\n\n        const existing = await manager.findOneBy(PartyRoomMember, {\n          roomId,\n          userId: user.userId,\n          leftAt: IsNull(),\n        });\n\n        // Step 3: Join lại khi rớt mạng: xóa mốc rớt, không tạo membership mới\n        // Rớt mạng rồi join lại là hợp lệ: không tạo membership mới, chỉ xóa mốc rớt và cấp token\n        // mới theo role hiện tại trong DB.\n        if (existing) {\n          // Host nối lại trong lúc chờ thì hủy lịch đóng phòng. Lock CÙNG dòng phòng với\n          // grace-check của sweeper nên Postgres tự xếp thứ tự: bên nào lock trước thắng, không\n          // đóng nhầm phòng vừa hồi phục.\n          const hostReconnected =\n            existing.role === PartyRole.Host &&\n            lockedRoom.hostDisconnectedAt !== null;\n          const memberReconnected =\n            existing.role !== PartyRole.Host &&\n            existing.disconnectedAt !== null;\n          if (hostReconnected) {\n            lockedRoom.hostDisconnectedAt = null;\n            await manager.save(lockedRoom);\n          }\n          if (memberReconnected) {\n            existing.disconnectedAt = null;\n            await manager.save(existing);\n          }\n          return {\n            room: lockedRoom,\n            membership: existing,\n            isNewJoin: false,\n            hostReconnected,\n            memberReconnected,\n          };\n        }\n\n        // Step 4: Đếm member đang ở phòng, so với sức chứa\n        // Đếm member DƯỚI lock phòng; DB và SFU (maxParticipants) dùng chung 1 giới hạn từ 1\n        // config, SFU là chốt chặn thứ hai.\n        const activeCount = await manager.countBy(PartyRoomMember, {\n          roomId,\n          leftAt: IsNull(),\n        });\n        if (\n          activeCount >=\n          this.config.getOrThrow('PARTY_MAX_MEMBERS', { infer: true })\n        ) {\n          throw new DomainException(\n            PartyRoomErrors.ROOM_FULL,\n            'Phòng đã đầy',\n            HttpStatus.CONFLICT,\n          );\n        }\n\n        try {\n\n          // Step 5: Tạo membership audience (unique index chặn đang ở phòng khác)\n          // [POSTGRES] 1 user chỉ ở 1 phòng active: khóa phòng chỉ xếp hàng trong từng phòng, nên\n          // chốt chặn là unique index trên user_id (xem bên dưới), không phải check-rồi-insert.\n          // Dính unique = user đang ở phòng khác.\n          const member = await manager.save(\n            manager.create(PartyRoomMember, {\n              roomId,\n              userId: user.userId,\n              role: PartyRole.Audience,\n            }),\n          );\n          return {\n            room: lockedRoom,\n            membership: member,\n            isNewJoin: true,\n            hostReconnected: false,\n            memberReconnected: false,\n          };\n        } catch (err) {\n          if (\n            isUniqueViolation(err) &&\n            violatedConstraint(err, UQ_PARTY_MEMBERS_ACTIVE_USER)\n          ) {\n            throw new DomainException(\n              PartyRoomErrors.ALREADY_IN_ANOTHER_ROOM,\n              'Bạn đang ở trong 1 phòng khác — rời phòng đó trước',\n              HttpStatus.CONFLICT,\n            );\n          }\n          throw err;\n        }\n      });\n\n    // Step 6: Sau commit, báo party.member.joined cho các member còn lại\n    // [REDIS] Realtime bắn SAU commit và best-effort; join lại (isNewJoin = false) không bắn\n    // \"joined\", và không bắn cho chính người vừa join.\n    if (isNewJoin) {\n      await this.publishToRoomMembers(\n        roomId,\n        {\n          event: RealtimeEvents.PartyMemberJoined,\n          data: {\n            roomId,\n            userId: user.userId,\n            role: membership.role,\n          } satisfies PartyMemberJoinedEventData,\n        },\n        { excludeUserId: user.userId },\n      );\n\n      // [SERVICE] PartyRoomService.publishToRoomMembers  ·  party-room.service.ts L1316–1329\n      const envelope = {\n        event: RealtimeEvents.PartyMemberJoined,\n        data: {\n          roomId,\n          userId: user.userId,\n          role: membership.role,\n        } satisfies PartyMemberJoinedEventData,\n      };\n      const opts = { excludeUserId: user.userId };\n      const members = await this.memberRepo.findBy({ roomId, leftAt: IsNull() });\n      await Promise.all(\n        members\n          .filter((m) => m.userId !== opts.excludeUserId)\n          .map((m) =>\n            // [REDIS] Mỗi member nhận event qua kênh riêng realtime:user:{userId}; không có kênh\n            // theo phòng nên gateway không chứa logic. Publish lỗi chỉ log, không phá join đã\n            // commit.\n            publishRealtimeEvent(this.redis, this.logger, m.userId, envelope),\n          ),\n      );\n    }\n    if (hostReconnected) {\n      await this.publishToRoomMembers(roomId, {\n        event: RealtimeEvents.PartyHostReconnected,\n        data: { roomId } satisfies PartyHostReconnectedEventData,\n      });\n    }\n    if (memberReconnected) {\n      await this.publishToRoomMembers(roomId, {\n        event: RealtimeEvents.PartyMemberReconnected,\n        data: {\n          roomId,\n          userId: user.userId,\n        } satisfies PartyMemberReconnectedEventData,\n      });\n    }\n\n    // Step 7: Chốt URL LiveKit của phòng, ký token theo role hiện tại\n    return {\n      room,\n      membership,\n      // URL là snapshot của PHÒNG, không phải region người join: mọi người về đúng endpoint đã\n      // chốt lúc tạo, kể cả khi khác region với host.\n      livekitUrl: this.livekitUrlOf(room),\n      token: await this.mintToken(roomId, user.userId, membership.role),\n    };\n\n    // [SERVICE] PartyRoomService.mintToken  ·  party-room.service.ts L1301–1313\n    const userId = user.userId;\n    const role = membership.role;\n    return this.livekit.mintJoinToken(\n      partyRoomName(roomId),\n      userId,\n      this.config.getOrThrow('PARTY_TOKEN_TTL_SECONDS', { infer: true }),\n      // Audience canPublish=false NGAY TỪ TOKEN: quyền publish nằm trong JWT (ký bằng API secret\n      // LiveKit), nên SFU tự chặn việc tự unmute, không chỉ chặn ở UI và không tin client.\n      { canPublish: role === PartyRole.Host || role === PartyRole.Speaker },\n    );\n\n    // Step 8: Controller trả phòng, membership, token và URL LiveKit\n    return JoinPartyRoomDto.from(room, membership, token, livekitUrl);\n  }\n}\n\n// [POSTGRES] 1752700000000-party-room-gift.ts  ·  1752700000000-party-room-gift.ts L52–55\nawait queryRunner.query(\n  `CREATE UNIQUE INDEX uq_party_members_active_user\n     ON party_room_members(user_id) WHERE left_at IS NULL`,\n);\n"
+  },
+  "provenance": {
+    "catalog": {
+      "path": "annotated-04-party-room.mjs",
+      "sha256": "420b19a9f733fcbaa3781ec0a13f7f0bb48169a88655bf276363707c366b8bf1"
+    },
+    "displayedCodeSha256": "e7df2eb41ae9835a1339dca2876299b88fb2d3ef1b383b2caaefaa49a995263d"
+  }
+}

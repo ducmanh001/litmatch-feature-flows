@@ -1,0 +1,627 @@
+{
+  "id": "16-friend-va-chat-1-1",
+  "title": "Friend và Chat 1-1",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#16-friend-va-chat-1-1",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/16-friend-va-chat-1-1.json",
+  "feature": {
+    "id": "16-friend-va-chat-1-1",
+    "title": "Friend và Chat 1-1",
+    "sources": [
+      "docs/services/friend-service.md",
+      "docs/services/streak-service.md",
+      "docs/services/media-service.md"
+    ],
+    "core": [
+      "Friend: relation + Conversation",
+      "ProfileSocial: follow + contact",
+      "Message + member state + streak"
+    ],
+    "rest": "REST: friends, conversation, message",
+    "dataLabel": "Conversation, Message",
+    "redisLabel": "Pub/Sub: friend.*",
+    "realtime": true,
+    "external": {
+      "lines": [
+        "S3-compatible storage",
+        "Ảnh đính kèm qua Media"
+      ],
+      "control": "Presign + validate imageAssetId",
+      "direct": "Client → storage: upload ảnh",
+      "kind": "storage"
+    },
+    "archNotes": {
+      "important": "Friendship và Conversation có thể được tạo cùng transaction khi mutual-like. Profile chat cũng mở Conversation trước Friendship; PostgreSQL giữ message append-only, follow và trạng thái read/mute từng member.",
+      "caution": "Follow một chiều, Friendship và Conversation là ba khái niệm riêng. Chat không yêu cầu follow; friend call cần follow active hai chiều. Redis chỉ fanout, REST history là nguồn phục hồi."
+    },
+    "flow": [
+      {
+        "text": "User chọn mở cuộc trò chuyện"
+      },
+      {
+        "branch": "Conversation đến từ đâu?",
+        "options": [
+          {
+            "label": "MUTUAL-LIKE",
+            "text": "Ensure Friendship + Conversation\nImport chat ẩn danh nếu có\nCùng transaction của flow nguồn",
+            "continues": true
+          },
+          {
+            "label": "PROFILE CHAT",
+            "text": "Server kiểm tra first-contact\nDưới ngưỡng: mở trực tiếp\nVượt ngưỡng: cần Gift mở chat",
+            "continues": true
+          }
+        ]
+      },
+      {
+        "text": "Gửi text / imageAssetId qua REST\nMembership + block hai chiều"
+      },
+      {
+        "text": "Lưu Message idempotent\nCùng transaction: lastMessageAt"
+      },
+      {
+        "text": "Sau persist: recordActivity streak\nTransaction riêng; lỗi không mất message"
+      },
+      {
+        "text": "Fanout friend.message\nNotification nếu người nhận không mute"
+      },
+      {
+        "text": "REST list / history / read / mute\nUnread và member state từ PostgreSQL"
+      }
+    ],
+    "flowNotes": {
+      "important": "Message append-only và unique idempotency key tránh gửi trùng. Profile first-contact dùng chính sách server, Gift mở Conversation một lần cho cặp; không cần người nhận accept Match.",
+      "caution": "Mute tắt notification nhưng không tắt message, realtime hay unread. Conversation membership vẫn phải được kiểm tra dù client đã có conversationId; block trả lỗi oracle-safe.",
+      "followup": "Friend call kiểm tra reciprocal ProfileFollow tại lúc join; isFriend hay canCall trên UI không thay backend guard."
+    }
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Mở chat từ mutual-like hoặc profile",
+        "edge": ""
+      },
+      {
+        "actor": "core-api · Friend",
+        "branch": "Conversation được mở qua đâu?",
+        "options": [
+          {
+            "label": "MUTUAL-LIKE",
+            "steps": [
+              {
+                "actor": "core-api · Source domain → Friend",
+                "text": "ensureFriendship cùng transaction của rating/likes",
+                "edge": "SQL · Friendship + Conversation"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit relation và Conversation; import seeds nếu source có",
+                "edge": "SQL result · trả core-api"
+              }
+            ],
+            "continues": true
+          },
+          {
+            "label": "PROFILE",
+            "steps": [
+              {
+                "actor": "core-api · ProfileSocial",
+                "text": "First-contact policy; dưới threshold mở trực tiếp, vượt threshold cần Gift",
+                "edge": "SQL · Conversation/contact khi đủ điều kiện"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit Conversation/contact; Gift branch còn có ledger/GiftEvent",
+                "edge": "SQL result · trả core-api"
+              }
+            ],
+            "continues": true
+          }
+        ]
+      },
+      {
+        "actor": "core-api · Friend",
+        "text": "Trả conversationId cho member",
+        "edge": "REST result"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Gửi text hoặc imageAssetId qua REST; ảnh upload Media trước",
+        "edge": "REST · POST Conversation message + key"
+      },
+      {
+        "actor": "core-api · Friend → Safety/Media",
+        "text": "Membership, block hai chiều; ảnh check owner/object nếu có",
+        "edge": "SQL · INSERT Message + lastMessageAt"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Commit Message append-only và Conversation.lastMessageAt; key unique",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Friend.Streak",
+        "text": "Sau message commit: transaction riêng recordActivity UTC",
+        "edge": "SQL · lock/update ConversationStreak"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lưu activity dates và streak nếu đủ hai chiều; lỗi không rollback message",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Friend",
+        "text": "Sau commit: phát friend.message cho recipients đã authorize",
+        "edge": "Redis · PUBLISH"
+      },
+      {
+        "actor": "Redis · Pub/Sub",
+        "text": "Chuyển friend.message trên per-user channel",
+        "edge": "Pub/Sub · PSUBSCRIBE"
+      },
+      {
+        "actor": "signaling-gateway",
+        "text": "Relay envelope tới socket room từ JWT",
+        "edge": "WebSocket · friend.message"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Hiển thị message; REST history phục hồi khi socket mất",
+        "edge": ""
+      },
+      {
+        "actor": "Frontend",
+        "text": "Đánh dấu read hoặc mute Conversation",
+        "edge": "REST · read/mute"
+      },
+      {
+        "actor": "core-api · Friend",
+        "text": "Upsert member state; mute chỉ tắt Notification channel",
+        "edge": "SQL · ConversationMemberState"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lưu read/mute; unread vẫn dựa vào messages",
+        "edge": "SQL result · trả core-api"
+      }
+    ],
+    "important": "Unmuted Friend message tạo Notification sau persist trong transaction riêng và push best-effort. Milestone realtime khác warning job; warning có notification/push.",
+    "caution": "Chat không yêu cầu follow; friend call là request Calling riêng cần follow hai chiều. Không vẽ message gửi qua Gateway hoặc Stripe/payment provider.",
+    "sources": [
+      "docs/services/friend-service.md",
+      "docs/services/streak-service.md"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "Friend",
+        "uses": "Quan hệ + Conversation + message",
+        "entities": [
+          "Friendship",
+          "Conversation",
+          "Message",
+          "ConversationMemberState",
+          "ConversationStreak",
+          "ProfileFollow",
+          "ProfileChatContact"
+        ],
+        "actions": [
+          "Mutual-like; profile direct first-contact",
+          "Idempotent message + read/mute + streak"
+        ]
+      },
+      {
+        "name": "Safety",
+        "uses": "Chặn block/report tại hành động",
+        "entities": [
+          "Block",
+          "Report"
+        ],
+        "actions": [
+          "canPair / isBlocked / hidden-set",
+          "Đọc log PostgreSQL hiện tại"
+        ]
+      },
+      {
+        "name": "Notification",
+        "uses": "In-app trước push; gọi qua DI",
+        "entities": [
+          "Notification",
+          "WebPushSubscription"
+        ],
+        "actions": [
+          "createWithManager hoặc create sau persist",
+          "sendPush best-effort sau commit"
+        ]
+      },
+      {
+        "name": "Media",
+        "uses": "Nhánh ảnh chat",
+        "entities": [
+          "ImageAsset"
+        ],
+        "actions": [
+          "Resolve ảnh owner; immutable final URL"
+        ]
+      },
+      {
+        "name": "User",
+        "uses": "Profile public + privacy/presence",
+        "entities": [
+          "User",
+          "PrivacySetting"
+        ],
+        "actions": [
+          "Hydrate profile; privacy check",
+          "Endpoint profile presence đọc Redis lease"
+        ]
+      },
+      {
+        "name": "Gift / Economy",
+        "uses": "Nhánh vượt ngưỡng first-contact",
+        "entities": [
+          "Gift",
+          "GiftEvent",
+          "LedgerAccount",
+          "LedgerTransaction",
+          "LedgerEntry",
+          "Wallet",
+          "OutboxEvent"
+        ],
+        "actions": [
+          "Gift mở Conversation/contact trong transaction tiền"
+        ]
+      },
+      {
+        "name": "Calling",
+        "uses": "Friend call là nhánh riêng",
+        "entities": [
+          "CallSession",
+          "ProfileFollow"
+        ],
+        "actions": [
+          "Reciprocal follow trước join; không 420s limit"
+        ]
+      }
+    ],
+    "entities": [
+      "Friendship",
+      "Conversation",
+      "Message",
+      "ConversationMemberState",
+      "ConversationStreak",
+      "ProfileFollow",
+      "ProfileChatContact"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "rate limit",
+          "label": "HTTP throttle nếu THROTTLE_STORAGE=redis",
+          "direction": "both"
+        },
+        {
+          "role": "Pub/Sub",
+          "label": "friend.message / friend.streak.*",
+          "direction": "write"
+        },
+        {
+          "role": "presence",
+          "label": "User đọc realtime:presence khi xem profile",
+          "direction": "read"
+        }
+      ],
+      "signaling": true,
+      "mediaCluster": true
+    },
+    "externals": [
+      {
+        "id": "storage",
+        "lines": [
+          "S3 / R2 / MinIO",
+          "Ảnh: quarantine → final"
+        ],
+        "request": "Presign, kiểm tra object, promote",
+        "callback": "Metadata + magic bytes khi resolve asset",
+        "direct": "Client PUT presigned / đọc URL final",
+        "direction": "both",
+        "redis": "",
+        "condition": "MEDIA_STORAGE_PROVIDER; dev không upload binary thật"
+      },
+      {
+        "id": "push",
+        "lines": [
+          "FCM / APNs / Web Push",
+          "Notification push adapters"
+        ],
+        "request": "Push sau Notification commit",
+        "callback": "",
+        "direct": "Provider → device / Service Worker",
+        "direction": "to-client",
+        "redis": "",
+        "condition": "Provider + credentials; native token cần caller; Web Push opt-in"
+      },
+      {
+        "id": "broker",
+        "lines": [
+          "Kafka",
+          "Economy events + dead letter"
+        ],
+        "request": "OutboxRelay → litmatch.economy.events / DLQ",
+        "callback": "",
+        "direct": "",
+        "direction": "to-provider",
+        "redis": "",
+        "condition": "ECONOMY_OUTBOX_RELAY_ENABLED; chưa có domain consumer đăng ký"
+      },
+      {
+        "id": "livekit",
+        "lines": [
+          "media-server / LiveKit",
+          "WebRTC audio + room control"
+        ],
+        "request": "Delete room + listParticipantIdentities để reconciliation",
+        "callback": "/api/v1/calling/webhooks/livekit: signed participant/room events",
+        "direct": "Client ↔ LiveKit: audio WebRTC",
+        "direction": "both",
+        "redis": "LiveKit self-host: Redis cluster/message bus khi cấu hình; LiveKit Cloud do provider quản lý",
+        "condition": "Token JWT ký local trong core-api; LIVEKIT_URL / LIVEKIT_API_URL + API key/secret; ICE/TURN theo deployment"
+      }
+    ],
+    "operations": [
+      "StreakWarningJob: UTC warning + Notification/push",
+      "Streak transaction riêng sau message persist; lỗi không rollback message",
+      "Friend call: CallTicker pending/grace; không Voice Match free limit",
+      "Profile Gift: Economy outbox/reconciliation theo cấu hình"
+    ],
+    "notes": "Các provider là nhánh có điều kiện: storage cho ảnh, push khi không mute, Kafka cho Gift debit và LiveKit cho friend call. Message không cần follow; call cần follow hai chiều. PostgreSQL giữ chat/read/mute; Redis presence do signaling-gateway ghi, User chỉ đọc.",
+    "sources": [
+      "apps/core-api/src/modules/friend/friend.module.ts",
+      "apps/core-api/src/modules/friend/friend.service.ts",
+      "apps/core-api/src/modules/friend/services/profile-social.service.ts",
+      "apps/core-api/src/modules/friend/jobs/streak-warning.job.ts",
+      "apps/core-api/src/modules/user/user.controller.ts",
+      "apps/core-api/src/modules/user/services/user-presence.service.ts",
+      "apps/core-api/src/modules/calling/calling.service.ts",
+      "apps/core-api/src/app/app.module.ts"
+    ],
+    "links": [
+      {
+        "from": "Friend",
+        "to": "Safety",
+        "label": "Block guard hai chiều",
+        "condition": ""
+      },
+      {
+        "from": "Friend",
+        "to": "Media",
+        "label": "Resolve ảnh đính kèm của sender",
+        "condition": ""
+      },
+      {
+        "from": "Friend",
+        "to": "Notification",
+        "label": "Message sau persist; warning job",
+        "condition": ""
+      },
+      {
+        "from": "Friend",
+        "to": "User",
+        "label": "Hydrate public profiles",
+        "condition": ""
+      },
+      {
+        "from": "Gift / Economy",
+        "to": "Friend",
+        "label": "Gift mở profile Conversation/contact",
+        "condition": "Vượt first-contact threshold"
+      },
+      {
+        "from": "Calling",
+        "to": "Friend",
+        "label": "ProfileSocial reciprocal follow",
+        "condition": "Friend call là request riêng"
+      }
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "redis",
+        "label": "Redis"
+      },
+      {
+        "id": "gateway",
+        "label": "signaling-gateway"
+      },
+      {
+        "id": "livekit",
+        "label": "media-server\nLiveKit"
+      },
+      {
+        "id": "storage",
+        "label": "S3 / R2 / MinIO"
+      },
+      {
+        "id": "push",
+        "label": "FCM / APNs / Web Push"
+      },
+      {
+        "id": "broker",
+        "label": "Kafka"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      },
+      {
+        "id": "core-redis",
+        "from": "core",
+        "to": "redis",
+        "bidirectional": true,
+        "protocol": "Pub/Sub · presence"
+      },
+      {
+        "id": "core-livekit",
+        "from": "core",
+        "to": "livekit",
+        "bidirectional": true,
+        "protocol": "API · webhook"
+      },
+      {
+        "id": "core-storage",
+        "from": "core",
+        "to": "storage",
+        "bidirectional": true,
+        "protocol": "presign · media"
+      },
+      {
+        "id": "core-push",
+        "from": "core",
+        "to": "push",
+        "bidirectional": false,
+        "protocol": "push"
+      },
+      {
+        "id": "core-broker",
+        "from": "core",
+        "to": "broker",
+        "bidirectional": false,
+        "protocol": "stream (tuỳ cấu hình)"
+      },
+      {
+        "id": "redis-gateway",
+        "from": "redis",
+        "to": "gateway",
+        "bidirectional": false,
+        "protocol": "realtime Pub/Sub"
+      },
+      {
+        "id": "gateway-redis",
+        "from": "gateway",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "presence · quota"
+      },
+      {
+        "id": "livekit-redis",
+        "from": "livekit",
+        "to": "redis",
+        "bidirectional": true,
+        "protocol": "Pub/Sub"
+      },
+      {
+        "id": "client-livekit",
+        "from": "client",
+        "to": "livekit",
+        "bidirectional": true,
+        "protocol": "Âm thanh trực tiếp / WebRTC"
+      },
+      {
+        "id": "client-storage",
+        "from": "client",
+        "to": "storage",
+        "bidirectional": true,
+        "protocol": "upload/media"
+      },
+      {
+        "id": "client-push",
+        "from": "push",
+        "to": "client",
+        "bidirectional": false,
+        "protocol": "push"
+      },
+      {
+        "id": "gateway-client",
+        "from": "gateway",
+        "to": "client",
+        "bidirectional": true,
+        "protocol": "Socket: realtime"
+      }
+    ]
+  },
+  "featureSequence": [
+    "1. User chọn mở cuộc trò chuyện",
+    "2. Conversation đến từ đâu?",
+    "2.1. MUTUAL-LIKE: Ensure Friendship + Conversation\nImport chat ẩn danh nếu có\nCùng transaction của flow nguồn",
+    "2.2. PROFILE CHAT: Server kiểm tra first-contact\nDưới ngưỡng: mở trực tiếp\nVượt ngưỡng: cần Gift mở chat",
+    "3. Gửi text / imageAssetId qua REST\nMembership + block hai chiều",
+    "4. Lưu Message idempotent\nCùng transaction: lastMessageAt",
+    "5. Sau persist: recordActivity streak\nTransaction riêng; lỗi không mất message",
+    "6. Fanout friend.message\nNotification nếu người nhận không mute",
+    "7. REST list / history / read / mute\nUnread và member state từ PostgreSQL"
+  ],
+  "layerSequence": [
+    "1. Frontend: Mở chat từ mutual-like hoặc profile",
+    "2. core-api · Friend: Conversation được mở qua đâu?",
+    "2.1. MUTUAL-LIKE",
+    "2.1.1. core-api · Source domain → Friend: ensureFriendship cùng transaction của rating/likes [SQL · Friendship + Conversation]",
+    "2.1.2. PostgreSQL: Commit relation và Conversation; import seeds nếu source có [SQL result · trả core-api]",
+    "2.2. PROFILE",
+    "2.2.1. core-api · ProfileSocial: First-contact policy; dưới threshold mở trực tiếp, vượt threshold cần Gift [SQL · Conversation/contact khi đủ điều kiện]",
+    "2.2.2. PostgreSQL: Commit Conversation/contact; Gift branch còn có ledger/GiftEvent [SQL result · trả core-api]",
+    "3. core-api · Friend: Trả conversationId cho member [REST result]",
+    "4. Frontend: Gửi text hoặc imageAssetId qua REST; ảnh upload Media trước [REST · POST Conversation message + key]",
+    "5. core-api · Friend → Safety/Media: Membership, block hai chiều; ảnh check owner/object nếu có [SQL · INSERT Message + lastMessageAt]",
+    "6. PostgreSQL: Commit Message append-only và Conversation.lastMessageAt; key unique [SQL result · trả core-api]",
+    "7. core-api · Friend.Streak: Sau message commit: transaction riêng recordActivity UTC [SQL · lock/update ConversationStreak]",
+    "8. PostgreSQL: Lưu activity dates và streak nếu đủ hai chiều; lỗi không rollback message [SQL result · trả core-api]",
+    "9. core-api · Friend: Sau commit: phát friend.message cho recipients đã authorize [Redis · PUBLISH]",
+    "10. Redis · Pub/Sub: Chuyển friend.message trên per-user channel [Pub/Sub · PSUBSCRIBE]",
+    "11. signaling-gateway: Relay envelope tới socket room từ JWT [WebSocket · friend.message]",
+    "12. Frontend: Hiển thị message; REST history phục hồi khi socket mất",
+    "13. Frontend: Đánh dấu read hoặc mute Conversation [REST · read/mute]",
+    "14. core-api · Friend: Upsert member state; mute chỉ tắt Notification channel [SQL · ConversationMemberState]",
+    "15. PostgreSQL: Lưu read/mute; unread vẫn dựa vào messages [SQL result · trả core-api]"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

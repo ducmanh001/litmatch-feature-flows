@@ -1,0 +1,526 @@
+{
+  "id": "03-voice-match",
+  "title": "Voice Match",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#03-voice-match",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/03-voice-match.json",
+  "feature": {
+    "id": "03-voice-match",
+    "title": "Voice Match",
+    "sources": [
+      "docs/services/calling-service.md",
+      "apps/media-server/livekit.yaml"
+    ],
+    "core": [
+      "Calling: CallSession + token",
+      "Ticker: timer + reconnect",
+      "Friend: mutual-like"
+    ],
+    "rest": "REST: join, call state, like, end",
+    "dataLabel": "CallSession, likes",
+    "redisLabel": "Pub/Sub: call.ended",
+    "realtime": true,
+    "external": {
+      "lines": [
+        "media-server / LiveKit",
+        "WebRTC audio + room"
+      ],
+      "control": "Token + signed webhook",
+      "direct": "Client ↔ LiveKit: audio",
+      "kind": "livekit"
+    },
+    "archNotes": {
+      "important": "Calling là module trong core-api; media-server triển khai LiveKit và không quyết định nghiệp vụ. PostgreSQL giữ CallSession, thời lượng và likes; client truyền audio trực tiếp qua LiveKit.",
+      "caution": "Identity, room và token do server chọn. Webhook phải xác minh chữ ký; ticker và REST reconciliation là backstop, còn Gateway chỉ báo call.ended qua Redis Pub/Sub."
+    },
+    "flow": [
+      {
+        "text": "MatchSession voice confirmed\nMember gọi Calling join"
+      },
+      {
+        "text": "Upsert CallSession pending\nKiểm tra session còn hợp lệ; mint token"
+      },
+      {
+        "text": "Client nối trực tiếp LiveKit\nWebhook ghi nhận participant"
+      },
+      {
+        "branch": "Đủ cả hai người tham gia?",
+        "options": [
+          {
+            "label": "ĐỦ HAI",
+            "text": "Call active; ghi startedAt\nBắt đầu timer server",
+            "continues": true
+          },
+          {
+            "label": "CHƯA ĐỦ",
+            "text": "Giữ pending để chờ\nQuá pending timeout: ended\nKhông chạy timer active",
+            "continues": false
+          }
+        ]
+      },
+      {
+        "text": "Rớt mạng: reconnect grace\nTrong grace: timer tạm dừng\nQuay lại: tiếp tục; quá grace: end"
+      },
+      {
+        "text": "Explicit end / tối đa 420 giây\nChốt call + MatchSession terminal\nDọn LiveKit best-effort; call.ended"
+      },
+      {
+        "branch": "Cả hai đã gửi like?",
+        "options": [
+          {
+            "label": "MUTUAL-LIKE",
+            "text": "Lock CallSession\nTạo Friendship + Conversation\nChuyển sang Friend Chat",
+            "continues": true
+          },
+          {
+            "label": "CHƯA MUTUAL",
+            "text": "Giữ likes đã nhận\nKhông tạo Friendship\nLike còn được gửi khi call ended",
+            "continues": false
+          }
+        ]
+      }
+    ],
+    "flowNotes": {
+      "important": "Voice Match tối đa 7 phút cho mọi tier và không trừ Diamond theo phút. Call ended giải phóng MatchSession; likes immutable có thể được gửi khi active hoặc ended và chỉ mutual mới tạo quan hệ.",
+      "caution": "Pending chưa phải active; chỉ đủ hai participant mới chạy timer. Reconnect grace được loại khỏi thời lượng, token không thể hồi sinh call terminal.",
+      "followup": "Friend call là flow riêng, cần ProfileFollow active hai chiều và không chịu giới hạn 7 phút của Voice Match."
+    }
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "MatchSession voice confirmed; gọi Calling join",
+        "edge": "REST · POST Calling join"
+      },
+      {
+        "actor": "core-api · Calling",
+        "text": "Verify member/session; tạo hoặc lấy call chưa terminal",
+        "edge": "SQL · UPSERT CallSession pending"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Một CallSession cho match_session_id; state pending",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Calling",
+        "text": "Ký LiveKit token local; identity/room do server chọn",
+        "edge": "REST result · token + LiveKit URL"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Dùng token kết nối audio trực tiếp",
+        "edge": "WebRTC · Client ↔ LiveKit"
+      },
+      {
+        "actor": "media-server · LiveKit",
+        "text": "Participant vào/rời room; gửi signed lifecycle event",
+        "edge": "Webhook · Calling LiveKit endpoint"
+      },
+      {
+        "actor": "core-api · Calling",
+        "text": "Verify chữ ký; đủ hai participant mới active, disconnect mở grace",
+        "edge": "SQL · conditional call state"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Ghi participant/start/grace state; terminal transition idempotent",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · CallTicker / Calling",
+        "text": "Pending timeout, active 420s, explicit end hoặc grace timeout chốt call",
+        "edge": "SQL · end CallSession + MatchSession"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Commit ended và giải phóng voice MatchSession",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Calling",
+        "text": "Sau commit: phát call.ended cho recipients đã authorize",
+        "edge": "Redis · PUBLISH"
+      },
+      {
+        "actor": "Redis · Pub/Sub",
+        "text": "Chuyển call.ended trên per-user channel",
+        "edge": "Pub/Sub · PSUBSCRIBE"
+      },
+      {
+        "actor": "signaling-gateway",
+        "text": "Relay envelope tới socket room từ JWT",
+        "edge": "WebSocket · call.ended"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Nhận end; REST đọc lại call và gửi like nếu muốn",
+        "edge": ""
+      },
+      {
+        "actor": "core-api · Calling",
+        "branch": "Sau POST like, đã có like của cả hai?",
+        "options": [
+          {
+            "label": "MUTUAL-LIKE",
+            "steps": [
+              {
+                "actor": "core-api · Calling → Friend",
+                "text": "Lock call; reaction unique; ensureFriendship cùng transaction",
+                "edge": "SQL · likes/relations + COMMIT"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit VoiceMatchReaction, Friendship và Conversation",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · Calling",
+                "text": "Trả matched và friendUserId chỉ sau mutual",
+                "edge": "REST result"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Mở Friend Chat",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          },
+          {
+            "label": "CHƯA MUTUAL",
+            "steps": [
+              {
+                "actor": "core-api · Calling",
+                "text": "Lưu một immutable like; không reveal friendUserId",
+                "edge": "SQL · COMMIT reaction"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Giữ like để bên kia còn có thể like khi active/ended",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · Calling",
+                "text": "Trả liked/matched state của caller",
+                "edge": "REST result"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Call đã ended vẫn chưa có quan hệ mutual",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          }
+        ]
+      }
+    ],
+    "caution": "Call pending chưa chạy active timer; reconnect grace được loại khỏi thời lượng. Mọi end gọi deleteRoom best-effort ngoài DB transaction; không debit Diamond theo phút.",
+    "followup": "Friend call riêng cần ProfileFollow active hai chiều, không chịu 420s limit.",
+    "sources": [
+      "docs/services/calling-service.md",
+      "apps/core-api/src/modules/calling/jobs/call-ticker.service.ts"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "Calling",
+        "uses": "Voice lifecycle + consent",
+        "entities": [
+          "CallSession",
+          "VoiceMatchReaction"
+        ],
+        "actions": [
+          "Join/mint token; lock CallSession",
+          "Immutable likes; server end + cleanup"
+        ]
+      },
+      {
+        "name": "Matching",
+        "uses": "Voice session và nhả active state",
+        "entities": [
+          "MatchSession",
+          "MatchTicket"
+        ],
+        "actions": [
+          "Verify confirmed voice membership",
+          "Chốt session/tickets ended khi call kết thúc"
+        ]
+      },
+      {
+        "name": "Friend",
+        "uses": "Mutual-like và friend call riêng",
+        "entities": [
+          "Friendship",
+          "Conversation",
+          "ProfileFollow"
+        ],
+        "actions": [
+          "ensureFriendship trong transaction likes",
+          "Friend call: follow active hai chiều"
+        ]
+      },
+      {
+        "name": "User",
+        "uses": "LiveKit region và identity",
+        "entities": [
+          "User"
+        ],
+        "actions": [
+          "Đọc region để chọn media URL"
+        ]
+      }
+    ],
+    "entities": [
+      "CallSession",
+      "VoiceMatchReaction",
+      "MatchSession",
+      "Friendship",
+      "Conversation",
+      "ProfileFollow"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "rate limit",
+          "label": "HTTP throttle nếu THROTTLE_STORAGE=redis",
+          "direction": "both"
+        },
+        {
+          "role": "Pub/Sub",
+          "label": "call.ended sau commit",
+          "direction": "write"
+        }
+      ],
+      "signaling": true,
+      "mediaCluster": true
+    },
+    "externals": [
+      {
+        "id": "livekit",
+        "lines": [
+          "media-server / LiveKit",
+          "WebRTC audio + room control"
+        ],
+        "request": "Delete room + listParticipantIdentities để reconciliation",
+        "callback": "/api/v1/calling/webhooks/livekit: signed participant/room events",
+        "direct": "Client ↔ LiveKit: audio WebRTC",
+        "direction": "both",
+        "redis": "LiveKit self-host: Redis cluster/message bus khi cấu hình; LiveKit Cloud do provider quản lý",
+        "condition": "Token JWT ký local trong core-api; LIVEKIT_URL / LIVEKIT_API_URL + API key/secret; ICE/TURN theo deployment"
+      }
+    ],
+    "operations": [
+      "CallTickerService: pending timeout, active 420s, reconnect grace",
+      "GET call đối chiếu LiveKit participants khi webhook bị mất",
+      "Mọi nhánh ended dọn LiveKit room best-effort"
+    ],
+    "notes": "Calling không dùng Economy và không tính Diamond theo phút. Media cluster Redis thuộc LiveKit; Socket.IO Redis quota/presence thuộc signaling-gateway. PostgreSQL giữ CallSession và likes; pending chỉ active khi đủ hai participant.",
+    "sources": [
+      "apps/core-api/src/modules/calling/calling.module.ts",
+      "apps/core-api/src/modules/calling/calling.service.ts",
+      "apps/core-api/src/modules/calling/jobs/call-ticker.service.ts",
+      "apps/core-api/src/modules/calling/webhooks/livekit-webhook.controller.ts",
+      "apps/media-server/livekit.yaml",
+      "apps/core-api/src/app/app.module.ts"
+    ],
+    "links": [
+      {
+        "from": "Calling",
+        "to": "Matching",
+        "label": "Verify session + chốt terminal",
+        "condition": ""
+      },
+      {
+        "from": "Calling",
+        "to": "Friend",
+        "label": "Mutual likes → ensureFriendship",
+        "condition": ""
+      },
+      {
+        "from": "Calling",
+        "to": "Friend",
+        "label": "ProfileSocial reciprocal follow",
+        "condition": "Chỉ nhánh friend call"
+      },
+      {
+        "from": "Calling",
+        "to": "User",
+        "label": "Chọn region media",
+        "condition": ""
+      }
+    ],
+    "entityRelations": [
+      {
+        "from": "CallSession",
+        "to": "MatchSession",
+        "label": "match_session_id unique"
+      },
+      {
+        "from": "VoiceMatchReaction",
+        "to": "CallSession",
+        "label": "callId + raterUserId unique"
+      }
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "redis",
+        "label": "Redis"
+      },
+      {
+        "id": "gateway",
+        "label": "signaling-gateway"
+      },
+      {
+        "id": "livekit",
+        "label": "media-server\nLiveKit"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      },
+      {
+        "id": "core-redis",
+        "from": "core",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "Pub/Sub"
+      },
+      {
+        "id": "core-livekit",
+        "from": "core",
+        "to": "livekit",
+        "bidirectional": true,
+        "protocol": "API · webhook"
+      },
+      {
+        "id": "redis-gateway",
+        "from": "redis",
+        "to": "gateway",
+        "bidirectional": false,
+        "protocol": "realtime Pub/Sub"
+      },
+      {
+        "id": "gateway-redis",
+        "from": "gateway",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "presence · quota"
+      },
+      {
+        "id": "livekit-redis",
+        "from": "livekit",
+        "to": "redis",
+        "bidirectional": true,
+        "protocol": "Pub/Sub"
+      },
+      {
+        "id": "client-livekit",
+        "from": "client",
+        "to": "livekit",
+        "bidirectional": true,
+        "protocol": "Âm thanh trực tiếp / WebRTC"
+      },
+      {
+        "id": "gateway-client",
+        "from": "gateway",
+        "to": "client",
+        "bidirectional": true,
+        "protocol": "Socket: realtime"
+      }
+    ]
+  },
+  "featureSequence": [
+    "1. MatchSession voice confirmed\nMember gọi Calling join",
+    "2. Upsert CallSession pending\nKiểm tra session còn hợp lệ; mint token",
+    "3. Client nối trực tiếp LiveKit\nWebhook ghi nhận participant",
+    "4. Đủ cả hai người tham gia?",
+    "4.1. ĐỦ HAI: Call active; ghi startedAt\nBắt đầu timer server",
+    "4.2. CHƯA ĐỦ [continues=false]: Giữ pending để chờ\nQuá pending timeout: ended\nKhông chạy timer active",
+    "5. Rớt mạng: reconnect grace\nTrong grace: timer tạm dừng\nQuay lại: tiếp tục; quá grace: end",
+    "6. Explicit end / tối đa 420 giây\nChốt call + MatchSession terminal\nDọn LiveKit best-effort; call.ended",
+    "7. Cả hai đã gửi like?",
+    "7.1. MUTUAL-LIKE: Lock CallSession\nTạo Friendship + Conversation\nChuyển sang Friend Chat",
+    "7.2. CHƯA MUTUAL [continues=false]: Giữ likes đã nhận\nKhông tạo Friendship\nLike còn được gửi khi call ended"
+  ],
+  "layerSequence": [
+    "1. Frontend: MatchSession voice confirmed; gọi Calling join [REST · POST Calling join]",
+    "2. core-api · Calling: Verify member/session; tạo hoặc lấy call chưa terminal [SQL · UPSERT CallSession pending]",
+    "3. PostgreSQL: Một CallSession cho match_session_id; state pending [SQL result · trả core-api]",
+    "4. core-api · Calling: Ký LiveKit token local; identity/room do server chọn [REST result · token + LiveKit URL]",
+    "5. Frontend: Dùng token kết nối audio trực tiếp [WebRTC · Client ↔ LiveKit]",
+    "6. media-server · LiveKit: Participant vào/rời room; gửi signed lifecycle event [Webhook · Calling LiveKit endpoint]",
+    "7. core-api · Calling: Verify chữ ký; đủ hai participant mới active, disconnect mở grace [SQL · conditional call state]",
+    "8. PostgreSQL: Ghi participant/start/grace state; terminal transition idempotent [SQL result · trả core-api]",
+    "9. core-api · CallTicker / Calling: Pending timeout, active 420s, explicit end hoặc grace timeout chốt call [SQL · end CallSession + MatchSession]",
+    "10. PostgreSQL: Commit ended và giải phóng voice MatchSession [SQL result · trả core-api]",
+    "11. core-api · Calling: Sau commit: phát call.ended cho recipients đã authorize [Redis · PUBLISH]",
+    "12. Redis · Pub/Sub: Chuyển call.ended trên per-user channel [Pub/Sub · PSUBSCRIBE]",
+    "13. signaling-gateway: Relay envelope tới socket room từ JWT [WebSocket · call.ended]",
+    "14. Frontend: Nhận end; REST đọc lại call và gửi like nếu muốn",
+    "15. core-api · Calling: Sau POST like, đã có like của cả hai?",
+    "15.1. MUTUAL-LIKE [continues=false]",
+    "15.1.1. core-api · Calling → Friend: Lock call; reaction unique; ensureFriendship cùng transaction [SQL · likes/relations + COMMIT]",
+    "15.1.2. PostgreSQL: Commit VoiceMatchReaction, Friendship và Conversation [SQL result · trả core-api]",
+    "15.1.3. core-api · Calling: Trả matched và friendUserId chỉ sau mutual [REST result]",
+    "15.1.4. Frontend: Mở Friend Chat",
+    "15.2. CHƯA MUTUAL [continues=false]",
+    "15.2.1. core-api · Calling: Lưu một immutable like; không reveal friendUserId [SQL · COMMIT reaction]",
+    "15.2.2. PostgreSQL: Giữ like để bên kia còn có thể like khi active/ended [SQL result · trả core-api]",
+    "15.2.3. core-api · Calling: Trả liked/matched state của caller [REST result]",
+    "15.2.4. Frontend: Call đã ended vẫn chưa có quan hệ mutual"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

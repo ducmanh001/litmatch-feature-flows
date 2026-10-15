@@ -1,0 +1,370 @@
+{
+  "id": "13-trust-safety",
+  "title": "Trust & Safety",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#13-trust-safety",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/13-trust-safety.json",
+  "feature": {
+    "id": "13-trust-safety",
+    "title": "Trust & Safety",
+    "sources": [
+      "docs/services/safety-service.md",
+      "docs/services/discovery-service.md",
+      "docs/services/short-video-service.md"
+    ],
+    "core": [
+      "Safety: report + block log",
+      "User: trust score adjustment",
+      "Guards tại từng module"
+    ],
+    "rest": "REST: report, block, unblock",
+    "dataLabel": "Report, Block, trustScore",
+    "redisLabel": "",
+    "realtime": false,
+    "external": null,
+    "archNotes": {
+      "important": "Safety là module dùng chung trong core-api, giữ Report và Block append-only ở PostgreSQL. Trạng thái block được xác định từ action mới nhất; report-user và trust penalty commit cùng transaction.",
+      "caution": "Mỗi module gọi lại guard tại thời điểm hành động, không chỉ lúc mở màn. Report-user, report-video và admin ban có semantics riêng; Gateway và Redis không quyết định cho phép tương tác."
+    },
+    "flow": [
+      {
+        "text": "User chọn Report / Block / Unblock\nServer validate target + quyền"
+      },
+      {
+        "branch": "Hành động nào?",
+        "options": [
+          {
+            "label": "REPORT USER",
+            "text": "Append Report\nPenalty theo cooldown + daily cap\nCùng transaction với trustScore",
+            "continues": true
+          },
+          {
+            "label": "BLOCK / UNBLOCK",
+            "text": "Append action khi state đổi\nDerive block từ log mới nhất\nGiữ lịch sử cũ",
+            "continues": true
+          }
+        ]
+      },
+      {
+        "text": "Matching / Invite re-check canPair\nBlock active + rematch cooldown"
+      },
+      {
+        "text": "Discovery lọc hidden-set\nBlock active + mọi report hai chiều"
+      },
+      {
+        "text": "Friend Chat / Feed re-check block\nTrả lỗi oracle-safe khi không có quyền"
+      },
+      {
+        "text": "Video report đi flow nội dung riêng\nDistinct reports có thể auto-hide\nKhông trừ trustScore tác giả"
+      },
+      {
+        "text": "Admin xử lý qua role + permission\nBan / moderation có audit trail"
+      }
+    ],
+    "flowNotes": {
+      "important": "Report giữ evidence ngay cả khi cooldown không cho trừ thêm điểm. Block/unblock không xoá lịch sử, active block chặn tương tác hai chiều.",
+      "caution": "User report không tự đồng nghĩa admin đã duyệt hoặc tự ban. Matching có cooldown theo ngày, Discovery ẩn vĩnh viễn theo report từng có; không đánh đồng hai chính sách.",
+      "followup": "Admin moderation thao tác qua endpoint riêng; video reports áp quy tắc nội dung, không dùng penalty user-report."
+    }
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Chọn Report User, Block hoặc Unblock",
+        "edge": "REST · Safety action"
+      },
+      {
+        "actor": "core-api · Safety",
+        "text": "Validate target; chặn tự report/block chính mình",
+        "edge": ""
+      },
+      {
+        "actor": "core-api · Safety",
+        "branch": "Report hay block state?",
+        "options": [
+          {
+            "label": "REPORT USER",
+            "steps": [
+              {
+                "actor": "core-api · Safety → User",
+                "text": "Cooldown + daily cap; append evidence và trust delta cùng transaction",
+                "edge": "SQL · Report + User trustScore"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit Report và trustScore adjustment nếu có",
+                "edge": "SQL result · trả core-api"
+              }
+            ],
+            "continues": true
+          },
+          {
+            "label": "BLOCK / UNBLOCK",
+            "steps": [
+              {
+                "actor": "core-api · Safety",
+                "text": "Đọc log mới nhất; append action chỉ khi state thay đổi",
+                "edge": "SQL · INSERT Block event"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit action append-only; không xoá lịch sử",
+                "edge": "SQL result · trả core-api"
+              }
+            ],
+            "continues": true
+          }
+        ]
+      },
+      {
+        "actor": "core-api · Safety",
+        "text": "Trả action result; không auto-ban chỉ vì trust score",
+        "edge": "REST result"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Tiếp tục dùng các chức năng; mỗi request áp lại guard",
+        "edge": "REST · Matching/Discovery/Friend/Feed request"
+      },
+      {
+        "actor": "core-api · Domain → Safety",
+        "text": "canPair, hidden-set hoặc block guard đúng ngữ cảnh",
+        "edge": "SQL · read Report/Block hiện tại"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Trả report/block evidence, không cached permission truth",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Domain",
+        "text": "Matching có cooldown; Discovery mọi report ẩn vĩnh viễn; chat/feed block hai chiều",
+        "edge": "REST result · allowed / oracle-safe denial"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Hiển thị kết quả theo quyền server",
+        "edge": ""
+      }
+    ],
+    "important": "Video report là API/backend branch riêng: distinct reporter có thể auto-hide Video, không trừ trustScore user. Admin moderation có role/permission và audit riêng.",
+    "caution": "User report không đồng nghĩa admin đã duyệt; Report luôn giữ evidence kể cả không trừ thêm điểm. Safety không tạo outbox/push trong report/block.",
+    "sources": [
+      "docs/services/safety-service.md",
+      "docs/services/discovery-service.md",
+      "docs/services/short-video-service.md"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "Safety",
+        "uses": "Report + Block nguồn sự thật",
+        "entities": [
+          "Report",
+          "Block"
+        ],
+        "actions": [
+          "Append report/block/unblock",
+          "canPair, isBlocked, hidden-set"
+        ]
+      },
+      {
+        "name": "User",
+        "uses": "Report-user trust penalty",
+        "entities": [
+          "User"
+        ],
+        "actions": [
+          "adjustTrustScore cùng transaction Report"
+        ]
+      },
+      {
+        "name": "Matching / Discovery",
+        "uses": "Consumers của Safety qua DI",
+        "entities": [
+          "MatchSession",
+          "MatchInvite",
+          "UserLocation"
+        ],
+        "actions": [
+          "Matching/Invite re-check canPair",
+          "Discovery getHiddenUserIds khi browse/nearby"
+        ]
+      },
+      {
+        "name": "Friend / Feed",
+        "uses": "Consumers của block guard",
+        "entities": [
+          "Conversation",
+          "Post",
+          "Story"
+        ],
+        "actions": [
+          "Chat và nội dung kiểm tra block lúc hành động"
+        ]
+      },
+      {
+        "name": "ShortVideo / Admin",
+        "uses": "Report nội dung + moderation",
+        "entities": [
+          "Video",
+          "AdminAuditLog",
+          "AdminRolePermission"
+        ],
+        "actions": [
+          "Video report distinct; auto-hide",
+          "Admin ban/moderate có quyền + audit"
+        ]
+      }
+    ],
+    "entities": [
+      "Report",
+      "Block",
+      "User"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "rate limit",
+          "label": "HTTP throttle nếu THROTTLE_STORAGE=redis",
+          "direction": "both"
+        }
+      ],
+      "signaling": false,
+      "mediaCluster": false
+    },
+    "externals": [],
+    "operations": [
+      "Report cooldown/daily cap; không auto-ban theo trustScore",
+      "Video report không trừ trustScore tác giả",
+      "Không Safety outbox/job/push producer trong flow report/block"
+    ],
+    "notes": "Consumers gọi Safety, không phải Safety gọi ngược các domain. PostgreSQL giữ append-only evidence; block active xác định từ action mới nhất. Redis chỉ HTTP throttler chung có điều kiện, không cache quyền/report truth.",
+    "sources": [
+      "apps/core-api/src/modules/safety/safety.module.ts",
+      "apps/core-api/src/modules/safety/safety.service.ts",
+      "apps/core-api/src/modules/matching/services/invite.service.ts",
+      "apps/core-api/src/modules/discovery/discovery.service.ts",
+      "apps/core-api/src/modules/admin/admin.service.ts",
+      "apps/core-api/src/app/app.module.ts"
+    ],
+    "links": [
+      {
+        "from": "Safety",
+        "to": "User",
+        "label": "adjustTrustScore cùng Report transaction",
+        "condition": ""
+      },
+      {
+        "from": "Matching / Discovery",
+        "to": "Safety",
+        "label": "canPair / hidden-set đúng thời điểm",
+        "condition": ""
+      },
+      {
+        "from": "Friend / Feed",
+        "to": "Safety",
+        "label": "Block guard khi gửi/đọc/tương tác",
+        "condition": ""
+      },
+      {
+        "from": "ShortVideo / Admin",
+        "to": "Safety",
+        "label": "Video report / report inspection",
+        "condition": ""
+      },
+      {
+        "from": "ShortVideo / Admin",
+        "to": "User",
+        "label": "Admin ban/unban qua User API",
+        "condition": ""
+      }
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      }
+    ]
+  },
+  "featureSequence": [
+    "1. User chọn Report / Block / Unblock\nServer validate target + quyền",
+    "2. Hành động nào?",
+    "2.1. REPORT USER: Append Report\nPenalty theo cooldown + daily cap\nCùng transaction với trustScore",
+    "2.2. BLOCK / UNBLOCK: Append action khi state đổi\nDerive block từ log mới nhất\nGiữ lịch sử cũ",
+    "3. Matching / Invite re-check canPair\nBlock active + rematch cooldown",
+    "4. Discovery lọc hidden-set\nBlock active + mọi report hai chiều",
+    "5. Friend Chat / Feed re-check block\nTrả lỗi oracle-safe khi không có quyền",
+    "6. Video report đi flow nội dung riêng\nDistinct reports có thể auto-hide\nKhông trừ trustScore tác giả",
+    "7. Admin xử lý qua role + permission\nBan / moderation có audit trail"
+  ],
+  "layerSequence": [
+    "1. Frontend: Chọn Report User, Block hoặc Unblock [REST · Safety action]",
+    "2. core-api · Safety: Validate target; chặn tự report/block chính mình",
+    "3. core-api · Safety: Report hay block state?",
+    "3.1. REPORT USER",
+    "3.1.1. core-api · Safety → User: Cooldown + daily cap; append evidence và trust delta cùng transaction [SQL · Report + User trustScore]",
+    "3.1.2. PostgreSQL: Commit Report và trustScore adjustment nếu có [SQL result · trả core-api]",
+    "3.2. BLOCK / UNBLOCK",
+    "3.2.1. core-api · Safety: Đọc log mới nhất; append action chỉ khi state thay đổi [SQL · INSERT Block event]",
+    "3.2.2. PostgreSQL: Commit action append-only; không xoá lịch sử [SQL result · trả core-api]",
+    "4. core-api · Safety: Trả action result; không auto-ban chỉ vì trust score [REST result]",
+    "5. Frontend: Tiếp tục dùng các chức năng; mỗi request áp lại guard [REST · Matching/Discovery/Friend/Feed request]",
+    "6. core-api · Domain → Safety: canPair, hidden-set hoặc block guard đúng ngữ cảnh [SQL · read Report/Block hiện tại]",
+    "7. PostgreSQL: Trả report/block evidence, không cached permission truth [SQL result · trả core-api]",
+    "8. core-api · Domain: Matching có cooldown; Discovery mọi report ẩn vĩnh viễn; chat/feed block hai chiều [REST result · allowed / oracle-safe denial]",
+    "9. Frontend: Hiển thị kết quả theo quyền server"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

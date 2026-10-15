@@ -1,0 +1,335 @@
+{
+  "id": "14-preference-matching-detail",
+  "title": "Preference khi Matching",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#14-preference-matching-detail",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/14-preference-matching-detail.json",
+  "feature": {
+    "id": "14-preference-matching-detail",
+    "title": "Preference khi Matching",
+    "sources": [
+      "docs/services/matching-service.md",
+      "apps/core-api/src/modules/matching/jobs/matcher-worker.service.ts",
+      "apps/core-api/src/modules/user/dto/update-profile.dto.ts"
+    ],
+    "core": [
+      "Matching: preference snapshot",
+      "Matcher: gender hai chiều",
+      "User / Safety tại lúc ghép"
+    ],
+    "rest": "REST: join với genderPreference",
+    "dataLabel": "User, MatchTicket, Session",
+    "redisLabel": "Queue shard: region + ageBand",
+    "realtime": true,
+    "external": null,
+    "archNotes": {
+      "important": "genderPreference snapshot trên MatchTicket; region và ageBand xác định shard queue. Matcher đọc gender user mới nhất trong transaction để kiểm tra cả hai chiều cùng Safety.",
+      "caution": "Không shard theo gender. SeekingAgeMin/Max lưu trên profile không phải bộ lọc age range đang được matcher áp dụng; tuổi ở Matching là ageBand shard. Direct invite accept có consent cụ thể và không check genderPreference."
+    },
+    "flowNotes": {
+      "important": "Đổi preference của ticket cần cancel rồi join lại; retry cùng key với payload khác là conflict. Cặp không khớp được requeue với score gốc.",
+      "caution": "Unknown/other chỉ khớp preference any. Profile có seeking fields không chứng minh matcher áp dụng tất cả saved preferences; sơ đồ mô tả code hiện tại."
+    },
+    "flow": []
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Chọn genderPreference cho lần join này",
+        "edge": "REST · POST /matching/tickets"
+      },
+      {
+        "actor": "core-api · Matching",
+        "text": "Validate preference; đọc profile cho shard region/ageBand",
+        "edge": "SQL · INSERT snapshot ticket"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lưu genderPreference snapshot và shard fields trên MatchTicket",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Matching",
+        "text": "Enqueue theo shard, không shard gender",
+        "edge": "Redis · ZADD"
+      },
+      {
+        "actor": "Redis · Sorted Set",
+        "text": "Ticket chờ trong shard matchType/region/ageBand",
+        "edge": "Redis result · enqueue thành công"
+      },
+      {
+        "actor": "core-api · MatcherWorker",
+        "text": "Yêu cầu pop hai candidates ưu tiên",
+        "edge": "Redis · ZPOPMIN key 2"
+      },
+      {
+        "actor": "Redis · Sorted Set",
+        "text": "Pop candidates atomically",
+        "edge": "Redis result · candidate IDs"
+      },
+      {
+        "actor": "core-api · MatcherWorker",
+        "text": "Yêu cầu dữ liệu fresh để verify",
+        "edge": "SQL · SELECT FOR UPDATE + User read"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Trả ticket snapshot và gender/status user mới nhất trong transaction",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Matching",
+        "branch": "Preference hai chiều và Safety cùng đạt?",
+        "options": [
+          {
+            "label": "ĐẠT",
+            "steps": [
+              {
+                "actor": "core-api · Matching",
+                "text": "Xác nhận pair trong transaction",
+                "edge": "SQL · COMMIT MatchSession/tickets"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit confirmed pair",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · Matching",
+                "text": "Phát match.confirmed sau commit",
+                "edge": "Redis · PUBLISH"
+              },
+              {
+                "actor": "Redis · Pub/Sub",
+                "text": "Đưa event tới Gateway",
+                "edge": "Pub/Sub · PSUBSCRIBE"
+              },
+              {
+                "actor": "signaling-gateway",
+                "text": "Fanout cho hai user",
+                "edge": "WebSocket · match.confirmed"
+              },
+              {
+                "actor": "Frontend",
+                "text": "REST refetch rồi vào Soul / Voice",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          },
+          {
+            "label": "KHÔNG KHỚP",
+            "steps": [
+              {
+                "actor": "core-api · Matching",
+                "text": "Không pair; candidate hợp lệ giữ thời điểm chờ gốc",
+                "edge": "Redis · requeue"
+              },
+              {
+                "actor": "Redis · Sorted Set",
+                "text": "Requeue bằng score gốc; tiếp tục chờ",
+                "edge": "Redis result · queued"
+              }
+            ],
+            "continues": false
+          }
+        ]
+      }
+    ],
+    "caution": "SeekingAgeMin/Max trên profile chưa phải matcher age-range filter; actual filter là gender hai chiều và ageBand/region shard. Đổi ticket preference phải cancel/join; direct invite accept không check gender preference.",
+    "sources": [
+      "docs/services/matching-service.md",
+      "apps/core-api/src/modules/matching/jobs/matcher-worker.service.ts"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "Matching",
+        "uses": "Ticket snapshot + matcher",
+        "entities": [
+          "MatchTicket",
+          "MatchSession"
+        ],
+        "actions": [
+          "Snapshot genderPreference, region/ageBand"
+        ]
+      },
+      {
+        "name": "User",
+        "uses": "Fresh gender đọc lúc ghép",
+        "entities": [
+          "User"
+        ],
+        "actions": [
+          "Profile owns birthDate/region/seeking fields"
+        ]
+      },
+      {
+        "name": "Safety",
+        "uses": "Final pair guard",
+        "entities": [
+          "Block",
+          "Report"
+        ],
+        "actions": [
+          "canPair trong matcher"
+        ]
+      }
+    ],
+    "entities": [
+      "MatchTicket",
+      "MatchSession",
+      "User"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "queue",
+          "label": "Shard matchType/region/ageBand",
+          "direction": "both"
+        },
+        {
+          "role": "index",
+          "label": "active shards",
+          "direction": "both"
+        },
+        {
+          "role": "Pub/Sub",
+          "label": "match.confirmed",
+          "direction": "write"
+        }
+      ],
+      "signaling": true,
+      "mediaCluster": false
+    },
+    "externals": [],
+    "operations": [
+      "Matcher verify gender hai chiều; mismatch requeue score gốc",
+      "Không shard gender, không saved age-range filter hiện hành"
+    ],
+    "notes": "Preference snapshot thuộc ticket; gender đối phương đọc fresh. Queue Redis là Matching chính, không phải queue Palm/Movie PostgreSQL.",
+    "sources": [
+      "apps/core-api/src/modules/matching/jobs/matcher-worker.service.ts",
+      "apps/core-api/src/modules/matching/matching.constants.ts",
+      "apps/core-api/src/modules/user/dto/update-profile.dto.ts"
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "redis",
+        "label": "Redis"
+      },
+      {
+        "id": "gateway",
+        "label": "signaling-gateway"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      },
+      {
+        "id": "core-redis",
+        "from": "core",
+        "to": "redis",
+        "bidirectional": true,
+        "protocol": "queue · index · Pub/Sub"
+      },
+      {
+        "id": "redis-gateway",
+        "from": "redis",
+        "to": "gateway",
+        "bidirectional": false,
+        "protocol": "realtime Pub/Sub"
+      },
+      {
+        "id": "gateway-redis",
+        "from": "gateway",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "presence · quota"
+      },
+      {
+        "id": "gateway-client",
+        "from": "gateway",
+        "to": "client",
+        "bidirectional": true,
+        "protocol": "Socket: realtime"
+      }
+    ]
+  },
+  "featureSequence": [],
+  "layerSequence": [
+    "1. Frontend: Chọn genderPreference cho lần join này [REST · POST /matching/tickets]",
+    "2. core-api · Matching: Validate preference; đọc profile cho shard region/ageBand [SQL · INSERT snapshot ticket]",
+    "3. PostgreSQL: Lưu genderPreference snapshot và shard fields trên MatchTicket [SQL result · trả core-api]",
+    "4. core-api · Matching: Enqueue theo shard, không shard gender [Redis · ZADD]",
+    "5. Redis · Sorted Set: Ticket chờ trong shard matchType/region/ageBand [Redis result · enqueue thành công]",
+    "6. core-api · MatcherWorker: Yêu cầu pop hai candidates ưu tiên [Redis · ZPOPMIN key 2]",
+    "7. Redis · Sorted Set: Pop candidates atomically [Redis result · candidate IDs]",
+    "8. core-api · MatcherWorker: Yêu cầu dữ liệu fresh để verify [SQL · SELECT FOR UPDATE + User read]",
+    "9. PostgreSQL: Trả ticket snapshot và gender/status user mới nhất trong transaction [SQL result · trả core-api]",
+    "10. core-api · Matching: Preference hai chiều và Safety cùng đạt?",
+    "10.1. ĐẠT [continues=false]",
+    "10.1.1. core-api · Matching: Xác nhận pair trong transaction [SQL · COMMIT MatchSession/tickets]",
+    "10.1.2. PostgreSQL: Commit confirmed pair [SQL result · trả core-api]",
+    "10.1.3. core-api · Matching: Phát match.confirmed sau commit [Redis · PUBLISH]",
+    "10.1.4. Redis · Pub/Sub: Đưa event tới Gateway [Pub/Sub · PSUBSCRIBE]",
+    "10.1.5. signaling-gateway: Fanout cho hai user [WebSocket · match.confirmed]",
+    "10.1.6. Frontend: REST refetch rồi vào Soul / Voice",
+    "10.2. KHÔNG KHỚP [continues=false]",
+    "10.2.1. core-api · Matching: Không pair; candidate hợp lệ giữ thời điểm chờ gốc [Redis · requeue]",
+    "10.2.2. Redis · Sorted Set: Requeue bằng score gốc; tiếp tục chờ [Redis result · queued]"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

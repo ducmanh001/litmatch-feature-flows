@@ -1,0 +1,447 @@
+{
+  "id": "02-soul-match",
+  "title": "Soul Match",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#02-soul-match",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/02-soul-match.json",
+  "feature": {
+    "id": "02-soul-match",
+    "title": "Soul Match",
+    "sources": [
+      "docs/services/soul-match-service.md",
+      "docs/services/friend-service.md"
+    ],
+    "core": [
+      "SoulMatch: chat + rating",
+      "Friend: mutual-like + import chat",
+      "User: ban + profile guard"
+    ],
+    "rest": "REST: session, messages, rating, end",
+    "dataLabel": "Session, chat, rating",
+    "redisLabel": "Pub/Sub: soul.* sau commit",
+    "realtime": true,
+    "external": null,
+    "archNotes": {
+      "important": "Phòng ẩn danh là view từ MatchSession, không phải service hay entity riêng. PostgreSQL lưu message append-only, rating và quan hệ; mutual-like tạo Friendship, Conversation và import chat trong cùng transaction.",
+      "caution": "Gateway chỉ fanout payload đã ẩn danh; Redis Pub/Sub không giữ lịch sử. Trước mutual-like, DTO không lộ userId, profile hoặc verdict của đối phương; REST phục hồi state khi mất event."
+    },
+    "flow": [
+      {
+        "text": "MatchSession soul confirmed\nHai người mở phòng ẩn danh"
+      },
+      {
+        "text": "Server xác định phase + deadline\nRating mở từ lúc bắt đầu chat"
+      },
+      {
+        "text": "Gửi message qua REST\nMembership + phase + ban được kiểm tra"
+      },
+      {
+        "text": "Lưu message idempotent\nSau commit: soul.message"
+      },
+      {
+        "text": "Rate rude / boring / like\nLock session; mỗi người một verdict"
+      },
+      {
+        "branch": "Kết quả rating hiện tại?",
+        "options": [
+          {
+            "label": "MUTUAL-LIKE",
+            "text": "Tạo Friendship + Conversation\nImport lịch sử trong cùng transaction\nMở profile; chat tiếp không deadline",
+            "continues": true
+          },
+          {
+            "label": "CHƯA MUTUAL",
+            "text": "Còn window: tiếp tục chờ rating\nChat hết giờ: chỉ đọc + rate\nHết window: closed",
+            "continues": false
+          }
+        ]
+      },
+      {
+        "text": "Một bên gọi end\nMatchSession ended; phòng đóng cho cả hai"
+      }
+    ],
+    "flowNotes": {
+      "important": "Hai rating like song song được serialize bằng lock session. Friendship là nguồn sự thật của unlock; message gốc vẫn giữ để điều tra T&S sau khi import vào Friend Chat.",
+      "caution": "Mutual-like giữ phase chatting vô thời hạn cho tới explicit end; deadline cũ không tiếp tục chặn chat. Khi closed mà chưa mutual, history không còn đọc qua API ẩn danh.",
+      "followup": "Friend Chat vẫn tồn tại sau khi phòng Soul kết thúc; end không xoá Friendship hay Conversation."
+    }
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "MatchSession soul confirmed; gửi message trong phòng ẩn danh",
+        "edge": "REST · POST Soul messages + key"
+      },
+      {
+        "actor": "core-api · SoulMatch",
+        "text": "Membership + ban + phase chatting; kiểm tra idempotency",
+        "edge": "SQL · INSERT SoulChatMessage"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lưu message append-only; replay trả message cũ",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · SoulMatch",
+        "text": "Sau commit: phát soul.message cho recipients đã authorize",
+        "edge": "Redis · PUBLISH"
+      },
+      {
+        "actor": "Redis · Pub/Sub",
+        "text": "Chuyển soul.message trên per-user channel",
+        "edge": "Pub/Sub · PSUBSCRIBE"
+      },
+      {
+        "actor": "signaling-gateway",
+        "text": "Relay envelope tới socket room từ JWT",
+        "edge": "WebSocket · soul.message"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Đọc message; chọn verdict rude / boring / like",
+        "edge": ""
+      },
+      {
+        "actor": "Frontend",
+        "text": "Gửi rating; mỗi người một verdict",
+        "edge": "REST · POST Soul rating"
+      },
+      {
+        "actor": "core-api · SoulMatch",
+        "text": "Lock session; rating còn trong window và immutable",
+        "edge": "SQL · INSERT rating + đọc hai verdict"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Insert SoulMatchRating dưới session lock; trả verdicts trong transaction",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · SoulMatch",
+        "branch": "Đã đủ hai like?",
+        "options": [
+          {
+            "label": "MUTUAL-LIKE",
+            "steps": [
+              {
+                "actor": "core-api · SoulMatch → Friend",
+                "text": "Ensure Friendship + Conversation và import chat cùng transaction",
+                "edge": "SQL · relations/messages + COMMIT"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit rating, Friendship, Conversation và Message seeds",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · SoulMatch",
+                "text": "Sau commit: phát soul.matched cho recipients đã authorize",
+                "edge": "Redis · PUBLISH"
+              },
+              {
+                "actor": "Redis · Pub/Sub",
+                "text": "Chuyển soul.matched trên per-user channel",
+                "edge": "Pub/Sub · PSUBSCRIBE"
+              },
+              {
+                "actor": "signaling-gateway",
+                "text": "Relay envelope tới socket room từ JWT",
+                "edge": "WebSocket · soul.matched"
+              },
+              {
+                "actor": "Frontend",
+                "text": "REST refetch; profile mở, Friend Chat bền vững",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          },
+          {
+            "label": "CHƯA MUTUAL",
+            "steps": [
+              {
+                "actor": "core-api · SoulMatch",
+                "text": "Commit verdict; không mở profile hay Friendship",
+                "edge": "SQL · COMMIT"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Giữ rating đã nhận, không tạo quan hệ mới",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · SoulMatch",
+                "text": "Trả phase/deadline và myVerdict; không lộ verdict đối phương",
+                "edge": "REST result"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Còn window: chờ; hết chat: chỉ đọc/rate; hết rating: closed",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          }
+        ]
+      }
+    ],
+    "important": "Mutual-like giữ phase chatting vô thời hạn tới explicit end. End qua Matching chốt MatchSession và phát soul.ended; Friendship/Conversation không bị xoá.",
+    "caution": "Closed chưa mutual không đọc anonymous history; source messages vẫn append-only cho T&S. REST phục hồi event mất; replay message không tạo row thứ hai.",
+    "sources": [
+      "docs/services/soul-match-service.md",
+      "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "SoulMatch",
+        "uses": "Chat ẩn danh + rating",
+        "entities": [
+          "SoulChatMessage",
+          "SoulMatchRating"
+        ],
+        "actions": [
+          "Message idempotent; phase theo giờ server",
+          "Lock session; mỗi người một verdict"
+        ]
+      },
+      {
+        "name": "Matching",
+        "uses": "Session đầu vào và explicit end",
+        "entities": [
+          "MatchSession",
+          "MatchTicket"
+        ],
+        "actions": [
+          "Đọc confirmed soul session + membership",
+          "Kết thúc session và nhả tickets"
+        ]
+      },
+      {
+        "name": "Friend",
+        "uses": "Quan hệ + chat lâu dài",
+        "entities": [
+          "Friendship",
+          "Conversation",
+          "Message"
+        ],
+        "actions": [
+          "ensureFriendship cùng transaction",
+          "Import chat nếu flow có message seed"
+        ]
+      },
+      {
+        "name": "User",
+        "uses": "Ban guard và profile sau mutual",
+        "entities": [
+          "User"
+        ],
+        "actions": [
+          "Re-check user status khi gửi",
+          "Chỉ trả partner profile khi Friendship tồn tại"
+        ]
+      }
+    ],
+    "entities": [
+      "SoulChatMessage",
+      "SoulMatchRating",
+      "MatchSession",
+      "Friendship",
+      "Conversation",
+      "Message"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "rate limit",
+          "label": "HTTP throttle nếu THROTTLE_STORAGE=redis",
+          "direction": "both"
+        },
+        {
+          "role": "Pub/Sub",
+          "label": "soul.message / matched / ended",
+          "direction": "write"
+        }
+      ],
+      "signaling": true,
+      "mediaCluster": false
+    },
+    "externals": [],
+    "operations": [
+      "Phase chatting/rating/closed xác định khi đọc",
+      "Mutual-like import chat cùng transaction; giữ source append-only",
+      "Không có Soul sweeper hay push notification cho Soul message"
+    ],
+    "notes": "PostgreSQL giữ rating/message và Friendship; Redis chỉ HTTP throttle có điều kiện và realtime bus. Matching đã tạo session trước flow này; không vẽ lại matching queue. Notification của match confirmation thuộc flow Matching, không phải Soul message.",
+    "sources": [
+      "apps/core-api/src/modules/soul-match/soul-match.module.ts",
+      "apps/core-api/src/modules/soul-match/soul-match.service.ts",
+      "apps/core-api/src/modules/matching/matching.service.ts",
+      "apps/core-api/src/modules/friend/friend.service.ts",
+      "apps/core-api/src/app/app.module.ts"
+    ],
+    "links": [
+      {
+        "from": "SoulMatch",
+        "to": "Matching",
+        "label": "Đọc/end MatchSession",
+        "condition": ""
+      },
+      {
+        "from": "SoulMatch",
+        "to": "Friend",
+        "label": "Mutual-like + import chat trong transaction",
+        "condition": ""
+      },
+      {
+        "from": "SoulMatch",
+        "to": "User",
+        "label": "Ban guard + partner profile sau mutual",
+        "condition": ""
+      }
+    ],
+    "entityRelations": [
+      {
+        "from": "SoulMatchRating",
+        "to": "MatchSession",
+        "label": "sessionId + rater unique"
+      },
+      {
+        "from": "SoulChatMessage",
+        "to": "Message",
+        "label": "Mutual-like import theo stable key"
+      }
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "redis",
+        "label": "Redis"
+      },
+      {
+        "id": "gateway",
+        "label": "signaling-gateway"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      },
+      {
+        "id": "core-redis",
+        "from": "core",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "Pub/Sub"
+      },
+      {
+        "id": "redis-gateway",
+        "from": "redis",
+        "to": "gateway",
+        "bidirectional": false,
+        "protocol": "realtime Pub/Sub"
+      },
+      {
+        "id": "gateway-redis",
+        "from": "gateway",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "presence · quota"
+      },
+      {
+        "id": "gateway-client",
+        "from": "gateway",
+        "to": "client",
+        "bidirectional": true,
+        "protocol": "Socket: realtime"
+      }
+    ]
+  },
+  "featureSequence": [
+    "1. MatchSession soul confirmed\nHai người mở phòng ẩn danh",
+    "2. Server xác định phase + deadline\nRating mở từ lúc bắt đầu chat",
+    "3. Gửi message qua REST\nMembership + phase + ban được kiểm tra",
+    "4. Lưu message idempotent\nSau commit: soul.message",
+    "5. Rate rude / boring / like\nLock session; mỗi người một verdict",
+    "6. Kết quả rating hiện tại?",
+    "6.1. MUTUAL-LIKE: Tạo Friendship + Conversation\nImport lịch sử trong cùng transaction\nMở profile; chat tiếp không deadline",
+    "6.2. CHƯA MUTUAL [continues=false]: Còn window: tiếp tục chờ rating\nChat hết giờ: chỉ đọc + rate\nHết window: closed",
+    "7. Một bên gọi end\nMatchSession ended; phòng đóng cho cả hai"
+  ],
+  "layerSequence": [
+    "1. Frontend: MatchSession soul confirmed; gửi message trong phòng ẩn danh [REST · POST Soul messages + key]",
+    "2. core-api · SoulMatch: Membership + ban + phase chatting; kiểm tra idempotency [SQL · INSERT SoulChatMessage]",
+    "3. PostgreSQL: Lưu message append-only; replay trả message cũ [SQL result · trả core-api]",
+    "4. core-api · SoulMatch: Sau commit: phát soul.message cho recipients đã authorize [Redis · PUBLISH]",
+    "5. Redis · Pub/Sub: Chuyển soul.message trên per-user channel [Pub/Sub · PSUBSCRIBE]",
+    "6. signaling-gateway: Relay envelope tới socket room từ JWT [WebSocket · soul.message]",
+    "7. Frontend: Đọc message; chọn verdict rude / boring / like",
+    "8. Frontend: Gửi rating; mỗi người một verdict [REST · POST Soul rating]",
+    "9. core-api · SoulMatch: Lock session; rating còn trong window và immutable [SQL · INSERT rating + đọc hai verdict]",
+    "10. PostgreSQL: Insert SoulMatchRating dưới session lock; trả verdicts trong transaction [SQL result · trả core-api]",
+    "11. core-api · SoulMatch: Đã đủ hai like?",
+    "11.1. MUTUAL-LIKE [continues=false]",
+    "11.1.1. core-api · SoulMatch → Friend: Ensure Friendship + Conversation và import chat cùng transaction [SQL · relations/messages + COMMIT]",
+    "11.1.2. PostgreSQL: Commit rating, Friendship, Conversation và Message seeds [SQL result · trả core-api]",
+    "11.1.3. core-api · SoulMatch: Sau commit: phát soul.matched cho recipients đã authorize [Redis · PUBLISH]",
+    "11.1.4. Redis · Pub/Sub: Chuyển soul.matched trên per-user channel [Pub/Sub · PSUBSCRIBE]",
+    "11.1.5. signaling-gateway: Relay envelope tới socket room từ JWT [WebSocket · soul.matched]",
+    "11.1.6. Frontend: REST refetch; profile mở, Friend Chat bền vững",
+    "11.2. CHƯA MUTUAL [continues=false]",
+    "11.2.1. core-api · SoulMatch: Commit verdict; không mở profile hay Friendship [SQL · COMMIT]",
+    "11.2.2. PostgreSQL: Giữ rating đã nhận, không tạo quan hệ mới [SQL result · trả core-api]",
+    "11.2.3. core-api · SoulMatch: Trả phase/deadline và myVerdict; không lộ verdict đối phương [REST result]",
+    "11.2.4. Frontend: Còn window: chờ; hết chat: chỉ đọc/rate; hết rating: closed"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

@@ -1,0 +1,258 @@
+{
+  "id": "10-matching-speed-up-detail",
+  "title": "Matching Speed-up",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#10-matching-speed-up-detail",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/10-matching-speed-up-detail.json",
+  "feature": {
+    "id": "10-matching-speed-up-detail",
+    "title": "Matching Speed-up",
+    "sources": [
+      "docs/services/matching-service.md",
+      "apps/core-api/src/modules/matching/matching.service.ts",
+      "docs/services/economy-service.md"
+    ],
+    "core": [
+      "Matching: queued ticket boost",
+      "Economy: spendDiamond",
+      "Ledger: append-only"
+    ],
+    "rest": "REST: ticket speedup",
+    "dataLabel": "MatchTicket, ledger",
+    "redisLabel": "Sorted Set score; ZADD XX",
+    "realtime": false,
+    "external": null,
+    "archNotes": {
+      "important": "Matching gọi Economy qua DI để debit DIA, rồi tăng priorityBoostMs trong PostgreSQL và đặt score Redis từ tổng boost. Wallet là ledger snapshot; LedgerTransaction.idempotencyKey unique ở DB.",
+      "caution": "Speed-up chỉ nhận ticket queued, giá server theo tier. Không có quota speed-up nghiệp vụ; technical HTTP throttle là hạ tầng chung. Kafka chỉ nhánh Economy outbox khi relay được bật."
+    },
+    "flowNotes": {
+      "important": "Debit mới tăng boost có điều kiện khi ticket còn queued; Redis ZADD XX không tái tạo member đã rời queue. Retry cập nhật Redis từ boost đã lưu và không debit lần hai.",
+      "caution": "Ticket có thể vừa được ghép sau lúc kiểm tra; code không có refund tự động cho race đó. Không mô tả toàn bộ debit và boost như một transaction atomic: spend và ticket increment là hai bước."
+    },
+    "flow": []
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Đọc speedupPriceDiamond do server trả; bấm Speed-up",
+        "edge": "REST · POST ticket speedup + key"
+      },
+      {
+        "actor": "core-api · Matching",
+        "text": "Check ownership, queued và giá theo tier hiện tại",
+        "edge": "in-process · Economy.spendDiamond"
+      },
+      {
+        "actor": "core-api · Economy",
+        "text": "Claim LedgerTransaction key; lock Wallet và kiểm tra balance",
+        "edge": "SQL · entries + Wallet + OutboxEvent"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Commit double-entry debit DIA, Wallet snapshot và transaction; replay cùng key không debit lại",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Matching",
+        "text": "Giao dịch mới: tăng priorityBoostMs chỉ nếu ticket còn queued",
+        "edge": "SQL · conditional increment + đọc ticket"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lưu tổng boost trên MatchTicket; ticket vừa ghép có thể không tăng boost",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Matching",
+        "text": "Tính score tuyệt đối từ enqueuedAt + tổng boost hiện tại",
+        "edge": "Redis · ZADD XX"
+      },
+      {
+        "actor": "Redis · Sorted Set",
+        "text": "Cập nhật member còn trong queue; không recreate ticket đã bị pop",
+        "edge": "Redis result · score update"
+      },
+      {
+        "actor": "core-api · Matching",
+        "text": "Trả transactionId, replayed và ticket mới nhất",
+        "edge": "REST result · SpeedupResult"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Hiển thị state server; retry lỗi Redis bằng cùng key",
+        "edge": ""
+      }
+    ],
+    "caution": "Debit và increment boost không chung một transaction; không claim crash ở giữa hai bước được bù đầy đủ. Completion Redis retry an toàn từ boost đã lưu; không tự refund race ghép.",
+    "sources": [
+      "apps/core-api/src/modules/matching/matching.service.ts",
+      "docs/services/matching-service.md"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "Matching",
+        "uses": "Boost queued ticket",
+        "entities": [
+          "MatchTicket"
+        ],
+        "actions": [
+          "Ownership + queued guard; conditional boost"
+        ]
+      },
+      {
+        "name": "Economy",
+        "uses": "Diamond debit",
+        "entities": [
+          "LedgerAccount",
+          "LedgerTransaction",
+          "LedgerEntry",
+          "Wallet",
+          "OutboxEvent"
+        ],
+        "actions": [
+          "spendDiamond theo unique key"
+        ]
+      }
+    ],
+    "entities": [
+      "MatchTicket",
+      "LedgerAccount",
+      "LedgerTransaction",
+      "LedgerEntry",
+      "Wallet",
+      "OutboxEvent"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "queue",
+          "label": "Cập nhật score Sorted Set bằng ZADD XX",
+          "direction": "both"
+        }
+      ],
+      "signaling": false,
+      "mediaCluster": false
+    },
+    "externals": [
+      {
+        "id": "broker",
+        "lines": [
+          "Kafka",
+          "Economy outbox"
+        ],
+        "request": "Outbox relay publish economy events",
+        "callback": "",
+        "direct": "",
+        "direction": "to-provider",
+        "condition": "ECONOMY_OUTBOX_RELAY_ENABLED; chưa có domain consumer đăng ký",
+        "redis": ""
+      }
+    ],
+    "operations": [
+      "Score tuyệt đối từ priorityBoostMs trong PostgreSQL",
+      "Economy outbox/reconciliation theo config; không speed-up job riêng"
+    ],
+    "notes": "Không có business speed-up rate-limit theo giờ/ngày, không Pub/Sub speedup producer và không payment provider call cho debit ví.",
+    "sources": [
+      "apps/core-api/src/modules/matching/matching.service.ts",
+      "apps/core-api/src/modules/matching/entities/match-ticket.entity.ts",
+      "apps/core-api/src/modules/economy/services/ledger.service.ts",
+      "apps/core-api/src/modules/economy/jobs/outbox-relay.service.ts"
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "redis",
+        "label": "Redis"
+      },
+      {
+        "id": "broker",
+        "label": "Kafka"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      },
+      {
+        "id": "core-redis",
+        "from": "core",
+        "to": "redis",
+        "bidirectional": true,
+        "protocol": "queue"
+      },
+      {
+        "id": "core-broker",
+        "from": "core",
+        "to": "broker",
+        "bidirectional": false,
+        "protocol": "stream (tuỳ cấu hình)"
+      }
+    ]
+  },
+  "featureSequence": [],
+  "layerSequence": [
+    "1. Frontend: Đọc speedupPriceDiamond do server trả; bấm Speed-up [REST · POST ticket speedup + key]",
+    "2. core-api · Matching: Check ownership, queued và giá theo tier hiện tại [in-process · Economy.spendDiamond]",
+    "3. core-api · Economy: Claim LedgerTransaction key; lock Wallet và kiểm tra balance [SQL · entries + Wallet + OutboxEvent]",
+    "4. PostgreSQL: Commit double-entry debit DIA, Wallet snapshot và transaction; replay cùng key không debit lại [SQL result · trả core-api]",
+    "5. core-api · Matching: Giao dịch mới: tăng priorityBoostMs chỉ nếu ticket còn queued [SQL · conditional increment + đọc ticket]",
+    "6. PostgreSQL: Lưu tổng boost trên MatchTicket; ticket vừa ghép có thể không tăng boost [SQL result · trả core-api]",
+    "7. core-api · Matching: Tính score tuyệt đối từ enqueuedAt + tổng boost hiện tại [Redis · ZADD XX]",
+    "8. Redis · Sorted Set: Cập nhật member còn trong queue; không recreate ticket đã bị pop [Redis result · score update]",
+    "9. core-api · Matching: Trả transactionId, replayed và ticket mới nhất [REST result · SpeedupResult]",
+    "10. Frontend: Hiển thị state server; retry lỗi Redis bằng cùng key"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

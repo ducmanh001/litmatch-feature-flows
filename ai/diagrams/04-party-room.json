@@ -1,0 +1,693 @@
+{
+  "id": "04-party-room",
+  "title": "Party Room",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#04-party-room",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/04-party-room.json",
+  "feature": {
+    "id": "04-party-room",
+    "title": "Party Room",
+    "sources": [
+      "docs/services/party-room-service.md",
+      "docs/services/gift-service.md"
+    ],
+    "core": [
+      "PartyRoom: membership + role",
+      "Sweeper: grace + cleanup",
+      "Gift: Economy boundary"
+    ],
+    "rest": "REST: room, join, invite, accept",
+    "dataLabel": "Room, members, comments",
+    "redisLabel": "Pub/Sub: party.* sau commit",
+    "realtime": true,
+    "external": {
+      "lines": [
+        "media-server / LiveKit",
+        "Host / speaker / audience"
+      ],
+      "control": "Room + token + media grant",
+      "direct": "Client ↔ LiveKit: audio",
+      "kind": "livekit"
+    },
+    "archNotes": {
+      "important": "Room, membership, role và comments thuộc PostgreSQL; mọi đổi state serialize bằng lock room. LiveKit áp dụng media grant từ core-api, còn Signaling Gateway fanout event sau commit.",
+      "caution": "Audience có canPublish=false tại SFU. Invite chưa cấp quyền nói; target phải accept trước khi core-api cập nhật role và grant. Một user chỉ có một membership active toàn hệ thống."
+    },
+    "flow": [
+      {
+        "text": "Host tạo room\nRoom + host membership cùng transaction"
+      },
+      {
+        "text": "Tạo LiveKit room; mint token\nSFU lỗi: compensate close(error)"
+      },
+      {
+        "text": "Member join dưới lock room\nAudience chỉ nghe; kiểm tra capacity"
+      },
+      {
+        "branch": "Audience chấp nhận lời mời?",
+        "options": [
+          {
+            "label": "ACCEPT",
+            "text": "Target tự accept\nKiểm tra speaker_limit\nCommit role rồi cập nhật media grant",
+            "continues": true
+          },
+          {
+            "label": "CHƯA ACCEPT",
+            "text": "Giữ audience, canPublish=false\nDecline / chờ phản hồi\nTiếp tục nghe",
+            "continues": true
+          }
+        ]
+      },
+      {
+        "text": "Comment / Gift qua core-api\nLưu trước; fanout sau commit"
+      },
+      {
+        "branch": "Host rời theo cách nào?",
+        "options": [
+          {
+            "label": "REST LEAVE",
+            "text": "Đóng phòng ngay: host_left\nChốt membership + dọn SFU",
+            "continues": false
+          },
+          {
+            "label": "DISCONNECT",
+            "text": "Ghi host_disconnected_at\nGiữ membership; chờ grace",
+            "continues": true
+          }
+        ]
+      },
+      {
+        "text": "Reconnect trong grace: tiếp tục room\nChỉ quá grace: sweeper kiểm tra dưới lock\nRồi đóng room + phát room.closed"
+      }
+    ],
+    "flowNotes": {
+      "important": "Speaker limit snapshot lúc tạo room; host không chiếm speaker slot. Comments append-only và Gift đi qua transaction Economy trước khi bắn hiệu ứng.",
+      "caution": "Host REST leave đóng ngay, webhook disconnect phải chờ grace. Member thường cũng có disconnect grace; sweeper đối chiếu SFU để dọn phòng khi webhook mất.",
+      "followup": "GiftEvent vẫn hợp lệ nếu room đóng sau commit; hiệu ứng realtime là best-effort."
+    }
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Host tạo Party Room",
+        "edge": "REST · POST Party room"
+      },
+      {
+        "actor": "core-api · PartyRoom",
+        "text": "Validate và tạo room + host membership atomically",
+        "edge": "SQL · INSERT room/member + COMMIT"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Commit PartyRoom active, speaker limit snapshot và host membership",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · PartyRoom",
+        "text": "Tạo LiveKit room sau DB commit",
+        "edge": "LiveKit API · createRoom"
+      },
+      {
+        "actor": "media-server · LiveKit",
+        "text": "Tạo room với participant cap; trả API result",
+        "edge": "HTTP result · core-api"
+      },
+      {
+        "actor": "core-api · PartyRoom",
+        "text": "Ký token theo role; audience canPublish=false",
+        "edge": "REST result · token + room"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Member join LiveKit; host gửi speaker invite cho audience",
+        "edge": "WebRTC audio; REST · speaker invite"
+      },
+      {
+        "actor": "core-api · PartyRoom",
+        "text": "Lock room; ghi pending invite, chưa cấp quyền nói",
+        "edge": "SQL · UPDATE member invite"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lưu speakerInvitePending; role vẫn audience",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · PartyRoom",
+        "text": "Sau commit: trả member cho host và phát invite tới target khi state mới đổi",
+        "edge": "Redis · PUBLISH party.speaker.invite.received"
+      },
+      {
+        "actor": "Redis · Pub/Sub",
+        "text": "Chuyển speaker invite trên channel của target",
+        "edge": "Pub/Sub · PSUBSCRIBE"
+      },
+      {
+        "actor": "signaling-gateway",
+        "text": "Fanout lời mời tới socket room của target",
+        "edge": "WebSocket · party.speaker.invite.received"
+      },
+      {
+        "actor": "Frontend",
+        "branch": "Người nhận chấp nhận lời mời?",
+        "options": [
+          {
+            "label": "ACCEPT",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Target tự accept",
+                "edge": "REST · accept speaker invite"
+              },
+              {
+                "actor": "core-api · PartyRoom",
+                "text": "Lock room; check speaker limit; đổi role",
+                "edge": "SQL · COMMIT speaker role"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit role speaker",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · PartyRoom",
+                "text": "Cập nhật grant ngoài transaction",
+                "edge": "LiveKit API · updateParticipant"
+              },
+              {
+                "actor": "media-server · LiveKit",
+                "text": "Áp dụng canPublish=true theo grant server",
+                "edge": "HTTP result · core-api"
+              },
+              {
+                "actor": "core-api · PartyRoom",
+                "text": "Trả kết quả role; realtime sau commit",
+                "edge": "REST result"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Tiếp tục room với quyền speaker",
+                "edge": ""
+              }
+            ],
+            "continues": true
+          },
+          {
+            "label": "CHƯA ACCEPT",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Chờ hoặc decline; vẫn chỉ nghe",
+                "edge": "REST · decline khi user chọn"
+              },
+              {
+                "actor": "core-api · PartyRoom",
+                "text": "Không đổi role thành speaker",
+                "edge": "REST result"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Tiếp tục room với audience grant",
+                "edge": ""
+              }
+            ],
+            "continues": true
+          }
+        ]
+      },
+      {
+        "actor": "Frontend",
+        "branch": "Host rời chủ động hay mất kết nối?",
+        "options": [
+          {
+            "label": "REST LEAVE",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Host gửi leave",
+                "edge": "REST · leaveRoom"
+              },
+              {
+                "actor": "core-api · PartyRoom",
+                "text": "Lock room; đóng ngay host_left và chốt members",
+                "edge": "SQL · close room + COMMIT"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit closed; không transfer host",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · PartyRoom",
+                "text": "Sau commit: phát party.room.closed cho recipients đã authorize",
+                "edge": "Redis · PUBLISH"
+              },
+              {
+                "actor": "Redis · Pub/Sub",
+                "text": "Chuyển party.room.closed trên per-user channel",
+                "edge": "Pub/Sub · PSUBSCRIBE"
+              },
+              {
+                "actor": "signaling-gateway",
+                "text": "Relay envelope tới socket room từ JWT",
+                "edge": "WebSocket · party.room.closed"
+              },
+              {
+                "actor": "Frontend",
+                "text": "REST refetch; rời room",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          },
+          {
+            "label": "DISCONNECT",
+            "steps": [
+              {
+                "actor": "media-server · LiveKit",
+                "text": "Host connection bị rớt; báo participant_left",
+                "edge": "Signed webhook · core-api"
+              },
+              {
+                "actor": "core-api · PartyRoom",
+                "text": "Ghi host_disconnected_at; giữ membership để reconnect",
+                "edge": "SQL · UPDATE grace state"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Giữ room active trong grace",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · PartyRoom / Sweeper",
+                "text": "Reconnect trong grace: giữ room; chỉ quá grace mới close dưới lock",
+                "edge": "SQL · re-check + transition"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Clear disconnect khi reconnect hoặc commit closed khi timeout",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · PartyRoom",
+                "text": "Trả/refetch state và fanout event tương ứng",
+                "edge": "REST / Pub/Sub · trạng thái room"
+              }
+            ],
+            "continues": false
+          }
+        ]
+      }
+    ],
+    "important": "Comment/Gift là REST branches riêng: comment persist trước party.comment.created; Gift đi qua Economy và Notification trước gift.sent. Member thường cũng có disconnect grace.",
+    "caution": "SFU create fail compensate close(error). Grant update fail có conditional compensation theo transition mới nhất; closeRoom dọn LiveKit ngoài transaction.",
+    "sources": [
+      "docs/services/party-room-service.md",
+      "docs/services/gift-service.md"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "PartyRoom",
+        "uses": "Room, role và consent",
+        "entities": [
+          "PartyRoom",
+          "PartyRoomMember",
+          "PartyRoomComment"
+        ],
+        "actions": [
+          "Lock room; join/leave; invite → accept",
+          "Audience canPublish=false; comments append-only"
+        ]
+      },
+      {
+        "name": "User",
+        "uses": "Chọn media region của host",
+        "entities": [
+          "User"
+        ],
+        "actions": [
+          "Đọc User.region lúc tạo room"
+        ]
+      },
+      {
+        "name": "Gift",
+        "uses": "Nhánh REST tặng quà trong Party",
+        "entities": [
+          "Gift",
+          "GiftEvent"
+        ],
+        "actions": [
+          "Gift gọi PartyRoom kiểm tra active members",
+          "Gift gọi Economy + Notification qua DI"
+        ]
+      },
+      {
+        "name": "Economy",
+        "uses": "Diamond / PTS qua ledger writer",
+        "entities": [
+          "LedgerAccount",
+          "LedgerTransaction",
+          "LedgerEntry",
+          "Wallet",
+          "OutboxEvent"
+        ],
+        "actions": [
+          "Lock Wallet; DB-unique idempotencyKey",
+          "Double-entry append-only; snapshot + outbox"
+        ]
+      },
+      {
+        "name": "Notification",
+        "uses": "In-app trước push; gọi qua DI",
+        "entities": [
+          "Notification",
+          "WebPushSubscription"
+        ],
+        "actions": [
+          "createWithManager hoặc create sau persist",
+          "sendPush best-effort sau commit"
+        ]
+      }
+    ],
+    "entities": [
+      "PartyRoom",
+      "PartyRoomMember",
+      "PartyRoomComment"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "rate limit",
+          "label": "HTTP throttle nếu THROTTLE_STORAGE=redis",
+          "direction": "both"
+        },
+        {
+          "role": "Pub/Sub",
+          "label": "party.* + gift.sent sau commit",
+          "direction": "write"
+        }
+      ],
+      "signaling": true,
+      "mediaCluster": true
+    },
+    "externals": [
+      {
+        "id": "livekit",
+        "lines": [
+          "media-server / LiveKit",
+          "WebRTC audio + room control"
+        ],
+        "request": "Create/delete room, roomExists, removeParticipant, update media grant",
+        "callback": "/api/v1/party/webhooks/livekit: signed participant/room events",
+        "direct": "Client ↔ LiveKit: audio WebRTC",
+        "direction": "both",
+        "redis": "LiveKit self-host: Redis cluster/message bus khi cấu hình; LiveKit Cloud do provider quản lý",
+        "condition": "Token JWT ký local trong core-api; LIVEKIT_URL / LIVEKIT_API_URL + API key/secret; ICE/TURN theo deployment"
+      },
+      {
+        "id": "push",
+        "lines": [
+          "FCM / APNs / Web Push",
+          "Notification push adapters"
+        ],
+        "request": "Push sau Notification commit",
+        "callback": "",
+        "direct": "Provider → device / Service Worker",
+        "direction": "to-client",
+        "redis": "",
+        "condition": "Provider + credentials; native token cần caller; Web Push opt-in"
+      },
+      {
+        "id": "broker",
+        "lines": [
+          "Kafka",
+          "Economy events + dead letter"
+        ],
+        "request": "OutboxRelay → litmatch.economy.events / DLQ",
+        "callback": "",
+        "direct": "",
+        "direction": "to-provider",
+        "redis": "",
+        "condition": "ECONOMY_OUTBOX_RELAY_ENABLED; chưa có domain consumer đăng ký"
+      }
+    ],
+    "operations": [
+      "PartyRoomSweeperService: host/member disconnect grace",
+      "Sweeper đối chiếu SFU, đóng phòng stale và dọn room",
+      "REST host leave đóng ngay; reconnect trong grace giữ room",
+      "Nhánh Gift: Economy outbox/reconciliation theo cấu hình"
+    ],
+    "notes": "Party gọi User trực tiếp; nhánh Gift là endpoint context riêng và gọi ngược Party qua DI, không phải Party gọi Economy trực tiếp. PostgreSQL giữ membership/role; Gateway giữ presence/quota Redis, LiveKit có Redis riêng cho cluster; push chỉ thuộc nhánh Gift.",
+    "sources": [
+      "apps/core-api/src/modules/party-room/party-room.module.ts",
+      "apps/core-api/src/modules/gift/gift.module.ts",
+      "apps/core-api/src/modules/gift/gift.service.ts",
+      "apps/core-api/src/modules/party-room/jobs/party-room-sweeper.service.ts",
+      "apps/media-server/livekit.yaml",
+      "docs/services/realtime-gateway.md"
+    ],
+    "links": [
+      {
+        "from": "PartyRoom",
+        "to": "User",
+        "label": "Chọn LiveKit region của host",
+        "condition": ""
+      },
+      {
+        "from": "Gift",
+        "to": "PartyRoom",
+        "label": "Validate active members + fanout list",
+        "condition": "Nhánh Gift trong Party"
+      },
+      {
+        "from": "Gift",
+        "to": "Economy",
+        "label": "Atomic DIA / PTS + GiftEvent",
+        "condition": "Nhánh Gift"
+      },
+      {
+        "from": "Gift",
+        "to": "Notification",
+        "label": "gift_received trong transaction",
+        "condition": "Nhánh Gift"
+      }
+    ],
+    "entityRelations": [
+      {
+        "from": "PartyRoomMember",
+        "to": "PartyRoom",
+        "label": "roomId; active khi leftAt null"
+      },
+      {
+        "from": "GiftEvent",
+        "to": "LedgerTransaction",
+        "label": "transactionId unique"
+      }
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "redis",
+        "label": "Redis"
+      },
+      {
+        "id": "gateway",
+        "label": "signaling-gateway"
+      },
+      {
+        "id": "livekit",
+        "label": "media-server\nLiveKit"
+      },
+      {
+        "id": "push",
+        "label": "FCM / APNs / Web Push"
+      },
+      {
+        "id": "broker",
+        "label": "Kafka"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      },
+      {
+        "id": "core-redis",
+        "from": "core",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "Pub/Sub"
+      },
+      {
+        "id": "core-livekit",
+        "from": "core",
+        "to": "livekit",
+        "bidirectional": true,
+        "protocol": "API · webhook"
+      },
+      {
+        "id": "core-push",
+        "from": "core",
+        "to": "push",
+        "bidirectional": false,
+        "protocol": "push"
+      },
+      {
+        "id": "core-broker",
+        "from": "core",
+        "to": "broker",
+        "bidirectional": false,
+        "protocol": "stream (tuỳ cấu hình)"
+      },
+      {
+        "id": "redis-gateway",
+        "from": "redis",
+        "to": "gateway",
+        "bidirectional": false,
+        "protocol": "realtime Pub/Sub"
+      },
+      {
+        "id": "gateway-redis",
+        "from": "gateway",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "presence · quota"
+      },
+      {
+        "id": "livekit-redis",
+        "from": "livekit",
+        "to": "redis",
+        "bidirectional": true,
+        "protocol": "Pub/Sub"
+      },
+      {
+        "id": "client-livekit",
+        "from": "client",
+        "to": "livekit",
+        "bidirectional": true,
+        "protocol": "Âm thanh trực tiếp / WebRTC"
+      },
+      {
+        "id": "client-push",
+        "from": "push",
+        "to": "client",
+        "bidirectional": false,
+        "protocol": "push"
+      },
+      {
+        "id": "gateway-client",
+        "from": "gateway",
+        "to": "client",
+        "bidirectional": true,
+        "protocol": "Socket: realtime"
+      }
+    ]
+  },
+  "featureSequence": [
+    "1. Host tạo room\nRoom + host membership cùng transaction",
+    "2. Tạo LiveKit room; mint token\nSFU lỗi: compensate close(error)",
+    "3. Member join dưới lock room\nAudience chỉ nghe; kiểm tra capacity",
+    "4. Audience chấp nhận lời mời?",
+    "4.1. ACCEPT: Target tự accept\nKiểm tra speaker_limit\nCommit role rồi cập nhật media grant",
+    "4.2. CHƯA ACCEPT: Giữ audience, canPublish=false\nDecline / chờ phản hồi\nTiếp tục nghe",
+    "5. Comment / Gift qua core-api\nLưu trước; fanout sau commit",
+    "6. Host rời theo cách nào?",
+    "6.1. REST LEAVE [continues=false]: Đóng phòng ngay: host_left\nChốt membership + dọn SFU",
+    "6.2. DISCONNECT: Ghi host_disconnected_at\nGiữ membership; chờ grace",
+    "7. Reconnect trong grace: tiếp tục room\nChỉ quá grace: sweeper kiểm tra dưới lock\nRồi đóng room + phát room.closed"
+  ],
+  "layerSequence": [
+    "1. Frontend: Host tạo Party Room [REST · POST Party room]",
+    "2. core-api · PartyRoom: Validate và tạo room + host membership atomically [SQL · INSERT room/member + COMMIT]",
+    "3. PostgreSQL: Commit PartyRoom active, speaker limit snapshot và host membership [SQL result · trả core-api]",
+    "4. core-api · PartyRoom: Tạo LiveKit room sau DB commit [LiveKit API · createRoom]",
+    "5. media-server · LiveKit: Tạo room với participant cap; trả API result [HTTP result · core-api]",
+    "6. core-api · PartyRoom: Ký token theo role; audience canPublish=false [REST result · token + room]",
+    "7. Frontend: Member join LiveKit; host gửi speaker invite cho audience [WebRTC audio; REST · speaker invite]",
+    "8. core-api · PartyRoom: Lock room; ghi pending invite, chưa cấp quyền nói [SQL · UPDATE member invite]",
+    "9. PostgreSQL: Lưu speakerInvitePending; role vẫn audience [SQL result · trả core-api]",
+    "10. core-api · PartyRoom: Sau commit: trả member cho host và phát invite tới target khi state mới đổi [Redis · PUBLISH party.speaker.invite.received]",
+    "11. Redis · Pub/Sub: Chuyển speaker invite trên channel của target [Pub/Sub · PSUBSCRIBE]",
+    "12. signaling-gateway: Fanout lời mời tới socket room của target [WebSocket · party.speaker.invite.received]",
+    "13. Frontend: Người nhận chấp nhận lời mời?",
+    "13.1. ACCEPT",
+    "13.1.1. Frontend: Target tự accept [REST · accept speaker invite]",
+    "13.1.2. core-api · PartyRoom: Lock room; check speaker limit; đổi role [SQL · COMMIT speaker role]",
+    "13.1.3. PostgreSQL: Commit role speaker [SQL result · trả core-api]",
+    "13.1.4. core-api · PartyRoom: Cập nhật grant ngoài transaction [LiveKit API · updateParticipant]",
+    "13.1.5. media-server · LiveKit: Áp dụng canPublish=true theo grant server [HTTP result · core-api]",
+    "13.1.6. core-api · PartyRoom: Trả kết quả role; realtime sau commit [REST result]",
+    "13.1.7. Frontend: Tiếp tục room với quyền speaker",
+    "13.2. CHƯA ACCEPT",
+    "13.2.1. Frontend: Chờ hoặc decline; vẫn chỉ nghe [REST · decline khi user chọn]",
+    "13.2.2. core-api · PartyRoom: Không đổi role thành speaker [REST result]",
+    "13.2.3. Frontend: Tiếp tục room với audience grant",
+    "14. Frontend: Host rời chủ động hay mất kết nối?",
+    "14.1. REST LEAVE [continues=false]",
+    "14.1.1. Frontend: Host gửi leave [REST · leaveRoom]",
+    "14.1.2. core-api · PartyRoom: Lock room; đóng ngay host_left và chốt members [SQL · close room + COMMIT]",
+    "14.1.3. PostgreSQL: Commit closed; không transfer host [SQL result · trả core-api]",
+    "14.1.4. core-api · PartyRoom: Sau commit: phát party.room.closed cho recipients đã authorize [Redis · PUBLISH]",
+    "14.1.5. Redis · Pub/Sub: Chuyển party.room.closed trên per-user channel [Pub/Sub · PSUBSCRIBE]",
+    "14.1.6. signaling-gateway: Relay envelope tới socket room từ JWT [WebSocket · party.room.closed]",
+    "14.1.7. Frontend: REST refetch; rời room",
+    "14.2. DISCONNECT [continues=false]",
+    "14.2.1. media-server · LiveKit: Host connection bị rớt; báo participant_left [Signed webhook · core-api]",
+    "14.2.2. core-api · PartyRoom: Ghi host_disconnected_at; giữ membership để reconnect [SQL · UPDATE grace state]",
+    "14.2.3. PostgreSQL: Giữ room active trong grace [SQL result · trả core-api]",
+    "14.2.4. core-api · PartyRoom / Sweeper: Reconnect trong grace: giữ room; chỉ quá grace mới close dưới lock [SQL · re-check + transition]",
+    "14.2.5. PostgreSQL: Clear disconnect khi reconnect hoặc commit closed khi timeout [SQL result · trả core-api]",
+    "14.2.6. core-api · PartyRoom: Trả/refetch state và fanout event tương ứng [REST / Pub/Sub · trạng thái room]"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

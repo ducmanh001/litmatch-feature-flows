@@ -1,0 +1,1175 @@
+{
+  "id": "03-voice-match/03-post-webhook-livekit",
+  "featureId": "03-voice-match",
+  "feature": "Voice Match",
+  "summary": "Ghép hai người để nói chuyện bằng giọng nói: vào hàng đợi, ghép cặp, rồi vào cuộc gọi LiveKit.",
+  "name": "Webhook LiveKit và đồng hồ cuộc gọi",
+  "title": "LiveKit báo ai vào hoặc rời phòng, ticker nền canh giờ (reconnect, tối đa 420 giây) rồi kết thúc call.",
+  "method": "POST",
+  "route": "/api/v1/calling/webhooks/livekit",
+  "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.ts",
+  "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/03-voice-match/03-post-webhook-livekit.json",
+  "diagramUrl": "https://ducmanh001.github.io/litmatch-feature-flows/#03-voice-match",
+  "catalog": "annotated-voice-match.mjs",
+  "flow": "[CONTROLLER] → [EXTERNAL] → [SERVICE] → [POSTGRES] → [WORKER] → [SERVICE] → [EXTERNAL] → [REDIS]",
+  "roles": [
+    [
+      "CONTROLLER",
+      "Nhận webhook công khai của LiveKit, lấy nguyên văn body và header Authorization, kiểm chữ ký rồi mới giao event cho service; sau verify luôn trả 200."
+    ],
+    [
+      "EXTERNAL",
+      "LiveKit SDK kiểm chữ ký JWT của webhook; khi call kết thúc, core-api gọi ngược LiveKit để xóa phòng."
+    ],
+    [
+      "SERVICE",
+      "Biến event vào hoặc rời phòng thành trạng thái CallSession (pending, active, đang reconnect, ended); mọi nhánh kết thúc dùng chung một hàm end idempotent."
+    ],
+    [
+      "POSTGRES",
+      "CallSession là nguồn sự thật của thời gian: mốc vào phòng, mốc bắt đầu, cửa sổ reconnect; khóa dòng FOR UPDATE tuần tự hóa webhook, ticker và nút end."
+    ],
+    [
+      "WORKER",
+      "CallTickerService chạy nền theo chu kỳ ngắn (mặc định 1 giây): đóng call pending quá hạn, call rớt mạng quá cửa sổ reconnect, và call Voice Match chạm 420 giây."
+    ],
+    [
+      "REDIS",
+      "Pub/sub báo call.ended cho 2 người để client đóng màn hình gọi."
+    ]
+  ],
+  "tables": [
+    [
+      "call_sessions",
+      "1 dòng cho mỗi cuộc gọi: trạng thái, mốc vào phòng và rớt của từng bên, mốc bắt đầu reconnect, lý do và thời lượng khi kết thúc."
+    ],
+    [
+      "match_sessions",
+      "chỉ được Matching sửa: chuyển sang ended khi call kết thúc để 2 người không bị session cũ giữ lại."
+    ]
+  ],
+  "redis": [
+    [
+      "realtime:user:{userId}",
+      "kênh pub/sub theo người nhận; core-api phát call.ended, signaling-gateway chuyển xuống socket."
+    ]
+  ],
+  "related": [
+    [
+      "Matching",
+      "endVoiceSessionForCall: chốt MatchSession sang ended khi call kết thúc."
+    ],
+    [
+      "LiveKit",
+      "SFU gửi webhook participant_joined, participant_left, room_finished; core-api xóa phòng sau khi kết thúc."
+    ],
+    [
+      "signaling-gateway",
+      "subscribe kênh realtime của user, đẩy call.ended xuống client."
+    ],
+    [
+      "Calling (GET /calling/calls/:id)",
+      "đường đối soát dự phòng khi webhook bị mất: hỏi LiveKit ai đang trong phòng (chưa chép)."
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "text": "Nhận webhook công khai của LiveKit (@Public, lấy nguyên văn body)",
+      "line": 30,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L30",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L30"
+    },
+    {
+      "number": 2,
+      "text": "Kiểm chữ ký webhook (sai thì 401) rồi mới đọc event",
+      "line": 51,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L51",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L51"
+    },
+    {
+      "number": 3,
+      "text": "Chỉ nhận phòng có prefix call-, tìm CallSession theo roomName",
+      "line": 73,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L73",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L73"
+    },
+    {
+      "number": 4,
+      "text": "Người vào phòng: khóa dòng, ghi mốc; đủ 2 người thì call sang active",
+      "line": 89,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L89",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L89"
+    },
+    {
+      "number": 5,
+      "text": "Người rớt: ghi mốc rớt, mở cửa sổ reconnect, chưa end call",
+      "line": 152,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L152",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L152"
+    },
+    {
+      "number": 6,
+      "text": "Sau khi chữ ký hợp lệ luôn trả 200 { ok: true }",
+      "line": 178,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L178",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L178"
+    },
+    {
+      "number": 7,
+      "text": "Ticker nền: đăng ký job theo chu kỳ, mỗi tick chỉ 1 pod chạy",
+      "line": 206,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L206",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L206"
+    },
+    {
+      "number": 8,
+      "text": "Đóng call pending quá hạn (chưa ai vào đủ)",
+      "line": 224,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L224",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L224"
+    },
+    {
+      "number": 9,
+      "text": "End idempotent: khóa dòng, kiểm lại status, chốt thời lượng",
+      "line": 248,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L248",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L248"
+    },
+    {
+      "number": 10,
+      "text": "Dọn sau end: chốt MatchSession, xóa phòng, phát call.ended",
+      "line": 288,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L288",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L288"
+    },
+    {
+      "number": 11,
+      "text": "Đóng call rớt mạng quá cửa sổ reconnect",
+      "line": 329,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L329",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L329"
+    },
+    {
+      "number": 12,
+      "text": "Đóng call Voice Match chạm 420 giây (tính trong SQL)",
+      "line": 353,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L353",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L353"
+    }
+  ],
+  "declaredSteps": [
+    {
+      "at": "@Public()",
+      "text": "Nhận webhook công khai của LiveKit (@Public, lấy nguyên văn body)"
+    },
+    {
+      "at": "event = await this.livekit.receiveWebhook(rawBody, authHeader);",
+      "text": "Kiểm chữ ký webhook (sai thì 401) rồi mới đọc event"
+    },
+    {
+      "at": "if (!event.roomName?.startsWith('call-')) return;",
+      "text": "Chỉ nhận phòng có prefix call-, tìm CallSession theo roomName"
+    },
+    {
+      "at": "await this.dataSource.transaction(async (manager) => {",
+      "in": "CallingService.markJoined",
+      "text": "Người vào phòng: khóa dòng, ghi mốc; đủ 2 người thì call sang active"
+    },
+    {
+      "at": "await this.dataSource.transaction(async (manager) => {",
+      "in": "CallingService.markDisconnected",
+      "text": "Người rớt: ghi mốc rớt, mở cửa sổ reconnect, chưa end call"
+    },
+    {
+      "at": "return { ok: true };",
+      "text": "Sau khi chữ ký hợp lệ luôn trả 200 { ok: true }"
+    },
+    {
+      "at": "this.job.start(this.scheduler, {",
+      "text": "Ticker nền: đăng ký job theo chu kỳ, mỗi tick chỉ 1 pod chạy"
+    },
+    {
+      "at": "await this.sweepPending();",
+      "text": "Đóng call pending quá hạn (chưa ai vào đủ)"
+    },
+    {
+      "at": "const result = await this.dataSource.transaction(async (manager) => {",
+      "in": "CallingService.endById",
+      "text": "End idempotent: khóa dòng, kiểm lại status, chốt thời lượng"
+    },
+    {
+      "at": "await this.cleanupEndedCall(result.call);",
+      "text": "Dọn sau end: chốt MatchSession, xóa phòng, phát call.ended"
+    },
+    {
+      "at": "await this.sweepReconnectTimeouts();",
+      "text": "Đóng call rớt mạng quá cửa sổ reconnect"
+    },
+    {
+      "at": "await this.processActiveCalls();",
+      "text": "Đóng call Voice Match chạm 420 giây (tính trong SQL)"
+    }
+  ],
+  "whyComments": [
+    {
+      "at": "const rawBody = req.rawBody?.toString('utf8');",
+      "text": [
+        "Chữ ký được kiểm trên NGUYÊN VĂN body (không phải JSON đã parse), TRƯỚC khi đọc bất cứ nội dung nào. Sai chữ ký thì 401."
+      ],
+      "src": "doc gốc livekit-webhook.controller.ts L20-25",
+      "file": "apps/core-api/src/modules/calling/webhooks/livekit-webhook.controller.ts"
+    },
+    {
+      "at": "const event = await this.receiver.receive(rawBody, authHeader);",
+      "text": [
+        "WebhookReceiver của LiveKit SDK kiểm JWT trong header Authorization bằng API key và secret; sai thì ném lỗi, controller đổi thành 401."
+      ],
+      "src": "docs/services/calling-service.md mục 3 + livekit-webhook.controller.ts L50-58 (try/catch đổi lỗi thành 401)",
+      "file": "apps/core-api/src/common/livekit/livekit-sdk.client.ts"
+    },
+    {
+      "at": "if (!event.roomName?.startsWith('call-')) return;",
+      "text": [
+        "Chỉ nhận phòng có prefix call-: đó là prefix cố định để lọc phòng không thuộc calling. Phòng lạ hoặc không có dòng CallSession thì bỏ qua."
+      ],
+      "src": "call-session.entity.ts L98 (doc callRoomName) + docs/services/calling-service.md mục 3",
+      "file": "apps/core-api/src/modules/calling/calling.service.ts"
+    },
+    {
+      "at": "case 'participant_left':",
+      "text": [
+        "participant_left và room_finished không kết thúc call ngay mà chỉ mở cửa sổ reconnect: mất mạng hay connection abort có thể quay lại. Quá hạn mới end."
+      ],
+      "src": "comment gốc calling.service.ts L508-509",
+      "file": "apps/core-api/src/modules/calling/calling.service.ts"
+    },
+    {
+      "at": "lock: { mode: 'pessimistic_write' },",
+      "text": [
+        "[POSTGRES] Khóa dòng CallSession FOR UPDATE rồi mới đọc và ghi: webhook của 2 bên, ticker và nút end cùng chạm một dòng. Có khóa rồi mới kiểm lại status."
+      ],
+      "src": "docs/services/calling-service.md mục 4 (race end-vs-tick dùng lock + re-check status) + suy ra từ code: markJoined, markDisconnected, markRoomDisconnected đều lock pessimistic_write",
+      "file": "apps/core-api/src/modules/calling/calling.service.ts"
+    },
+    {
+      "at": "call.startedAt = call.startedAt ?? now;",
+      "text": [
+        "Chỉ khi CẢ 2 đã vào phòng, call mới sang active và đặt startedAt. Đây là mốc tính giới hạn 7 phút của Voice Match; set-if-null nên webhook gửi lại không ghi đè."
+      ],
+      "src": "comment gốc calling.service.ts L620 + doc gốc calling.service.ts L485-489 (joined = set-if-null) + call-session.entity.ts L8-9",
+      "file": "apps/core-api/src/modules/calling/calling.service.ts"
+    },
+    {
+      "at": "if (identity === call.userAId) call.disconnectedAAt = null;",
+      "text": [
+        "Bên nào quay lại thì gỡ dấu rớt của bên đó. Chỉ khi cả 2 đã quay lại mới chạy tiếp đồng hồ: startedAt dời tiến đúng bằng khoảng gián đoạn nên thời gian rớt mạng không bị tính vào 7 phút."
+      ],
+      "src": "comment gốc calling.service.ts L627-628 + L455-457 + call-session.entity.ts L77-79",
+      "file": "apps/core-api/src/modules/calling/calling.service.ts"
+    },
+    {
+      "at": "call.reconnectStartedAt ??= now;",
+      "text": [
+        "Chỉ ghi mốc rớt đầu tiên (??=): event rớt lặp lại không kéo dài cửa sổ reconnect. Từ mốc này đồng hồ giới hạn tạm dừng."
+      ],
+      "src": "suy ra từ code: toán tử ??= ở markDisconnected + call-session.entity.ts L73 (mốc bắt đầu cửa sổ reconnect, timer tạm dừng)",
+      "file": "apps/core-api/src/modules/calling/calling.service.ts"
+    },
+    {
+      "at": "clusterSingleton: { dataSource: this.dataSource },",
+      "text": [
+        "[POSTGRES] Mỗi tick chỉ 1 pod làm nhờ advisory lock của Postgres. Nếu 2 pod vẫn chạy trùng thì vẫn an toàn vì endById khóa dòng và chỉ end khi chưa ended."
+      ],
+      "src": "common/scheduling/managed-interval.ts L10-14 và L22-23 + doc gốc call-ticker.service.ts L32",
+      "file": "apps/core-api/src/modules/calling/jobs/call-ticker.service.ts"
+    },
+    {
+      "at": "take: TICK_BATCH_SIZE,",
+      "text": [
+        "Mỗi tick chỉ lấy id theo lô; phần tồn đọng xử lý dần ở các tick sau. Truy vấn đi theo index (status, created_at)."
+      ],
+      "src": "comment gốc call-ticker.service.ts L23 + docs/services/calling-service.md mục 4",
+      "file": "apps/core-api/src/modules/calling/jobs/call-ticker.service.ts"
+    },
+    {
+      "at": "reconnectStartedAt: LessThan(cutoff),",
+      "text": [
+        "Rớt mạng ngắn không kết thúc call ngay: có CALLING_RECONNECT_WINDOW_SECONDS để quay lại. Quá hạn mà chưa quay lại mới end completed."
+      ],
+      "src": "comment migration 1756500000000-calling-reconnect-window.ts + docs/services/calling-service.md mục 4",
+      "file": "apps/core-api/src/modules/calling/jobs/call-ticker.service.ts"
+    },
+    {
+      "at": ".andWhere('call.reconnect_started_at IS NULL')",
+      "text": [
+        "Call đang trong cửa sổ reconnect bị loại khỏi đợt kiểm này: đồng hồ 420 giây tạm dừng cho tới khi cả 2 quay lại hoặc quá hạn."
+      ],
+      "src": "docs/services/calling-service.md mục 4 (active có participant mất kết nối: timer tạm dừng)",
+      "file": "apps/core-api/src/modules/calling/jobs/call-ticker.service.ts"
+    },
+    {
+      "at": ".andWhere(\"call.call_kind = 'voice_match'\")",
+      "text": [
+        "Chỉ Voice Match bị giới hạn: call bạn bè gọi lâu dài, không đi qua đồng hồ này. Hạn 420 giây tính ngay trong SQL theo đồng hồ của Postgres, từ startedAt đã bù thời gian reconnect; không tin timer của client."
+      ],
+      "src": "comment gốc call-ticker.service.ts L129-131 + docs/services/calling-service.md mục 4 + doc gốc call-ticker.service.ts L26-27 (KHÔNG tin timer client)",
+      "file": "apps/core-api/src/modules/calling/jobs/call-ticker.service.ts"
+    },
+    {
+      "at": "lock: { mode: 'pessimistic_write' },",
+      "text": [
+        "[POSTGRES] Khóa dòng rồi kiểm lại status: chốt chặn race end-vs-tick (nút end, webhook, ticker cùng gọi). Đã ended thì trả lại như cũ, không end lần 2."
+      ],
+      "src": "doc gốc calling.service.ts L437-441",
+      "file": "apps/core-api/src/modules/calling/calling.service.ts"
+    },
+    {
+      "at": "if (call.startedAt && call.reconnectStartedAt) {",
+      "text": [
+        "Thời gian nằm trong cửa sổ reconnect không tính vào thời lượng: dời startedAt tiến lên trước khi chốt duration."
+      ],
+      "src": "comment gốc calling.service.ts L455-457",
+      "file": "apps/core-api/src/modules/calling/calling.service.ts"
+    },
+    {
+      "at": "if (result.justEnded && result.call) {",
+      "text": [
+        "Chỉ lời gọi thực hiện transition mới dọn phòng và phát realtime, nên retry hay ticker chạy trùng không bắn event đôi."
+      ],
+      "src": "doc gốc calling.service.ts L437-441 + comment L478",
+      "file": "apps/core-api/src/modules/calling/calling.service.ts"
+    },
+    {
+      "at": "if (call.callKind !== CallKind.Friend && call.matchSessionId)",
+      "text": [
+        "Chốt MatchSession ở Matching TRƯỚC khi phát event, để user nhận call.ended rồi quay lại tìm ghép không bị session cũ giữ lại. Cả webhook lẫn ticker đều đi qua đây, không chỉ nút UI."
+      ],
+      "src": "comment gốc calling.service.ts L685-686",
+      "file": "apps/core-api/src/modules/calling/calling.service.ts"
+    },
+    {
+      "at": "await this.livekit.deleteRoom(call.roomName).catch((err) => {",
+      "text": [
+        "[EXTERNAL] Xóa phòng LiveKit best-effort để không rò tài nguyên. Phòng có thể đã tự đóng (room_finished) nên lỗi ở đây không phải lỗi nghiệp vụ."
+      ],
+      "src": "comment gốc calling.service.ts L694 + docs/services/calling-service.md mục 1",
+      "file": "apps/core-api/src/modules/calling/calling.service.ts"
+    },
+    {
+      "at": "await Promise.all(",
+      "text": [
+        "[REDIS] Phát call.ended cho cả 2 người qua kênh realtime:user:{id}. Best-effort: client vẫn poll được GET /calling/calls/:id."
+      ],
+      "src": "docs/services/calling-service.md mục 5",
+      "file": "apps/core-api/src/modules/calling/calling.service.ts"
+    }
+  ],
+  "sources": [
+    "apps/core-api/src/common/livekit/livekit-sdk.client.ts",
+    "apps/core-api/src/modules/calling/calling.service.ts",
+    "apps/core-api/src/modules/calling/entities/call-session.entity.ts",
+    "apps/core-api/src/modules/calling/jobs/call-ticker.service.ts",
+    "apps/core-api/src/modules/calling/webhooks/livekit-webhook.controller.ts"
+  ],
+  "sourceContext": {
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/calling/webhooks/livekit-webhook.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Public()",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const rawBody = req.rawBody?.toString('utf8');",
+            "text": [
+              "Chữ ký được kiểm trên NGUYÊN VĂN body (không phải JSON đã parse), TRƯỚC khi đọc bất cứ nội dung nào. Sai chữ ký thì 401."
+            ],
+            "src": "doc gốc livekit-webhook.controller.ts L20-25"
+          }
+        ]
+      },
+      {
+        "tag": "EXTERNAL",
+        "file": "apps/core-api/src/common/livekit/livekit-sdk.client.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async receiveWebhook(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const event = await this.receiver.receive(rawBody, authHeader);",
+            "text": [
+              "WebhookReceiver của LiveKit SDK kiểm JWT trong header Authorization bằng API key và secret; sai thì ném lỗi, controller đổi thành 401."
+            ],
+            "src": "docs/services/calling-service.md mục 3 + livekit-webhook.controller.ts L50-58 (try/catch đổi lỗi thành 401)"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/calling/calling.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async handleWebhookEvent(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "if (!event.roomName?.startsWith('call-')) return;",
+            "text": [
+              "Chỉ nhận phòng có prefix call-: đó là prefix cố định để lọc phòng không thuộc calling. Phòng lạ hoặc không có dòng CallSession thì bỏ qua."
+            ],
+            "src": "call-session.entity.ts L98 (doc callRoomName) + docs/services/calling-service.md mục 3"
+          },
+          {
+            "at": "case 'participant_left':",
+            "text": [
+              "participant_left và room_finished không kết thúc call ngay mà chỉ mở cửa sổ reconnect: mất mạng hay connection abort có thể quay lại. Quá hạn mới end."
+            ],
+            "src": "comment gốc calling.service.ts L508-509"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/calling/calling.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async markJoined(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async markDisconnected(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async markRoomDisconnected(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "lock: { mode: 'pessimistic_write' },",
+            "text": [
+              "[POSTGRES] Khóa dòng CallSession FOR UPDATE rồi mới đọc và ghi: webhook của 2 bên, ticker và nút end cùng chạm một dòng. Có khóa rồi mới kiểm lại status."
+            ],
+            "src": "docs/services/calling-service.md mục 4 (race end-vs-tick dùng lock + re-check status) + suy ra từ code: markJoined, markDisconnected, markRoomDisconnected đều lock pessimistic_write"
+          },
+          {
+            "at": "call.startedAt = call.startedAt ?? now;",
+            "text": [
+              "Chỉ khi CẢ 2 đã vào phòng, call mới sang active và đặt startedAt. Đây là mốc tính giới hạn 7 phút của Voice Match; set-if-null nên webhook gửi lại không ghi đè."
+            ],
+            "src": "comment gốc calling.service.ts L620 + doc gốc calling.service.ts L485-489 (joined = set-if-null) + call-session.entity.ts L8-9"
+          },
+          {
+            "at": "if (identity === call.userAId) call.disconnectedAAt = null;",
+            "text": [
+              "Bên nào quay lại thì gỡ dấu rớt của bên đó. Chỉ khi cả 2 đã quay lại mới chạy tiếp đồng hồ: startedAt dời tiến đúng bằng khoảng gián đoạn nên thời gian rớt mạng không bị tính vào 7 phút."
+            ],
+            "src": "comment gốc calling.service.ts L627-628 + L455-457 + call-session.entity.ts L77-79"
+          },
+          {
+            "at": "call.reconnectStartedAt ??= now;",
+            "text": [
+              "Chỉ ghi mốc rớt đầu tiên (??=): event rớt lặp lại không kéo dài cửa sổ reconnect. Từ mốc này đồng hồ giới hạn tạm dừng."
+            ],
+            "src": "suy ra từ code: toán tử ??= ở markDisconnected + call-session.entity.ts L73 (mốc bắt đầu cửa sổ reconnect, timer tạm dừng)"
+          }
+        ]
+      },
+      {
+        "tag": "WORKER",
+        "file": "apps/core-api/src/modules/calling/jobs/call-ticker.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "onApplicationBootstrap(",
+            "to": "^  }$"
+          },
+          {
+            "at": "async runOnce(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async sweepPending(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async sweepReconnectTimeouts(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async processActiveCalls(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "clusterSingleton: { dataSource: this.dataSource },",
+            "text": [
+              "[POSTGRES] Mỗi tick chỉ 1 pod làm nhờ advisory lock của Postgres. Nếu 2 pod vẫn chạy trùng thì vẫn an toàn vì endById khóa dòng và chỉ end khi chưa ended."
+            ],
+            "src": "common/scheduling/managed-interval.ts L10-14 và L22-23 + doc gốc call-ticker.service.ts L32"
+          },
+          {
+            "at": "take: TICK_BATCH_SIZE,",
+            "text": [
+              "Mỗi tick chỉ lấy id theo lô; phần tồn đọng xử lý dần ở các tick sau. Truy vấn đi theo index (status, created_at)."
+            ],
+            "src": "comment gốc call-ticker.service.ts L23 + docs/services/calling-service.md mục 4"
+          },
+          {
+            "at": "reconnectStartedAt: LessThan(cutoff),",
+            "text": [
+              "Rớt mạng ngắn không kết thúc call ngay: có CALLING_RECONNECT_WINDOW_SECONDS để quay lại. Quá hạn mà chưa quay lại mới end completed."
+            ],
+            "src": "comment migration 1756500000000-calling-reconnect-window.ts + docs/services/calling-service.md mục 4"
+          },
+          {
+            "at": ".andWhere('call.reconnect_started_at IS NULL')",
+            "text": [
+              "Call đang trong cửa sổ reconnect bị loại khỏi đợt kiểm này: đồng hồ 420 giây tạm dừng cho tới khi cả 2 quay lại hoặc quá hạn."
+            ],
+            "src": "docs/services/calling-service.md mục 4 (active có participant mất kết nối: timer tạm dừng)"
+          },
+          {
+            "at": ".andWhere(\"call.call_kind = 'voice_match'\")",
+            "text": [
+              "Chỉ Voice Match bị giới hạn: call bạn bè gọi lâu dài, không đi qua đồng hồ này. Hạn 420 giây tính ngay trong SQL theo đồng hồ của Postgres, từ startedAt đã bù thời gian reconnect; không tin timer của client."
+            ],
+            "src": "comment gốc call-ticker.service.ts L129-131 + docs/services/calling-service.md mục 4 + doc gốc call-ticker.service.ts L26-27 (KHÔNG tin timer client)"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/modules/calling/entities/call-session.entity.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Entity({ name: 'call_sessions' })",
+            "lines": 9
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/calling/calling.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async endById(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async cleanupEndedCall(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "lock: { mode: 'pessimistic_write' },",
+            "text": [
+              "[POSTGRES] Khóa dòng rồi kiểm lại status: chốt chặn race end-vs-tick (nút end, webhook, ticker cùng gọi). Đã ended thì trả lại như cũ, không end lần 2."
+            ],
+            "src": "doc gốc calling.service.ts L437-441"
+          },
+          {
+            "at": "if (call.startedAt && call.reconnectStartedAt) {",
+            "text": [
+              "Thời gian nằm trong cửa sổ reconnect không tính vào thời lượng: dời startedAt tiến lên trước khi chốt duration."
+            ],
+            "src": "comment gốc calling.service.ts L455-457"
+          },
+          {
+            "at": "if (result.justEnded && result.call) {",
+            "text": [
+              "Chỉ lời gọi thực hiện transition mới dọn phòng và phát realtime, nên retry hay ticker chạy trùng không bắn event đôi."
+            ],
+            "src": "doc gốc calling.service.ts L437-441 + comment L478"
+          },
+          {
+            "at": "if (call.callKind !== CallKind.Friend && call.matchSessionId)",
+            "text": [
+              "Chốt MatchSession ở Matching TRƯỚC khi phát event, để user nhận call.ended rồi quay lại tìm ghép không bị session cũ giữ lại. Cả webhook lẫn ticker đều đi qua đây, không chỉ nút UI."
+            ],
+            "src": "comment gốc calling.service.ts L685-686"
+          },
+          {
+            "at": "await this.livekit.deleteRoom(call.roomName).catch((err) => {",
+            "text": [
+              "[EXTERNAL] Xóa phòng LiveKit best-effort để không rò tài nguyên. Phòng có thể đã tự đóng (room_finished) nên lỗi ở đây không phải lỗi nghiệp vụ."
+            ],
+            "src": "comment gốc calling.service.ts L694 + docs/services/calling-service.md mục 1"
+          },
+          {
+            "at": "await Promise.all(",
+            "text": [
+              "[REDIS] Phát call.ended cho cả 2 người qua kênh realtime:user:{id}. Best-effort: client vẫn poll được GET /calling/calls/:id."
+            ],
+            "src": "docs/services/calling-service.md mục 5"
+          }
+        ]
+      }
+    ],
+    "ranges": [
+      {
+        "file": "apps/core-api/src/modules/calling/webhooks/livekit-webhook.controller.ts",
+        "range": {
+          "at": "@Public()",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/common/livekit/livekit-sdk.client.ts",
+        "range": {
+          "at": "async receiveWebhook(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/calling/calling.service.ts",
+        "range": {
+          "at": "async handleWebhookEvent(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/calling/calling.service.ts",
+        "range": {
+          "at": "private async markJoined(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/calling/calling.service.ts",
+        "range": {
+          "at": "private async markDisconnected(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/calling/calling.service.ts",
+        "range": {
+          "at": "private async markRoomDisconnected(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/calling/jobs/call-ticker.service.ts",
+        "range": {
+          "at": "onApplicationBootstrap(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/calling/jobs/call-ticker.service.ts",
+        "range": {
+          "at": "async runOnce(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/calling/jobs/call-ticker.service.ts",
+        "range": {
+          "at": "private async sweepPending(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/calling/jobs/call-ticker.service.ts",
+        "range": {
+          "at": "private async sweepReconnectTimeouts(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/calling/jobs/call-ticker.service.ts",
+        "range": {
+          "at": "private async processActiveCalls(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/calling/entities/call-session.entity.ts",
+        "range": {
+          "at": "@Entity({ name: 'call_sessions' })",
+          "lines": 9
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/calling/calling.service.ts",
+        "range": {
+          "at": "async endById(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/calling/calling.service.ts",
+        "range": {
+          "at": "private async cleanupEndedCall(",
+          "to": "^  }$"
+        }
+      }
+    ],
+    "helpers": [],
+    "skip": [
+      "markRoomDisconnected"
+    ],
+    "attach": {},
+    "nested": true
+  },
+  "omittedContext": {
+    "note": "Curated source selection; unlisted call bodies, shared request infrastructure, DTOs and other context may be omitted. skip names stay unexpanded; helpers may be substituted; attach controls placement. Flattened scopes are not executable code.",
+    "skip": [
+      "markRoomDisconnected"
+    ],
+    "attach": {},
+    "helpers": []
+  },
+  "featureMetadata": {
+    "id": "03-voice-match",
+    "short": "Voice Match",
+    "title": "Voice Match",
+    "summary": "Ghép hai người để nói chuyện bằng giọng nói: vào hàng đợi, ghép cặp, rồi vào cuộc gọi LiveKit.",
+    "diagramAnchor": "03-voice-match"
+  },
+  "endpointCatalog": {
+    "n": "03",
+    "slug": "post-webhook-livekit",
+    "method": "POST",
+    "short": "/calling/webhooks/livekit",
+    "route": "/api/v1/calling/webhooks/livekit",
+    "name": "Webhook LiveKit và đồng hồ cuộc gọi",
+    "title": "LiveKit báo ai vào hoặc rời phòng, ticker nền canh giờ (reconnect, tối đa 420 giây) rồi kết thúc call.",
+    "flow": "[CONTROLLER] → [EXTERNAL] → [SERVICE] → [POSTGRES] → [WORKER] → [SERVICE] → [EXTERNAL] → [REDIS]",
+    "roles": [
+      [
+        "CONTROLLER",
+        "Nhận webhook công khai của LiveKit, lấy nguyên văn body và header Authorization, kiểm chữ ký rồi mới giao event cho service; sau verify luôn trả 200."
+      ],
+      [
+        "EXTERNAL",
+        "LiveKit SDK kiểm chữ ký JWT của webhook; khi call kết thúc, core-api gọi ngược LiveKit để xóa phòng."
+      ],
+      [
+        "SERVICE",
+        "Biến event vào hoặc rời phòng thành trạng thái CallSession (pending, active, đang reconnect, ended); mọi nhánh kết thúc dùng chung một hàm end idempotent."
+      ],
+      [
+        "POSTGRES",
+        "CallSession là nguồn sự thật của thời gian: mốc vào phòng, mốc bắt đầu, cửa sổ reconnect; khóa dòng FOR UPDATE tuần tự hóa webhook, ticker và nút end."
+      ],
+      [
+        "WORKER",
+        "CallTickerService chạy nền theo chu kỳ ngắn (mặc định 1 giây): đóng call pending quá hạn, call rớt mạng quá cửa sổ reconnect, và call Voice Match chạm 420 giây."
+      ],
+      [
+        "REDIS",
+        "Pub/sub báo call.ended cho 2 người để client đóng màn hình gọi."
+      ]
+    ],
+    "tables": [
+      [
+        "call_sessions",
+        "1 dòng cho mỗi cuộc gọi: trạng thái, mốc vào phòng và rớt của từng bên, mốc bắt đầu reconnect, lý do và thời lượng khi kết thúc."
+      ],
+      [
+        "match_sessions",
+        "chỉ được Matching sửa: chuyển sang ended khi call kết thúc để 2 người không bị session cũ giữ lại."
+      ]
+    ],
+    "redis": [
+      [
+        "realtime:user:{userId}",
+        "kênh pub/sub theo người nhận; core-api phát call.ended, signaling-gateway chuyển xuống socket."
+      ]
+    ],
+    "related": [
+      [
+        "Matching",
+        "endVoiceSessionForCall: chốt MatchSession sang ended khi call kết thúc."
+      ],
+      [
+        "LiveKit",
+        "SFU gửi webhook participant_joined, participant_left, room_finished; core-api xóa phòng sau khi kết thúc."
+      ],
+      [
+        "signaling-gateway",
+        "subscribe kênh realtime của user, đẩy call.ended xuống client."
+      ],
+      [
+        "Calling (GET /calling/calls/:id)",
+        "đường đối soát dự phòng khi webhook bị mất: hỏi LiveKit ai đang trong phòng (chưa chép)."
+      ]
+    ],
+    "nested": true,
+    "skip": [
+      "markRoomDisconnected"
+    ],
+    "steps": [
+      {
+        "at": "@Public()",
+        "text": "Nhận webhook công khai của LiveKit (@Public, lấy nguyên văn body)"
+      },
+      {
+        "at": "event = await this.livekit.receiveWebhook(rawBody, authHeader);",
+        "text": "Kiểm chữ ký webhook (sai thì 401) rồi mới đọc event"
+      },
+      {
+        "at": "if (!event.roomName?.startsWith('call-')) return;",
+        "text": "Chỉ nhận phòng có prefix call-, tìm CallSession theo roomName"
+      },
+      {
+        "at": "await this.dataSource.transaction(async (manager) => {",
+        "in": "CallingService.markJoined",
+        "text": "Người vào phòng: khóa dòng, ghi mốc; đủ 2 người thì call sang active"
+      },
+      {
+        "at": "await this.dataSource.transaction(async (manager) => {",
+        "in": "CallingService.markDisconnected",
+        "text": "Người rớt: ghi mốc rớt, mở cửa sổ reconnect, chưa end call"
+      },
+      {
+        "at": "return { ok: true };",
+        "text": "Sau khi chữ ký hợp lệ luôn trả 200 { ok: true }"
+      },
+      {
+        "at": "this.job.start(this.scheduler, {",
+        "text": "Ticker nền: đăng ký job theo chu kỳ, mỗi tick chỉ 1 pod chạy"
+      },
+      {
+        "at": "await this.sweepPending();",
+        "text": "Đóng call pending quá hạn (chưa ai vào đủ)"
+      },
+      {
+        "at": "const result = await this.dataSource.transaction(async (manager) => {",
+        "in": "CallingService.endById",
+        "text": "End idempotent: khóa dòng, kiểm lại status, chốt thời lượng"
+      },
+      {
+        "at": "await this.cleanupEndedCall(result.call);",
+        "text": "Dọn sau end: chốt MatchSession, xóa phòng, phát call.ended"
+      },
+      {
+        "at": "await this.sweepReconnectTimeouts();",
+        "text": "Đóng call rớt mạng quá cửa sổ reconnect"
+      },
+      {
+        "at": "await this.processActiveCalls();",
+        "text": "Đóng call Voice Match chạm 420 giây (tính trong SQL)"
+      }
+    ],
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/calling/webhooks/livekit-webhook.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Public()",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const rawBody = req.rawBody?.toString('utf8');",
+            "text": [
+              "Chữ ký được kiểm trên NGUYÊN VĂN body (không phải JSON đã parse), TRƯỚC khi đọc bất cứ nội dung nào. Sai chữ ký thì 401."
+            ],
+            "src": "doc gốc livekit-webhook.controller.ts L20-25"
+          }
+        ]
+      },
+      {
+        "tag": "EXTERNAL",
+        "file": "apps/core-api/src/common/livekit/livekit-sdk.client.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async receiveWebhook(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const event = await this.receiver.receive(rawBody, authHeader);",
+            "text": [
+              "WebhookReceiver của LiveKit SDK kiểm JWT trong header Authorization bằng API key và secret; sai thì ném lỗi, controller đổi thành 401."
+            ],
+            "src": "docs/services/calling-service.md mục 3 + livekit-webhook.controller.ts L50-58 (try/catch đổi lỗi thành 401)"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/calling/calling.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async handleWebhookEvent(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "if (!event.roomName?.startsWith('call-')) return;",
+            "text": [
+              "Chỉ nhận phòng có prefix call-: đó là prefix cố định để lọc phòng không thuộc calling. Phòng lạ hoặc không có dòng CallSession thì bỏ qua."
+            ],
+            "src": "call-session.entity.ts L98 (doc callRoomName) + docs/services/calling-service.md mục 3"
+          },
+          {
+            "at": "case 'participant_left':",
+            "text": [
+              "participant_left và room_finished không kết thúc call ngay mà chỉ mở cửa sổ reconnect: mất mạng hay connection abort có thể quay lại. Quá hạn mới end."
+            ],
+            "src": "comment gốc calling.service.ts L508-509"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/calling/calling.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async markJoined(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async markDisconnected(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async markRoomDisconnected(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "lock: { mode: 'pessimistic_write' },",
+            "text": [
+              "[POSTGRES] Khóa dòng CallSession FOR UPDATE rồi mới đọc và ghi: webhook của 2 bên, ticker và nút end cùng chạm một dòng. Có khóa rồi mới kiểm lại status."
+            ],
+            "src": "docs/services/calling-service.md mục 4 (race end-vs-tick dùng lock + re-check status) + suy ra từ code: markJoined, markDisconnected, markRoomDisconnected đều lock pessimistic_write"
+          },
+          {
+            "at": "call.startedAt = call.startedAt ?? now;",
+            "text": [
+              "Chỉ khi CẢ 2 đã vào phòng, call mới sang active và đặt startedAt. Đây là mốc tính giới hạn 7 phút của Voice Match; set-if-null nên webhook gửi lại không ghi đè."
+            ],
+            "src": "comment gốc calling.service.ts L620 + doc gốc calling.service.ts L485-489 (joined = set-if-null) + call-session.entity.ts L8-9"
+          },
+          {
+            "at": "if (identity === call.userAId) call.disconnectedAAt = null;",
+            "text": [
+              "Bên nào quay lại thì gỡ dấu rớt của bên đó. Chỉ khi cả 2 đã quay lại mới chạy tiếp đồng hồ: startedAt dời tiến đúng bằng khoảng gián đoạn nên thời gian rớt mạng không bị tính vào 7 phút."
+            ],
+            "src": "comment gốc calling.service.ts L627-628 + L455-457 + call-session.entity.ts L77-79"
+          },
+          {
+            "at": "call.reconnectStartedAt ??= now;",
+            "text": [
+              "Chỉ ghi mốc rớt đầu tiên (??=): event rớt lặp lại không kéo dài cửa sổ reconnect. Từ mốc này đồng hồ giới hạn tạm dừng."
+            ],
+            "src": "suy ra từ code: toán tử ??= ở markDisconnected + call-session.entity.ts L73 (mốc bắt đầu cửa sổ reconnect, timer tạm dừng)"
+          }
+        ]
+      },
+      {
+        "tag": "WORKER",
+        "file": "apps/core-api/src/modules/calling/jobs/call-ticker.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "onApplicationBootstrap(",
+            "to": "^  }$"
+          },
+          {
+            "at": "async runOnce(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async sweepPending(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async sweepReconnectTimeouts(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async processActiveCalls(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "clusterSingleton: { dataSource: this.dataSource },",
+            "text": [
+              "[POSTGRES] Mỗi tick chỉ 1 pod làm nhờ advisory lock của Postgres. Nếu 2 pod vẫn chạy trùng thì vẫn an toàn vì endById khóa dòng và chỉ end khi chưa ended."
+            ],
+            "src": "common/scheduling/managed-interval.ts L10-14 và L22-23 + doc gốc call-ticker.service.ts L32"
+          },
+          {
+            "at": "take: TICK_BATCH_SIZE,",
+            "text": [
+              "Mỗi tick chỉ lấy id theo lô; phần tồn đọng xử lý dần ở các tick sau. Truy vấn đi theo index (status, created_at)."
+            ],
+            "src": "comment gốc call-ticker.service.ts L23 + docs/services/calling-service.md mục 4"
+          },
+          {
+            "at": "reconnectStartedAt: LessThan(cutoff),",
+            "text": [
+              "Rớt mạng ngắn không kết thúc call ngay: có CALLING_RECONNECT_WINDOW_SECONDS để quay lại. Quá hạn mà chưa quay lại mới end completed."
+            ],
+            "src": "comment migration 1756500000000-calling-reconnect-window.ts + docs/services/calling-service.md mục 4"
+          },
+          {
+            "at": ".andWhere('call.reconnect_started_at IS NULL')",
+            "text": [
+              "Call đang trong cửa sổ reconnect bị loại khỏi đợt kiểm này: đồng hồ 420 giây tạm dừng cho tới khi cả 2 quay lại hoặc quá hạn."
+            ],
+            "src": "docs/services/calling-service.md mục 4 (active có participant mất kết nối: timer tạm dừng)"
+          },
+          {
+            "at": ".andWhere(\"call.call_kind = 'voice_match'\")",
+            "text": [
+              "Chỉ Voice Match bị giới hạn: call bạn bè gọi lâu dài, không đi qua đồng hồ này. Hạn 420 giây tính ngay trong SQL theo đồng hồ của Postgres, từ startedAt đã bù thời gian reconnect; không tin timer của client."
+            ],
+            "src": "comment gốc call-ticker.service.ts L129-131 + docs/services/calling-service.md mục 4 + doc gốc call-ticker.service.ts L26-27 (KHÔNG tin timer client)"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/modules/calling/entities/call-session.entity.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Entity({ name: 'call_sessions' })",
+            "lines": 9
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/calling/calling.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async endById(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async cleanupEndedCall(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "lock: { mode: 'pessimistic_write' },",
+            "text": [
+              "[POSTGRES] Khóa dòng rồi kiểm lại status: chốt chặn race end-vs-tick (nút end, webhook, ticker cùng gọi). Đã ended thì trả lại như cũ, không end lần 2."
+            ],
+            "src": "doc gốc calling.service.ts L437-441"
+          },
+          {
+            "at": "if (call.startedAt && call.reconnectStartedAt) {",
+            "text": [
+              "Thời gian nằm trong cửa sổ reconnect không tính vào thời lượng: dời startedAt tiến lên trước khi chốt duration."
+            ],
+            "src": "comment gốc calling.service.ts L455-457"
+          },
+          {
+            "at": "if (result.justEnded && result.call) {",
+            "text": [
+              "Chỉ lời gọi thực hiện transition mới dọn phòng và phát realtime, nên retry hay ticker chạy trùng không bắn event đôi."
+            ],
+            "src": "doc gốc calling.service.ts L437-441 + comment L478"
+          },
+          {
+            "at": "if (call.callKind !== CallKind.Friend && call.matchSessionId)",
+            "text": [
+              "Chốt MatchSession ở Matching TRƯỚC khi phát event, để user nhận call.ended rồi quay lại tìm ghép không bị session cũ giữ lại. Cả webhook lẫn ticker đều đi qua đây, không chỉ nút UI."
+            ],
+            "src": "comment gốc calling.service.ts L685-686"
+          },
+          {
+            "at": "await this.livekit.deleteRoom(call.roomName).catch((err) => {",
+            "text": [
+              "[EXTERNAL] Xóa phòng LiveKit best-effort để không rò tài nguyên. Phòng có thể đã tự đóng (room_finished) nên lỗi ở đây không phải lỗi nghiệp vụ."
+            ],
+            "src": "comment gốc calling.service.ts L694 + docs/services/calling-service.md mục 1"
+          },
+          {
+            "at": "await Promise.all(",
+            "text": [
+              "[REDIS] Phát call.ended cho cả 2 người qua kênh realtime:user:{id}. Best-effort: client vẫn poll được GET /calling/calls/:id."
+            ],
+            "src": "docs/services/calling-service.md mục 5"
+          }
+        ]
+      }
+    ]
+  },
+  "sourceManifest": {
+    "verifiedCodeSha256": true,
+    "mode": "published-presentation",
+    "baselineCommit": "cb30743143bd8f6576b154db4b606380c365c674",
+    "sourceCommit": "d3cb28c",
+    "sources": [
+      "apps/core-api/src/common/livekit/livekit-sdk.client.ts",
+      "apps/core-api/src/modules/calling/calling.service.ts",
+      "apps/core-api/src/modules/calling/entities/call-session.entity.ts",
+      "apps/core-api/src/modules/calling/jobs/call-ticker.service.ts",
+      "apps/core-api/src/modules/calling/webhooks/livekit-webhook.controller.ts"
+    ],
+    "steps": [
+      "Step 1: Nhận webhook công khai của LiveKit (@Public, lấy nguyên văn body)",
+      "Step 2: Kiểm chữ ký webhook (sai thì 401) rồi mới đọc event",
+      "Step 3: Chỉ nhận phòng có prefix call-, tìm CallSession theo roomName",
+      "Step 4: Người vào phòng: khóa dòng, ghi mốc; đủ 2 người thì call sang active",
+      "Step 5: Người rớt: ghi mốc rớt, mở cửa sổ reconnect, chưa end call",
+      "Step 6: Sau khi chữ ký hợp lệ luôn trả 200 { ok: true }",
+      "Step 7: Ticker nền: đăng ký job theo chu kỳ, mỗi tick chỉ 1 pod chạy",
+      "Step 8: Đóng call pending quá hạn (chưa ai vào đủ)",
+      "Step 9: End idempotent: khóa dòng, kiểm lại status, chốt thời lượng",
+      "Step 10: Dọn sau end: chốt MatchSession, xóa phòng, phát call.ended",
+      "Step 11: Đóng call rớt mạng quá cửa sổ reconnect",
+      "Step 12: Đóng call Voice Match chạm 420 giây (tính trong SQL)"
+    ],
+    "removedOverview": "// ════════════════════════════════════════════════════════════════════════════\n//  POST /api/v1/calling/webhooks/livekit\n//  LiveKit báo ai vào hoặc rời phòng, ticker nền canh giờ (reconnect, tối đa 420 giây) rồi kết thúc call.\n// ════════════════════════════════════════════════════════════════════════════\n//  Luồng      [CONTROLLER] → [EXTERNAL] → [SERVICE] → [POSTGRES] → [WORKER] → [SERVICE]\n//             → [EXTERNAL] → [REDIS]\n//\n//  Vai trò từng tầng\n//    [CONTROLLER] Nhận webhook công khai của LiveKit, lấy nguyên văn body và header\n//                 Authorization, kiểm chữ ký rồi mới giao event cho service; sau verify\n//                 luôn trả 200.\n//    [EXTERNAL]   LiveKit SDK kiểm chữ ký JWT của webhook; khi call kết thúc, core-api\n//                 gọi ngược LiveKit để xóa phòng.\n//    [SERVICE]    Biến event vào hoặc rời phòng thành trạng thái CallSession (pending,\n//                 active, đang reconnect, ended); mọi nhánh kết thúc dùng chung một hàm\n//                 end idempotent.\n//    [POSTGRES]   CallSession là nguồn sự thật của thời gian: mốc vào phòng, mốc bắt\n//                 đầu, cửa sổ reconnect; khóa dòng FOR UPDATE tuần tự hóa webhook,\n//                 ticker và nút end.\n//    [WORKER]     CallTickerService chạy nền theo chu kỳ ngắn (mặc định 1 giây): đóng\n//                 call pending quá hạn, call rớt mạng quá cửa sổ reconnect, và call\n//                 Voice Match chạm 420 giây.\n//    [REDIS]      Pub/sub báo call.ended cho 2 người để client đóng màn hình gọi.\n//\n//  Bảng       call_sessions — 1 dòng cho mỗi cuộc gọi: trạng thái, mốc vào phòng và rớt\n//               của từng bên, mốc bắt đầu reconnect, lý do và thời lượng khi kết thúc.\n//             match_sessions — chỉ được Matching sửa: chuyển sang ended khi call kết\n//               thúc để 2 người không bị session cũ giữ lại.\n//  Redis      realtime:user:{userId} — kênh pub/sub theo người nhận; core-api phát\n//               call.ended, signaling-gateway chuyển xuống socket.\n//  Liên quan  Matching — endVoiceSessionForCall: chốt MatchSession sang ended khi call\n//               kết thúc.\n//             LiveKit — SFU gửi webhook participant_joined, participant_left,\n//               room_finished; core-api xóa phòng sau khi kết thúc.\n//             signaling-gateway — subscribe kênh realtime của user, đẩy call.ended\n//               xuống client.\n//             Calling (GET /calling/calls/:id) — đường đối soát dự phòng khi webhook bị\n//               mất: hỏi LiveKit ai đang trong phòng (chưa chép).\n//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi\n//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới\n//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //\n//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các\n//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số\n//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức\n//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong\n//             repo.\n",
+    "baselineBodySha256": "a019bab7ca060f68416fe312c29776704e6b42b67d00c0303fdc9bc38f57f717",
+    "bodySha256": "a019bab7ca060f68416fe312c29776704e6b42b67d00c0303fdc9bc38f57f717",
+    "rawSha256": "bc37fbded367ee5cb1c9c88dccf8c795cbc3c23b8d98b2fe02338e47563305a1",
+    "codeSha256": "bc37fbded367ee5cb1c9c88dccf8c795cbc3c23b8d98b2fe02338e47563305a1"
+  },
+  "code": {
+    "path": "code/03-voice-match/03-post-webhook-livekit.ts",
+    "sha256": "bc37fbded367ee5cb1c9c88dccf8c795cbc3c23b8d98b2fe02338e47563305a1",
+    "hashAlgorithm": "sha256",
+    "content": "//  POST /api/v1/calling/webhooks/livekit\n//  LiveKit báo ai vào hoặc rời phòng, ticker nền canh giờ (reconnect, tối đa 420 giây) rồi kết thúc call.\n//  Step 1: Nhận webhook công khai của LiveKit (@Public, lấy nguyên văn body)\n//  Step 2: Kiểm chữ ký webhook (sai thì 401) rồi mới đọc event\n//  Step 3: Chỉ nhận phòng có prefix call-, tìm CallSession theo roomName\n//  Step 4: Người vào phòng: khóa dòng, ghi mốc; đủ 2 người thì call sang active\n//  Step 5: Người rớt: ghi mốc rớt, mở cửa sổ reconnect, chưa end call\n//  Step 6: Sau khi chữ ký hợp lệ luôn trả 200 { ok: true }\n//  Step 7: Ticker nền: đăng ký job theo chu kỳ, mỗi tick chỉ 1 pod chạy\n//  Step 8: Đóng call pending quá hạn (chưa ai vào đủ)\n//  Step 9: End idempotent: khóa dòng, kiểm lại status, chốt thời lượng\n//  Step 10: Dọn sau end: chốt MatchSession, xóa phòng, phát call.ended\n//  Step 11: Đóng call rớt mạng quá cửa sổ reconnect\n//  Step 12: Đóng call Voice Match chạm 420 giây (tính trong SQL)\n\n// [CONTROLLER] LivekitWebhookController.handle  ·  livekit-webhook.controller.ts L27–28, L34–61\n@Controller('calling/webhooks')\nexport class LivekitWebhookController {\n  // LivekitSdkClient\n  private readonly receiver: WebhookReceiver;\n  constructor(\n    private readonly callingService: CallingService,\n    private readonly livekit: LivekitRoomPort,\n    // CallingService\n    @InjectDataSource() private readonly dataSource: DataSource,\n    @InjectRepository(CallSession)\n    private readonly callRepo: Repository<CallSession>,\n  ) {}\n\n  // Step 1: Nhận webhook công khai của LiveKit (@Public, lấy nguyên văn body)\n  @Public()\n  @Post('livekit')\n  @HttpCode(HttpStatus.OK)\n  async handle(\n    @Req() req: RawBodyRequest<Request>,\n    @Headers('authorization') authHeader?: string,\n  ): Promise<{ ok: true }> {\n    // Chữ ký được kiểm trên NGUYÊN VĂN body (không phải JSON đã parse), TRƯỚC khi đọc bất cứ nội\n    // dung nào. Sai chữ ký thì 401.\n    const rawBody = req.rawBody?.toString('utf8');\n    if (!rawBody || !authHeader) {\n      throw new DomainException(\n        CallingErrors.WEBHOOK_INVALID,\n        'Thiếu body hoặc Authorization header',\n        HttpStatus.UNAUTHORIZED,\n      );\n    }\n    let event;\n    try {\n\n      // Step 2: Kiểm chữ ký webhook (sai thì 401) rồi mới đọc event\n      event = await this.livekit.receiveWebhook(rawBody, authHeader);\n\n      // [EXTERNAL] LivekitSdkClient.receiveWebhook  ·  livekit-sdk.client.ts L126–136\n      // WebhookReceiver của LiveKit SDK kiểm JWT trong header Authorization bằng API key và\n      // secret; sai thì ném lỗi, controller đổi thành 401.\n      const event = await this.receiver.receive(rawBody, authHeader);\n      return {\n        event: event.event,\n        roomName: event.room?.name ?? null,\n        participantIdentity: event.participant?.identity ?? null,\n      };\n    } catch {\n      throw new DomainException(\n        CallingErrors.WEBHOOK_INVALID,\n        'Chữ ký webhook không hợp lệ',\n        HttpStatus.UNAUTHORIZED,\n      );\n    }\n    await this.callingService.handleWebhookEvent(event);\n\n    // [SERVICE] CallingService.handleWebhookEvent  ·  calling.service.ts L490–515\n    // Step 3: Chỉ nhận phòng có prefix call-, tìm CallSession theo roomName\n    // Chỉ nhận phòng có prefix call-: đó là prefix cố định để lọc phòng không thuộc calling.\n    // Phòng lạ hoặc không có dòng CallSession thì bỏ qua.\n    if (!event.roomName?.startsWith('call-')) return;\n    const call = await this.callRepo.findOneBy({ roomName: event.roomName });\n    if (!call) return;\n\n    switch (event.event) {\n      case 'participant_joined':\n        if (event.participantIdentity) {\n          await this.markJoined(call.id, event.participantIdentity);\n\n          // [SERVICE] CallingService.markJoined  ·  calling.service.ts L600–645\n          const callId = call.id;\n          const identity = event.participantIdentity;\n\n          // Step 4: Người vào phòng: khóa dòng, ghi mốc; đủ 2 người thì call sang active\n          await this.dataSource.transaction(async (manager) => {\n            const call = await manager.findOne(CallSession, {\n              where: { id: callId },\n              // [POSTGRES] Khóa dòng CallSession FOR UPDATE rồi mới đọc và ghi: webhook của 2\n              // bên, ticker và nút end cùng chạm một dòng. Có khóa rồi mới kiểm lại status.\n              lock: { mode: 'pessimistic_write' },\n            });\n            if (!call || call.status === CallSessionStatus.Ended) return;\n\n            const now = new Date();\n            if (identity === call.userAId) call.joinedAAt = call.joinedAAt ?? now;\n            else if (identity === call.userBId)\n              call.joinedBAt = call.joinedBAt ?? now;\n            else return;\n\n            if (\n              call.joinedAAt &&\n              call.joinedBAt &&\n              call.status === CallSessionStatus.Pending\n            ) {\n              call.status = CallSessionStatus.Active;\n              // Chỉ khi CẢ 2 đã vào phòng, call mới sang active và đặt startedAt. Đây là mốc tính\n              // giới hạn 7 phút của Voice Match; set-if-null nên webhook gửi lại không ghi đè.\n              call.startedAt = call.startedAt ?? now;\n            }\n\n            if (call.status === CallSessionStatus.Active) {\n              // Bên nào quay lại thì gỡ dấu rớt của bên đó. Chỉ khi cả 2 đã quay lại mới chạy\n              // tiếp đồng hồ: startedAt dời tiến đúng bằng khoảng gián đoạn nên thời gian rớt\n              // mạng không bị tính vào 7 phút.\n              if (identity === call.userAId) call.disconnectedAAt = null;\n              if (identity === call.userBId) call.disconnectedBAt = null;\n\n              if (\n                call.reconnectStartedAt &&\n                call.disconnectedAAt === null &&\n                call.disconnectedBAt === null &&\n                call.startedAt\n              ) {\n                const pausedMs = Math.max(\n                  0,\n                  now.getTime() - call.reconnectStartedAt.getTime(),\n                );\n                call.startedAt = new Date(call.startedAt.getTime() + pausedMs);\n                call.reconnectStartedAt = null;\n              }\n            }\n            await manager.save(call);\n          });\n        }\n        return;\n      // participant_left và room_finished không kết thúc call ngay mà chỉ mở cửa sổ reconnect:\n      // mất mạng hay connection abort có thể quay lại. Quá hạn mới end.\n      case 'participant_left':\n      case 'participant_connection_aborted':\n        if (event.participantIdentity) {\n          await this.markDisconnected(call.id, event.participantIdentity);\n\n          // [SERVICE] CallingService.markDisconnected  ·  calling.service.ts L647–665\n          // callId = call.id\n          // identity = event.participantIdentity\n\n          // Step 5: Người rớt: ghi mốc rớt, mở cửa sổ reconnect, chưa end call\n          await this.dataSource.transaction(async (manager) => {\n            const call = await manager.findOne(CallSession, {\n              where: { id: callId },\n              lock: { mode: 'pessimistic_write' },\n            });\n            if (!call || call.status !== CallSessionStatus.Active) return;\n\n            const now = new Date();\n            if (identity === call.userAId) call.disconnectedAAt ??= now;\n            else if (identity === call.userBId) call.disconnectedBAt ??= now;\n            else return;\n            // Chỉ ghi mốc rớt đầu tiên (??=): event rớt lặp lại không kéo dài cửa sổ reconnect.\n            // Từ mốc này đồng hồ giới hạn tạm dừng.\n            call.reconnectStartedAt ??= now;\n            await manager.save(call);\n          });\n        }\n        return;\n      case 'room_finished':\n        await this.markRoomDisconnected(call.id);\n        return;\n      default:\n        return;\n    }\n\n    // Step 6: Sau khi chữ ký hợp lệ luôn trả 200 { ok: true }\n    return { ok: true };\n  }\n}\n\n// [WORKER] CallTickerService.onApplicationBootstrap  ·  call-ticker.service.ts L34–37, L48–59\n@Injectable()\nexport class CallTickerService\n  implements OnApplicationBootstrap, OnApplicationShutdown\n{\n  private readonly logger = new Logger(CallTickerService.name);\n  private readonly job = new ManagedInterval();\n  // CallingService\n  private readonly logger = new Logger(CallingService.name);\n  constructor(\n    @InjectDataSource() private readonly dataSource: DataSource,\n    private readonly config: ConfigService<CoreApiEnv, true>,\n    private readonly scheduler: SchedulerRegistry,\n    private readonly callingService: CallingService,\n    // CallingService\n    private readonly matchingService: MatchingService,\n    private readonly livekit: LivekitRoomPort,\n    @Inject(CALLING_REDIS) private readonly redis: Redis,\n    private readonly metrics: CallingMetrics,\n  ) {}\n\n  onApplicationBootstrap(): void {\n\n    // Step 7: Ticker nền: đăng ký job theo chu kỳ, mỗi tick chỉ 1 pod chạy\n    this.job.start(this.scheduler, {\n      jobName: TICKER_JOB,\n      intervalMs: this.config.getOrThrow('CALLING_TICKER_INTERVAL_MS', {\n        infer: true,\n      }),\n      task: () => this.runOnce(),\n      logger: this.logger,\n      errorMessage: 'Call ticker tick lỗi',\n      // [POSTGRES] Mỗi tick chỉ 1 pod làm nhờ advisory lock của Postgres. Nếu 2 pod vẫn chạy\n      // trùng thì vẫn an toàn vì endById khóa dòng và chỉ end khi chưa ended.\n      clusterSingleton: { dataSource: this.dataSource },\n    });\n\n    // [WORKER] CallTickerService.runOnce  ·  call-ticker.service.ts L66–75\n    await this.job.runExclusive(async () => {\n      await withSpan('litmatch.calling', 'calling.ticker.tick', async () => {\n\n        // Step 8: Đóng call pending quá hạn (chưa ai vào đủ)\n        await this.sweepPending();\n\n        // [WORKER] CallTickerService.sweepPending  ·  call-ticker.service.ts L77–92\n        const timeoutSeconds = this.config.getOrThrow(\n          'CALLING_PENDING_TIMEOUT_SECONDS',\n          { infer: true },\n        );\n        const cutoff = new Date(Date.now() - timeoutSeconds * 1000);\n        const stale = await this.dataSource.getRepository(CallSession).find({\n          select: { id: true },\n          where: { status: CallSessionStatus.Pending, createdAt: LessThan(cutoff) },\n          order: { createdAt: 'ASC', id: 'ASC' },\n          // Mỗi tick chỉ lấy id theo lô; phần tồn đọng xử lý dần ở các tick sau. Truy vấn đi theo\n          // index (status, created_at).\n          take: TICK_BATCH_SIZE,\n        });\n        for (const call of stale) {\n          await this.callingService.endById(call.id, CallEndReason.PendingTimeout);\n\n          // [SERVICE] CallingService.endById  ·  calling.service.ts L442–483\n          const callId = call.id;\n          const reason = CallEndReason.PendingTimeout;\n\n          // Step 9: End idempotent: khóa dòng, kiểm lại status, chốt thời lượng\n          const result = await this.dataSource.transaction(async (manager) => {\n            const call = await manager.findOne(CallSession, {\n              where: { id: callId },\n              // [POSTGRES] Khóa dòng rồi kiểm lại status: chốt chặn race end-vs-tick (nút end,\n              // webhook, ticker cùng gọi). Đã ended thì trả lại như cũ, không end lần 2.\n              lock: { mode: 'pessimistic_write' },\n            });\n            if (!call) return { call: null, justEnded: false };\n            if (call.status === CallSessionStatus.Ended) {\n              return { call, justEnded: false };\n            }\n            call.status = CallSessionStatus.Ended;\n            call.endReason = reason;\n            call.endedAt = new Date();\n            // Thời gian nằm trong cửa sổ reconnect không tính vào thời lượng: dời startedAt tiến\n            // lên trước khi chốt duration.\n            if (call.startedAt && call.reconnectStartedAt) {\n              const pausedMs = Math.max(\n                0,\n                call.endedAt.getTime() - call.reconnectStartedAt.getTime(),\n              );\n              call.startedAt = new Date(call.startedAt.getTime() + pausedMs);\n            }\n            call.durationSeconds = call.startedAt\n              ? Math.max(\n                  0,\n                  Math.round(\n                    (call.endedAt.getTime() - call.startedAt.getTime()) / 1000,\n                  ),\n                )\n              : 0;\n            return { call: await manager.save(call), justEnded: true };\n          });\n\n          // Chỉ lời gọi thực hiện transition mới dọn phòng và phát realtime, nên retry hay ticker\n          // chạy trùng không bắn event đôi.\n          if (result.justEnded && result.call) {\n            this.metrics.recordEnded(result.call.endReason ?? reason);\n\n            // Step 10: Dọn sau end: chốt MatchSession, xóa phòng, phát call.ended\n            await this.cleanupEndedCall(result.call);\n\n            // [SERVICE] CallingService.cleanupEndedCall  ·  calling.service.ts L684–713\n            // call = result.call\n            // Chốt MatchSession ở Matching TRƯỚC khi phát event, để user nhận call.ended rồi quay\n            // lại tìm ghép không bị session cũ giữ lại. Cả webhook lẫn ticker đều đi qua đây,\n            // không chỉ nút UI.\n            if (call.callKind !== CallKind.Friend && call.matchSessionId)\n              await this.matchingService.endVoiceSessionForCall(\n                call.matchSessionId,\n                call.userAId,\n                call.userBId,\n              );\n            // [EXTERNAL] Xóa phòng LiveKit best-effort để không rò tài nguyên. Phòng có thể đã tự\n            // đóng (room_finished) nên lỗi ở đây không phải lỗi nghiệp vụ.\n            await this.livekit.deleteRoom(call.roomName).catch((err) => {\n              this.logger.debug(\n                `deleteRoom ${call.roomName} bỏ qua: ${err instanceof Error ? err.message : String(err)}`,\n              );\n            });\n            const envelope: RealtimeEnvelope<CallEndedEventData> = {\n              event: RealtimeEvents.CallEnded,\n              data: {\n                callId: call.id,\n                matchSessionId: call.matchSessionId,\n                reason: call.endReason ?? CallEndReason.Completed,\n                durationSeconds: call.durationSeconds ?? 0,\n              },\n            };\n            // [REDIS] Phát call.ended cho cả 2 người qua kênh realtime:user:{id}. Best-effort:\n            // client vẫn poll được GET /calling/calls/:id.\n            await Promise.all(\n              [call.userAId, call.userBId].map((uid) =>\n                publishRealtimeEvent(this.redis, this.logger, uid, envelope),\n              ),\n            );\n          }\n          return result;\n        }\n\n        // Step 11: Đóng call rớt mạng quá cửa sổ reconnect\n        await this.sweepReconnectTimeouts();\n\n        // [WORKER] CallTickerService.sweepReconnectTimeouts  ·  call-ticker.service.ts L94–112\n        const reconnectSeconds = this.config.getOrThrow(\n          'CALLING_RECONNECT_WINDOW_SECONDS',\n          { infer: true },\n        );\n        const cutoff = new Date(Date.now() - reconnectSeconds * 1000);\n        const stale = await this.dataSource.getRepository(CallSession).find({\n          select: { id: true },\n          where: {\n            status: CallSessionStatus.Active,\n            // Rớt mạng ngắn không kết thúc call ngay: có CALLING_RECONNECT_WINDOW_SECONDS để quay\n            // lại. Quá hạn mà chưa quay lại mới end completed.\n            reconnectStartedAt: LessThan(cutoff),\n          },\n          order: { reconnectStartedAt: 'ASC', id: 'ASC' },\n          take: TICK_BATCH_SIZE,\n        });\n        for (const call of stale) {\n          await this.callingService.endById(call.id, CallEndReason.Completed);\n        }\n\n        // Step 12: Đóng call Voice Match chạm 420 giây (tính trong SQL)\n        await this.processActiveCalls();\n\n        // [WORKER] CallTickerService.processActiveCalls  ·  call-ticker.service.ts L114–149\n        const freeSeconds = this.config.getOrThrow('CALLING_FREE_CALL_SECONDS', {\n          infer: true,\n        });\n        const activeQuery = this.dataSource\n          .getRepository(CallSession)\n          .createQueryBuilder('call')\n          .select(['call.id'])\n          .where('call.status = :status', { status: CallSessionStatus.Active })\n          // Call đang trong cửa sổ reconnect bị loại khỏi đợt kiểm này: đồng hồ 420 giây tạm dừng\n          // cho tới khi cả 2 quay lại hoặc quá hạn.\n          .andWhere('call.reconnect_started_at IS NULL')\n          .andWhere('call.started_at IS NOT NULL')\n          .orderBy('call.updated_at', 'ASC')\n          .addOrderBy('call.id', 'ASC')\n          .take(TICK_BATCH_SIZE);\n\n        activeQuery\n          // Chỉ Voice Match bị giới hạn: call bạn bè gọi lâu dài, không đi qua đồng hồ này. Hạn\n          // 420 giây tính ngay trong SQL theo đồng hồ của Postgres, từ startedAt đã bù thời gian\n          // reconnect; không tin timer của client.\n          .andWhere(\"call.call_kind = 'voice_match'\")\n          .andWhere(\n            'call.started_at <= now() - make_interval(secs => :freeSeconds)',\n            { freeSeconds },\n          );\n\n        const active = await activeQuery.getMany();\n        for (const call of active) {\n          await this.callingService\n            .endById(call.id, CallEndReason.FreeLimit)\n            .catch((err) =>\n              this.logger.error(\n                { err: `${err}` },\n                `Xử lý call active ${call.id} lỗi — thử lại ở tick sau`,\n              ),\n            );\n        }\n      });\n    }, undefined);\n  }\n}\n\n// [POSTGRES] call-session.entity.ts  ·  call-session.entity.ts L35–43\n@Entity({ name: 'call_sessions' })\n@Index('uq_call_sessions_match_session', ['matchSessionId'], { unique: true })\n@Index('idx_call_sessions_status_created', ['status', 'createdAt'])\n@Index('idx_call_sessions_active_updated', ['updatedAt', 'id'], {\n  where: \"status = 'active'\",\n})\n@Index('idx_call_sessions_reconnect_started', ['reconnectStartedAt', 'id'], {\n  where: \"status = 'active' AND reconnect_started_at IS NOT NULL\",\n})\n"
+  },
+  "provenance": {
+    "catalog": {
+      "path": "annotated-voice-match.mjs",
+      "sha256": "076cc388c892fc0cc28b3bb0eade5744ce0b9ee694a37dba10d45f070575fda3"
+    },
+    "displayedCodeSha256": "bc37fbded367ee5cb1c9c88dccf8c795cbc3c23b8d98b2fe02338e47563305a1"
+  }
+}

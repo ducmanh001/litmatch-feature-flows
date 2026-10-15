@@ -1,0 +1,831 @@
+{
+  "id": "09-diamond-top-up-va-vip/03-post-webhook-payos",
+  "featureId": "09-diamond-top-up-va-vip",
+  "feature": "Diamond, Top-up và VIP",
+  "summary": "Nạp Diamond qua store hoặc payOS, mua VIP bằng Diamond, hoàn tiền từ store; mọi thay đổi số dư đi qua một sổ kép duy nhất.",
+  "name": "Webhook payOS cộng Diamond",
+  "title": "payOS báo thanh toán thành công: kiểm HMAC, đối chiếu snapshot của đơn, rồi cộng Diamond đúng một lần.",
+  "method": "POST",
+  "route": "/api/v1/economy/webhooks/payos",
+  "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts",
+  "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/09-diamond-top-up-va-vip/03-post-webhook-payos.json",
+  "diagramUrl": "https://ducmanh001.github.io/litmatch-feature-flows/#09-diamond-top-up-va-vip",
+  "catalog": "annotated-09-diamond-top-up-va-vip.mjs",
+  "flow": "[CONTROLLER] → [EXTERNAL] → [SERVICE] → [POSTGRES]",
+  "roles": [
+    [
+      "CONTROLLER",
+      "Nhận webhook công khai của payOS, kiểm chữ ký HMAC trước mọi thứ rồi giao event đã xác thực cho PayosService."
+    ],
+    [
+      "EXTERNAL",
+      "payOS ký phần data bằng HMAC-SHA256 với checksum key; core-api dựng lại chuỗi chuẩn và so chữ ký."
+    ],
+    [
+      "SERVICE",
+      "Đối chiếu event với snapshot của đơn rồi ghi sổ Nợ system_iap / Có ví user, đánh dấu đơn paid trong cùng transaction."
+    ],
+    [
+      "POSTGRES",
+      "Khóa dòng đơn FOR UPDATE; các unique order_code, idempotency_key, payment_link_id, transaction_id chặn trùng."
+    ]
+  ],
+  "tables": [
+    [
+      "payos_payment_orders",
+      "đơn nạp: snapshot số tiền VND, số Diamond, order_code, paymentLinkId, trạng thái; nối với đúng 1 transaction."
+    ],
+    [
+      "transactions",
+      "1 giao dịch payos_topup, key idempotency do server sinh từ order_code."
+    ],
+    [
+      "ledger_entries",
+      "bút toán sổ kép: Nợ system_iap, Có user_wallet."
+    ],
+    [
+      "wallets",
+      "số dư Diamond tăng thêm, bị khóa FOR UPDATE trong lúc ghi sổ."
+    ],
+    [
+      "outbox_events",
+      "event economy.diamond.credited ghi cùng transaction."
+    ]
+  ],
+  "redis": [],
+  "related": [
+    [
+      "Economy (LedgerService)",
+      "record: idempotency theo key, khóa ví FOR UPDATE, sổ kép, outbox; phần lõi này có trong luồng Mua VIP."
+    ],
+    [
+      "payOS (tạo đơn)",
+      "bước trước: POST /economy/payos/orders tạo đơn kèm snapshot giá rồi gọi payOS tạo link thanh toán (chưa chép)."
+    ],
+    [
+      "Web ví",
+      "trang ví gọi GET /economy/payos/orders/:id để biết đơn đã paid chưa; redirect từ payOS không phải bằng chứng thanh toán."
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "text": "Nhận webhook công khai của payOS (tối đa 120 lần/phút)",
+      "line": 27,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html#L27",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts#L27"
+    },
+    {
+      "number": 2,
+      "text": "Kiểm chữ ký HMAC trước mọi truy vấn hoặc ghi",
+      "line": 33,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html#L33",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts#L33"
+    },
+    {
+      "number": 3,
+      "text": "Dựng chuỗi chuẩn từ data (sắp key tăng dần) rồi ký HMAC-SHA256",
+      "line": 61,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html#L61",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts#L61"
+    },
+    {
+      "number": 4,
+      "text": "So chữ ký tính được với chữ ký payOS gửi (timingSafeEqual)",
+      "line": 70,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html#L70",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts#L70"
+    },
+    {
+      "number": 5,
+      "text": "Giao event đã xác thực cho PayosService để cộng Diamond",
+      "line": 125,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html#L125",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts#L125"
+    },
+    {
+      "number": 6,
+      "text": "Tìm đơn theo orderCode, đối chiếu snapshot (lệch thì bỏ qua)",
+      "line": 129,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html#L129",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts#L129"
+    },
+    {
+      "number": 7,
+      "text": "Ghi sổ Nợ system_iap / Có ví user, idempotent theo order_code",
+      "line": 152,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html#L152",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts#L152"
+    },
+    {
+      "number": 8,
+      "text": "Cùng transaction: khóa dòng đơn, đối chiếu lại snapshot",
+      "line": 185,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html#L185",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts#L185"
+    },
+    {
+      "number": 9,
+      "text": "Đánh dấu đơn paid và nối với giao dịch vừa ghi",
+      "line": 202,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html#L202",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts#L202"
+    },
+    {
+      "number": 10,
+      "text": "Trả { received: true } cho payOS",
+      "line": 226,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html#L226",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts#L226"
+    }
+  ],
+  "declaredSteps": [
+    {
+      "at": "@Post('payos')",
+      "text": "Nhận webhook công khai của payOS (tối đa 120 lần/phút)"
+    },
+    {
+      "at": "const event = this.payosClient.verifyWebhook({",
+      "text": "Kiểm chữ ký HMAC trước mọi truy vấn hoặc ghi"
+    },
+    {
+      "at": "const canonical = Object.keys(data)",
+      "text": "Dựng chuỗi chuẩn từ data (sắp key tăng dần) rồi ký HMAC-SHA256"
+    },
+    {
+      "at": "const left = Buffer.from(expected, 'hex');",
+      "text": "So chữ ký tính được với chữ ký payOS gửi (timingSafeEqual)"
+    },
+    {
+      "at": "await this.payosService.creditVerifiedWebhook(event);",
+      "text": "Giao event đã xác thực cho PayosService để cộng Diamond"
+    },
+    {
+      "at": "const order = await this.orderRepo.findOneBy({",
+      "text": "Tìm đơn theo orderCode, đối chiếu snapshot (lệch thì bỏ qua)"
+    },
+    {
+      "at": "const result = await this.ledger.record({",
+      "text": "Ghi sổ Nợ system_iap / Có ví user, idempotent theo order_code"
+    },
+    {
+      "at": "const locked = await this.lockOrder(manager, order.id);",
+      "text": "Cùng transaction: khóa dòng đơn, đối chiếu lại snapshot"
+    },
+    {
+      "at": "await manager.update(",
+      "text": "Đánh dấu đơn paid và nối với giao dịch vừa ghi"
+    },
+    {
+      "at": "return { received: true };",
+      "text": "Trả { received: true } cho payOS"
+    }
+  ],
+  "whyComments": [
+    {
+      "at": "const event = this.payosClient.verifyWebhook({",
+      "text": [
+        "Endpoint công khai nhưng HMAC được kiểm TRƯỚC mọi truy vấn hoặc ghi: sai chữ ký thì 401 và chưa chạm DB."
+      ],
+      "src": "comment gốc economy-webhooks.controller.ts L120",
+      "file": "apps/core-api/src/modules/economy/webhooks/economy-webhooks.controller.ts"
+    },
+    {
+      "at": "code: paymentCode,",
+      "text": [
+        "payOS chỉ ký object data; code và success ở ngoài sửa được mà chữ ký vẫn đúng. Vì vậy quyết định credit chỉ dựa vào code nằm trong data đã verify."
+      ],
+      "src": "comment gốc payos-client.ts L165-166",
+      "file": "apps/core-api/src/modules/economy/ports/payos-client.ts"
+    },
+    {
+      "at": "return left.length === right.length && timingSafeEqual(left, right);",
+      "text": [
+        "So chữ ký bằng timingSafeEqual (thời gian so sánh không phụ thuộc nội dung) và kiểm độ dài trước, vì hàm này ném lỗi khi 2 buffer khác độ dài."
+      ],
+      "src": "suy ra từ code: crypto.timingSafeEqual thay cho so sánh chuỗi thường, có kiểm left.length === right.length trước",
+      "file": "apps/core-api/src/modules/economy/ports/payos-client.ts"
+    },
+    {
+      "at": "const canonical = Object.keys(data)",
+      "text": [
+        "Định dạng chuẩn của payOS: sắp key tăng dần, không URI-encode giá trị. Sai định dạng thì HMAC không khớp."
+      ],
+      "src": "comment gốc payos-client.ts L289",
+      "file": "apps/core-api/src/modules/economy/ports/payos-client.ts"
+    },
+    {
+      "at": "if (!order || !this.matchesPaidOrder(order, event)) return false;",
+      "text": [
+        "Không khớp snapshot của đơn (orderCode, số tiền, VND, mã thành công, paymentLinkId) thì KHÔNG ghi sổ, trả false chứ không ném lỗi."
+      ],
+      "src": "docs/services/economy-service.md mục 8 bước 4 + code matchesPaidOrder",
+      "file": "apps/core-api/src/modules/economy/services/payos.service.ts"
+    },
+    {
+      "at": "idempotencyKey: `payos-credit:${order.orderCode}`,",
+      "text": [
+        "Key do server sinh từ order_code, không lấy từ client: webhook gửi lại hay chạy song song cũng chỉ cộng Diamond một lần."
+      ],
+      "src": "docs/services/economy-service.md mục 8 bước 6",
+      "file": "apps/core-api/src/modules/economy/services/payos.service.ts"
+    },
+    {
+      "at": "const locked = await this.lockOrder(manager, order.id);",
+      "text": [
+        "[POSTGRES] Khóa dòng đơn FOR UPDATE rồi đối chiếu lại snapshot ngay trong transaction ghi sổ; lệch thì ném lỗi để rollback cả bút toán."
+      ],
+      "src": "docs/services/economy-service.md mục 8 bước 4 và 5 (lock order, đối chiếu snapshot, update order trong LedgerService.record.withinTransaction)",
+      "file": "apps/core-api/src/modules/economy/services/payos.service.ts"
+    },
+    {
+      "at": "await manager.update(",
+      "text": [
+        "Không lọc theo status: webhook hợp lệ đến trễ sau khi đơn bị coi là hết hạn vẫn phải nối đơn với bút toán nguyên tử, không để ví đã cộng mà đơn còn expired."
+      ],
+      "src": "comment gốc payos.service.ts L210-211",
+      "file": "apps/core-api/src/modules/economy/services/payos.service.ts"
+    },
+    {
+      "at": "return (",
+      "text": [
+        "Mọi trường tiền đều so với snapshot lúc tạo đơn, không tin số trong webhook. Đơn đã paid thì không còn khớp nên không ghi sổ lần hai."
+      ],
+      "src": "suy ra từ code: matchesPaidOrder so từng trường với order và yêu cầu status != paid + docs/services/economy-service.md mục 8 bước 4",
+      "file": "apps/core-api/src/modules/economy/services/payos.service.ts"
+    },
+    {
+      "at": "await queryRunner.query(`",
+      "text": [
+        "Unique transaction_id: mỗi đơn chỉ nối được với đúng một transaction credit. order_code lấy từ sequence 16 chữ số để vẫn nằm trong số nguyên an toàn của JavaScript (payOS nhận number)."
+      ],
+      "src": "payos.entities.ts L95 (mỗi order chỉ được nối với đúng một transaction credit) + comment migration 1756300000000-payos-diamond.ts (payOS nhận number nên dùng sequence 16 chữ số)",
+      "file": "apps/core-api/src/database/migrations/1756300000000-payos-diamond.ts"
+    }
+  ],
+  "sources": [
+    "apps/core-api/src/database/migrations/1756300000000-payos-diamond.ts",
+    "apps/core-api/src/modules/economy/ports/payos-client.ts",
+    "apps/core-api/src/modules/economy/services/payos.service.ts",
+    "apps/core-api/src/modules/economy/webhooks/economy-webhooks.controller.ts"
+  ],
+  "sourceContext": {
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/economy/webhooks/economy-webhooks.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('payos')",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const event = this.payosClient.verifyWebhook({",
+            "text": [
+              "Endpoint công khai nhưng HMAC được kiểm TRƯỚC mọi truy vấn hoặc ghi: sai chữ ký thì 401 và chưa chạm DB."
+            ],
+            "src": "comment gốc economy-webhooks.controller.ts L120"
+          }
+        ]
+      },
+      {
+        "tag": "EXTERNAL",
+        "file": "apps/core-api/src/modules/economy/ports/payos-client.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "verifyWebhook(payload: Record<string, unknown>): PayosWebhookEvent {",
+            "to": "^  }$"
+          },
+          {
+            "at": "private matchesSignature(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private sign(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private stringifyValue(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private isIntegerLike(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "code: paymentCode,",
+            "text": [
+              "payOS chỉ ký object data; code và success ở ngoài sửa được mà chữ ký vẫn đúng. Vì vậy quyết định credit chỉ dựa vào code nằm trong data đã verify."
+            ],
+            "src": "comment gốc payos-client.ts L165-166"
+          },
+          {
+            "at": "return left.length === right.length && timingSafeEqual(left, right);",
+            "text": [
+              "So chữ ký bằng timingSafeEqual (thời gian so sánh không phụ thuộc nội dung) và kiểm độ dài trước, vì hàm này ném lỗi khi 2 buffer khác độ dài."
+            ],
+            "src": "suy ra từ code: crypto.timingSafeEqual thay cho so sánh chuỗi thường, có kiểm left.length === right.length trước"
+          },
+          {
+            "at": "const canonical = Object.keys(data)",
+            "text": [
+              "Định dạng chuẩn của payOS: sắp key tăng dần, không URI-encode giá trị. Sai định dạng thì HMAC không khớp."
+            ],
+            "src": "comment gốc payos-client.ts L289"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/economy/services/payos.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async creditVerifiedWebhook(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private matchesPaidOrder(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async lockOrder(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "if (!order || !this.matchesPaidOrder(order, event)) return false;",
+            "text": [
+              "Không khớp snapshot của đơn (orderCode, số tiền, VND, mã thành công, paymentLinkId) thì KHÔNG ghi sổ, trả false chứ không ném lỗi."
+            ],
+            "src": "docs/services/economy-service.md mục 8 bước 4 + code matchesPaidOrder"
+          },
+          {
+            "at": "idempotencyKey: `payos-credit:${order.orderCode}`,",
+            "text": [
+              "Key do server sinh từ order_code, không lấy từ client: webhook gửi lại hay chạy song song cũng chỉ cộng Diamond một lần."
+            ],
+            "src": "docs/services/economy-service.md mục 8 bước 6"
+          },
+          {
+            "at": "const locked = await this.lockOrder(manager, order.id);",
+            "text": [
+              "[POSTGRES] Khóa dòng đơn FOR UPDATE rồi đối chiếu lại snapshot ngay trong transaction ghi sổ; lệch thì ném lỗi để rollback cả bút toán."
+            ],
+            "src": "docs/services/economy-service.md mục 8 bước 4 và 5 (lock order, đối chiếu snapshot, update order trong LedgerService.record.withinTransaction)"
+          },
+          {
+            "at": "await manager.update(",
+            "text": [
+              "Không lọc theo status: webhook hợp lệ đến trễ sau khi đơn bị coi là hết hạn vẫn phải nối đơn với bút toán nguyên tử, không để ví đã cộng mà đơn còn expired."
+            ],
+            "src": "comment gốc payos.service.ts L210-211"
+          },
+          {
+            "at": "return (",
+            "text": [
+              "Mọi trường tiền đều so với snapshot lúc tạo đơn, không tin số trong webhook. Đơn đã paid thì không còn khớp nên không ghi sổ lần hai."
+            ],
+            "src": "suy ra từ code: matchesPaidOrder so từng trường với order và yêu cầu status != paid + docs/services/economy-service.md mục 8 bước 4"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1756300000000-payos-diamond.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE payos_payment_orders (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ],
+        "inline": [
+          {
+            "at": "await queryRunner.query(`",
+            "text": [
+              "Unique transaction_id: mỗi đơn chỉ nối được với đúng một transaction credit. order_code lấy từ sequence 16 chữ số để vẫn nằm trong số nguyên an toàn của JavaScript (payOS nhận number)."
+            ],
+            "src": "payos.entities.ts L95 (mỗi order chỉ được nối với đúng một transaction credit) + comment migration 1756300000000-payos-diamond.ts (payOS nhận number nên dùng sequence 16 chữ số)"
+          }
+        ]
+      }
+    ],
+    "ranges": [
+      {
+        "file": "apps/core-api/src/modules/economy/webhooks/economy-webhooks.controller.ts",
+        "range": {
+          "at": "@Post('payos')",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/ports/payos-client.ts",
+        "range": {
+          "at": "verifyWebhook(payload: Record<string, unknown>): PayosWebhookEvent {",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/ports/payos-client.ts",
+        "range": {
+          "at": "private matchesSignature(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/ports/payos-client.ts",
+        "range": {
+          "at": "private sign(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/ports/payos-client.ts",
+        "range": {
+          "at": "private stringifyValue(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/ports/payos-client.ts",
+        "range": {
+          "at": "private isIntegerLike(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/services/payos.service.ts",
+        "range": {
+          "at": "async creditVerifiedWebhook(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/services/payos.service.ts",
+        "range": {
+          "at": "private matchesPaidOrder(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/services/payos.service.ts",
+        "range": {
+          "at": "private async lockOrder(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/database/migrations/1756300000000-payos-diamond.ts",
+        "range": {
+          "at": "CREATE TABLE payos_payment_orders (",
+          "to": "^    `\\);$",
+          "pad": [
+            1,
+            0
+          ]
+        }
+      }
+    ],
+    "helpers": [],
+    "skip": [
+      "stringifyValue",
+      "isIntegerLike"
+    ],
+    "attach": {},
+    "nested": true
+  },
+  "omittedContext": {
+    "note": "Curated source selection; unlisted call bodies, shared request infrastructure, DTOs and other context may be omitted. skip names stay unexpanded; helpers may be substituted; attach controls placement. Flattened scopes are not executable code.",
+    "skip": [
+      "stringifyValue",
+      "isIntegerLike"
+    ],
+    "attach": {},
+    "helpers": []
+  },
+  "featureMetadata": {
+    "id": "09-diamond-top-up-va-vip",
+    "short": "Diamond, Top-up và VIP",
+    "title": "Diamond, Top-up và VIP",
+    "summary": "Nạp Diamond qua store hoặc payOS, mua VIP bằng Diamond, hoàn tiền từ store; mọi thay đổi số dư đi qua một sổ kép duy nhất.",
+    "diagramAnchor": "09-diamond-top-up-va-vip"
+  },
+  "endpointCatalog": {
+    "n": "03",
+    "slug": "post-webhook-payos",
+    "method": "POST",
+    "short": "/economy/webhooks/payos",
+    "route": "/api/v1/economy/webhooks/payos",
+    "name": "Webhook payOS cộng Diamond",
+    "title": "payOS báo thanh toán thành công: kiểm HMAC, đối chiếu snapshot của đơn, rồi cộng Diamond đúng một lần.",
+    "flow": "[CONTROLLER] → [EXTERNAL] → [SERVICE] → [POSTGRES]",
+    "roles": [
+      [
+        "CONTROLLER",
+        "Nhận webhook công khai của payOS, kiểm chữ ký HMAC trước mọi thứ rồi giao event đã xác thực cho PayosService."
+      ],
+      [
+        "EXTERNAL",
+        "payOS ký phần data bằng HMAC-SHA256 với checksum key; core-api dựng lại chuỗi chuẩn và so chữ ký."
+      ],
+      [
+        "SERVICE",
+        "Đối chiếu event với snapshot của đơn rồi ghi sổ Nợ system_iap / Có ví user, đánh dấu đơn paid trong cùng transaction."
+      ],
+      [
+        "POSTGRES",
+        "Khóa dòng đơn FOR UPDATE; các unique order_code, idempotency_key, payment_link_id, transaction_id chặn trùng."
+      ]
+    ],
+    "tables": [
+      [
+        "payos_payment_orders",
+        "đơn nạp: snapshot số tiền VND, số Diamond, order_code, paymentLinkId, trạng thái; nối với đúng 1 transaction."
+      ],
+      [
+        "transactions",
+        "1 giao dịch payos_topup, key idempotency do server sinh từ order_code."
+      ],
+      [
+        "ledger_entries",
+        "bút toán sổ kép: Nợ system_iap, Có user_wallet."
+      ],
+      [
+        "wallets",
+        "số dư Diamond tăng thêm, bị khóa FOR UPDATE trong lúc ghi sổ."
+      ],
+      [
+        "outbox_events",
+        "event economy.diamond.credited ghi cùng transaction."
+      ]
+    ],
+    "related": [
+      [
+        "Economy (LedgerService)",
+        "record: idempotency theo key, khóa ví FOR UPDATE, sổ kép, outbox; phần lõi này có trong luồng Mua VIP."
+      ],
+      [
+        "payOS (tạo đơn)",
+        "bước trước: POST /economy/payos/orders tạo đơn kèm snapshot giá rồi gọi payOS tạo link thanh toán (chưa chép)."
+      ],
+      [
+        "Web ví",
+        "trang ví gọi GET /economy/payos/orders/:id để biết đơn đã paid chưa; redirect từ payOS không phải bằng chứng thanh toán."
+      ]
+    ],
+    "nested": true,
+    "skip": [
+      "stringifyValue",
+      "isIntegerLike"
+    ],
+    "steps": [
+      {
+        "at": "@Post('payos')",
+        "text": "Nhận webhook công khai của payOS (tối đa 120 lần/phút)"
+      },
+      {
+        "at": "const event = this.payosClient.verifyWebhook({",
+        "text": "Kiểm chữ ký HMAC trước mọi truy vấn hoặc ghi"
+      },
+      {
+        "at": "const canonical = Object.keys(data)",
+        "text": "Dựng chuỗi chuẩn từ data (sắp key tăng dần) rồi ký HMAC-SHA256"
+      },
+      {
+        "at": "const left = Buffer.from(expected, 'hex');",
+        "text": "So chữ ký tính được với chữ ký payOS gửi (timingSafeEqual)"
+      },
+      {
+        "at": "await this.payosService.creditVerifiedWebhook(event);",
+        "text": "Giao event đã xác thực cho PayosService để cộng Diamond"
+      },
+      {
+        "at": "const order = await this.orderRepo.findOneBy({",
+        "text": "Tìm đơn theo orderCode, đối chiếu snapshot (lệch thì bỏ qua)"
+      },
+      {
+        "at": "const result = await this.ledger.record({",
+        "text": "Ghi sổ Nợ system_iap / Có ví user, idempotent theo order_code"
+      },
+      {
+        "at": "const locked = await this.lockOrder(manager, order.id);",
+        "text": "Cùng transaction: khóa dòng đơn, đối chiếu lại snapshot"
+      },
+      {
+        "at": "await manager.update(",
+        "text": "Đánh dấu đơn paid và nối với giao dịch vừa ghi"
+      },
+      {
+        "at": "return { received: true };",
+        "text": "Trả { received: true } cho payOS"
+      }
+    ],
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/economy/webhooks/economy-webhooks.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('payos')",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const event = this.payosClient.verifyWebhook({",
+            "text": [
+              "Endpoint công khai nhưng HMAC được kiểm TRƯỚC mọi truy vấn hoặc ghi: sai chữ ký thì 401 và chưa chạm DB."
+            ],
+            "src": "comment gốc economy-webhooks.controller.ts L120"
+          }
+        ]
+      },
+      {
+        "tag": "EXTERNAL",
+        "file": "apps/core-api/src/modules/economy/ports/payos-client.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "verifyWebhook(payload: Record<string, unknown>): PayosWebhookEvent {",
+            "to": "^  }$"
+          },
+          {
+            "at": "private matchesSignature(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private sign(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private stringifyValue(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private isIntegerLike(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "code: paymentCode,",
+            "text": [
+              "payOS chỉ ký object data; code và success ở ngoài sửa được mà chữ ký vẫn đúng. Vì vậy quyết định credit chỉ dựa vào code nằm trong data đã verify."
+            ],
+            "src": "comment gốc payos-client.ts L165-166"
+          },
+          {
+            "at": "return left.length === right.length && timingSafeEqual(left, right);",
+            "text": [
+              "So chữ ký bằng timingSafeEqual (thời gian so sánh không phụ thuộc nội dung) và kiểm độ dài trước, vì hàm này ném lỗi khi 2 buffer khác độ dài."
+            ],
+            "src": "suy ra từ code: crypto.timingSafeEqual thay cho so sánh chuỗi thường, có kiểm left.length === right.length trước"
+          },
+          {
+            "at": "const canonical = Object.keys(data)",
+            "text": [
+              "Định dạng chuẩn của payOS: sắp key tăng dần, không URI-encode giá trị. Sai định dạng thì HMAC không khớp."
+            ],
+            "src": "comment gốc payos-client.ts L289"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/economy/services/payos.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async creditVerifiedWebhook(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private matchesPaidOrder(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async lockOrder(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "if (!order || !this.matchesPaidOrder(order, event)) return false;",
+            "text": [
+              "Không khớp snapshot của đơn (orderCode, số tiền, VND, mã thành công, paymentLinkId) thì KHÔNG ghi sổ, trả false chứ không ném lỗi."
+            ],
+            "src": "docs/services/economy-service.md mục 8 bước 4 + code matchesPaidOrder"
+          },
+          {
+            "at": "idempotencyKey: `payos-credit:${order.orderCode}`,",
+            "text": [
+              "Key do server sinh từ order_code, không lấy từ client: webhook gửi lại hay chạy song song cũng chỉ cộng Diamond một lần."
+            ],
+            "src": "docs/services/economy-service.md mục 8 bước 6"
+          },
+          {
+            "at": "const locked = await this.lockOrder(manager, order.id);",
+            "text": [
+              "[POSTGRES] Khóa dòng đơn FOR UPDATE rồi đối chiếu lại snapshot ngay trong transaction ghi sổ; lệch thì ném lỗi để rollback cả bút toán."
+            ],
+            "src": "docs/services/economy-service.md mục 8 bước 4 và 5 (lock order, đối chiếu snapshot, update order trong LedgerService.record.withinTransaction)"
+          },
+          {
+            "at": "await manager.update(",
+            "text": [
+              "Không lọc theo status: webhook hợp lệ đến trễ sau khi đơn bị coi là hết hạn vẫn phải nối đơn với bút toán nguyên tử, không để ví đã cộng mà đơn còn expired."
+            ],
+            "src": "comment gốc payos.service.ts L210-211"
+          },
+          {
+            "at": "return (",
+            "text": [
+              "Mọi trường tiền đều so với snapshot lúc tạo đơn, không tin số trong webhook. Đơn đã paid thì không còn khớp nên không ghi sổ lần hai."
+            ],
+            "src": "suy ra từ code: matchesPaidOrder so từng trường với order và yêu cầu status != paid + docs/services/economy-service.md mục 8 bước 4"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1756300000000-payos-diamond.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE payos_payment_orders (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ],
+        "inline": [
+          {
+            "at": "await queryRunner.query(`",
+            "text": [
+              "Unique transaction_id: mỗi đơn chỉ nối được với đúng một transaction credit. order_code lấy từ sequence 16 chữ số để vẫn nằm trong số nguyên an toàn của JavaScript (payOS nhận number)."
+            ],
+            "src": "payos.entities.ts L95 (mỗi order chỉ được nối với đúng một transaction credit) + comment migration 1756300000000-payos-diamond.ts (payOS nhận number nên dùng sequence 16 chữ số)"
+          }
+        ]
+      }
+    ]
+  },
+  "sourceManifest": {
+    "verifiedCodeSha256": true,
+    "mode": "published-presentation",
+    "baselineCommit": "cb30743143bd8f6576b154db4b606380c365c674",
+    "sourceCommit": "d3cb28c",
+    "sources": [
+      "apps/core-api/src/database/migrations/1756300000000-payos-diamond.ts",
+      "apps/core-api/src/modules/economy/ports/payos-client.ts",
+      "apps/core-api/src/modules/economy/services/payos.service.ts",
+      "apps/core-api/src/modules/economy/webhooks/economy-webhooks.controller.ts"
+    ],
+    "steps": [
+      "Step 1: Nhận webhook công khai của payOS (tối đa 120 lần/phút)",
+      "Step 2: Kiểm chữ ký HMAC trước mọi truy vấn hoặc ghi",
+      "Step 3: Dựng chuỗi chuẩn từ data (sắp key tăng dần) rồi ký HMAC-SHA256",
+      "Step 4: So chữ ký tính được với chữ ký payOS gửi (timingSafeEqual)",
+      "Step 5: Giao event đã xác thực cho PayosService để cộng Diamond",
+      "Step 6: Tìm đơn theo orderCode, đối chiếu snapshot (lệch thì bỏ qua)",
+      "Step 7: Ghi sổ Nợ system_iap / Có ví user, idempotent theo order_code",
+      "Step 8: Cùng transaction: khóa dòng đơn, đối chiếu lại snapshot",
+      "Step 9: Đánh dấu đơn paid và nối với giao dịch vừa ghi",
+      "Step 10: Trả { received: true } cho payOS"
+    ],
+    "removedOverview": "// ════════════════════════════════════════════════════════════════════════════\n//  POST /api/v1/economy/webhooks/payos\n//  payOS báo thanh toán thành công: kiểm HMAC, đối chiếu snapshot của đơn, rồi cộng Diamond đúng một lần.\n// ════════════════════════════════════════════════════════════════════════════\n//  Luồng      [CONTROLLER] → [EXTERNAL] → [SERVICE] → [POSTGRES]\n//\n//  Vai trò từng tầng\n//    [CONTROLLER] Nhận webhook công khai của payOS, kiểm chữ ký HMAC trước mọi thứ rồi\n//                 giao event đã xác thực cho PayosService.\n//    [EXTERNAL]   payOS ký phần data bằng HMAC-SHA256 với checksum key; core-api dựng\n//                 lại chuỗi chuẩn và so chữ ký.\n//    [SERVICE]    Đối chiếu event với snapshot của đơn rồi ghi sổ Nợ system_iap / Có ví\n//                 user, đánh dấu đơn paid trong cùng transaction.\n//    [POSTGRES]   Khóa dòng đơn FOR UPDATE; các unique order_code, idempotency_key,\n//                 payment_link_id, transaction_id chặn trùng.\n//\n//  Bảng       payos_payment_orders — đơn nạp: snapshot số tiền VND, số Diamond,\n//               order_code, paymentLinkId, trạng thái; nối với đúng 1 transaction.\n//             transactions — 1 giao dịch payos_topup, key idempotency do server sinh từ\n//               order_code.\n//             ledger_entries — bút toán sổ kép: Nợ system_iap, Có user_wallet.\n//             wallets — số dư Diamond tăng thêm, bị khóa FOR UPDATE trong lúc ghi sổ.\n//             outbox_events — event economy.diamond.credited ghi cùng transaction.\n//  Liên quan  Economy (LedgerService) — record: idempotency theo key, khóa ví FOR\n//               UPDATE, sổ kép, outbox; phần lõi này có trong luồng Mua VIP.\n//             payOS (tạo đơn) — bước trước: POST /economy/payos/orders tạo đơn kèm\n//               snapshot giá rồi gọi payOS tạo link thanh toán (chưa chép).\n//             Web ví — trang ví gọi GET /economy/payos/orders/:id để biết đơn đã paid\n//               chưa; redirect từ payOS không phải bằng chứng thanh toán.\n//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi\n//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới\n//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //\n//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các\n//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số\n//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức\n//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong\n//             repo.\n",
+    "baselineBodySha256": "a818295877721b3e351214e569caa00534f57b6b36c79bef00010799bf100167",
+    "bodySha256": "a818295877721b3e351214e569caa00534f57b6b36c79bef00010799bf100167",
+    "rawSha256": "8627ed812e6a3b5c61c88f98931bd6c1631103a53469069b0d959a871c4dff60",
+    "codeSha256": "8627ed812e6a3b5c61c88f98931bd6c1631103a53469069b0d959a871c4dff60"
+  },
+  "code": {
+    "path": "code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts",
+    "sha256": "8627ed812e6a3b5c61c88f98931bd6c1631103a53469069b0d959a871c4dff60",
+    "hashAlgorithm": "sha256",
+    "content": "//  POST /api/v1/economy/webhooks/payos\n//  payOS báo thanh toán thành công: kiểm HMAC, đối chiếu snapshot của đơn, rồi cộng Diamond đúng một lần.\n//  Step 1: Nhận webhook công khai của payOS (tối đa 120 lần/phút)\n//  Step 2: Kiểm chữ ký HMAC trước mọi truy vấn hoặc ghi\n//  Step 3: Dựng chuỗi chuẩn từ data (sắp key tăng dần) rồi ký HMAC-SHA256\n//  Step 4: So chữ ký tính được với chữ ký payOS gửi (timingSafeEqual)\n//  Step 5: Giao event đã xác thực cho PayosService để cộng Diamond\n//  Step 6: Tìm đơn theo orderCode, đối chiếu snapshot (lệch thì bỏ qua)\n//  Step 7: Ghi sổ Nợ system_iap / Có ví user, idempotent theo order_code\n//  Step 8: Cùng transaction: khóa dòng đơn, đối chiếu lại snapshot\n//  Step 9: Đánh dấu đơn paid và nối với giao dịch vừa ghi\n//  Step 10: Trả { received: true } cho payOS\n\n// [CONTROLLER] EconomyWebhooksController.payos  ·  economy-webhooks.controller.ts L42–44, L121–134\n@Public()\n@Controller('economy/webhooks')\nexport class EconomyWebhooksController {\n  constructor(\n    private readonly payosClient: PayosClient,\n    private readonly payosService: PayosService,\n    // PayosService\n    @InjectRepository(PayosPaymentOrder)\n    private readonly orderRepo: Repository<PayosPaymentOrder>,\n    private readonly ledger: LedgerPersistencePort,\n  ) {}\n\n  // Step 1: Nhận webhook công khai của payOS (tối đa 120 lần/phút)\n  @Post('payos')\n  @HttpCode(HttpStatus.OK)\n  @Throttle({ default: { limit: 120, ttl: minutes(1) } })\n  async payos(@Body() dto: PayosWebhookDto): Promise<{ received: boolean }> {\n\n    // Step 2: Kiểm chữ ký HMAC trước mọi truy vấn hoặc ghi\n    // Endpoint công khai nhưng HMAC được kiểm TRƯỚC mọi truy vấn hoặc ghi: sai chữ ký thì 401 và\n    // chưa chạm DB.\n    const event = this.payosClient.verifyWebhook({\n      code: dto.code,\n      success: dto.success,\n      data: dto.data,\n      signature: dto.signature,\n      ...(dto.desc ? { desc: dto.desc } : {}),\n    });\n\n    // [EXTERNAL] PayosHttpClientAdapter.verifyWebhook  ·  payos-client.ts L123–174\n    const payload = {\n      code: dto.code,\n      success: dto.success,\n      data: dto.data,\n      signature: dto.signature,\n      ...(dto.desc ? { desc: dto.desc } : {}),\n    };\n    const { checksumKey } = this.credentials();\n    const signature = payload['signature'];\n    const data = payload['data'];\n\n    // [EXTERNAL] PayosHttpClientAdapter.matchesSignature  ·  payos-client.ts L278–287\n    // data = data as Record<string, unknown>\n    const expected = this.sign(data, checksumKey);\n\n    // [EXTERNAL] PayosHttpClientAdapter.sign  ·  payos-client.ts L290–296\n    // Step 3: Dựng chuỗi chuẩn từ data (sắp key tăng dần) rồi ký HMAC-SHA256\n    // Định dạng chuẩn của payOS: sắp key tăng dần, không URI-encode giá trị. Sai định dạng thì\n    // HMAC không khớp.\n    const canonical = Object.keys(data)\n      .sort()\n      .map((key) => `${key}=${this.stringifyValue(data[key])}`)\n      .join('&');\n    return createHmac('sha256', checksumKey).update(canonical).digest('hex');\n\n    // Step 4: So chữ ký tính được với chữ ký payOS gửi (timingSafeEqual)\n    const left = Buffer.from(expected, 'hex');\n    const right = Buffer.from(signature, 'hex');\n    // So chữ ký bằng timingSafeEqual (thời gian so sánh không phụ thuộc nội dung) và kiểm độ dài\n    // trước, vì hàm này ném lỗi khi 2 buffer khác độ dài.\n    return left.length === right.length && timingSafeEqual(left, right);\n\n    if (\n      typeof signature !== 'string' ||\n      !data ||\n      typeof data !== 'object' ||\n      Array.isArray(data) ||\n      !this.matchesSignature(\n        data as Record<string, unknown>,\n        signature,\n        checksumKey,\n      )\n    ) {\n      throw new DomainException(\n        EconomyErrors.WEBHOOK_SIGNATURE_INVALID,\n        'Webhook payOS có chữ ký không hợp lệ',\n        HttpStatus.UNAUTHORIZED,\n      );\n    }\n    const event = data as Record<string, unknown>;\n    const orderCode = event['orderCode'];\n    const amount = event['amount'];\n    const currency = event['currency'];\n    const paymentLinkId = event['paymentLinkId'];\n    const paymentCode = event['code'];\n    if (\n      !this.isIntegerLike(orderCode) ||\n      !this.isIntegerLike(amount) ||\n      typeof currency !== 'string' ||\n      typeof paymentLinkId !== 'string' ||\n      paymentLinkId.length === 0 ||\n      typeof paymentCode !== 'string'\n    ) {\n      throw new DomainException(\n        EconomyErrors.PAYOS_WEBHOOK_INVALID,\n        'Webhook payOS thiếu dữ liệu thanh toán bắt buộc',\n        HttpStatus.BAD_REQUEST,\n      );\n    }\n    return {\n      // payOS chỉ ký object data; code và success ở ngoài sửa được mà chữ ký vẫn đúng. Vì vậy\n      // quyết định credit chỉ dựa vào code nằm trong data đã verify.\n      code: paymentCode,\n      success: paymentCode === '00',\n      orderCode: String(orderCode),\n      amount: String(amount),\n      currency,\n      paymentLinkId,\n    };\n\n    // Step 5: Giao event đã xác thực cho PayosService để cộng Diamond\n    await this.payosService.creditVerifiedWebhook(event);\n\n    // [SERVICE] PayosService.creditVerifiedWebhook  ·  payos.service.ts L170–230\n    // Step 6: Tìm đơn theo orderCode, đối chiếu snapshot (lệch thì bỏ qua)\n    const order = await this.orderRepo.findOneBy({\n      orderCode: event.orderCode,\n    });\n    // Không khớp snapshot của đơn (orderCode, số tiền, VND, mã thành công, paymentLinkId) thì\n    // KHÔNG ghi sổ, trả false chứ không ném lỗi.\n\n    // [SERVICE] PayosService.matchesPaidOrder  ·  payos.service.ts L321–334\n    // Mọi trường tiền đều so với snapshot lúc tạo đơn, không tin số trong webhook. Đơn đã paid\n    // thì không còn khớp nên không ghi sổ lần hai.\n    return (\n      order.status !== PayosPaymentOrderStatus.Paid &&\n      event.success &&\n      event.code === PAYOS_SUCCESS_CODE &&\n      event.orderCode === order.orderCode &&\n      event.amount === order.amountVnd &&\n      event.currency === order.currency &&\n      event.paymentLinkId === order.paymentLinkId\n    );\n\n    if (!order || !this.matchesPaidOrder(order, event)) return false;\n    try {\n\n      // Step 7: Ghi sổ Nợ system_iap / Có ví user, idempotent theo order_code\n      const result = await this.ledger.record({\n        type: TransactionType.PayosTopup,\n        // Key do server sinh từ order_code, không lấy từ client: webhook gửi lại hay chạy song\n        // song cũng chỉ cộng Diamond một lần.\n        idempotencyKey: `payos-credit:${order.orderCode}`,\n        actorUserId: order.userId,\n        metadata: {\n          provider: 'payos',\n          orderId: order.id,\n          orderCode: order.orderCode,\n          packageId: order.packageId,\n          amountVnd: order.amountVnd,\n          diamonds: order.diamonds,\n          paymentLinkId: order.paymentLinkId,\n        },\n        entries: [\n          {\n            accountKind: LedgerAccountKind.SystemIap,\n            direction: LedgerDirection.Debit,\n            amount: BigInt(order.diamonds),\n            currency: LedgerCurrency.Diamond,\n          },\n          {\n            accountKind: LedgerAccountKind.UserWallet,\n            userId: order.userId,\n            direction: LedgerDirection.Credit,\n            amount: BigInt(order.diamonds),\n            currency: LedgerCurrency.Diamond,\n          },\n        ],\n        withinTransaction: async (manager, txn) => {\n\n          // Step 8: Cùng transaction: khóa dòng đơn, đối chiếu lại snapshot\n          // [POSTGRES] Khóa dòng đơn FOR UPDATE rồi đối chiếu lại snapshot ngay trong transaction\n          // ghi sổ; lệch thì ném lỗi để rollback cả bút toán.\n          const locked = await this.lockOrder(manager, order.id);\n\n          // [SERVICE] PayosService.lockOrder  ·  payos.service.ts L309–319\n          const orderId = order.id;\n          return manager\n            .getRepository(PayosPaymentOrder)\n            .createQueryBuilder('payos_order')\n            .setLock('pessimistic_write')\n            .where('payos_order.id = :orderId', { orderId })\n            .getOneOrFail();\n\n          if (!this.matchesPaidOrder(locked, event))\n            this.throwWebhookMismatch();\n\n          // Step 9: Đánh dấu đơn paid và nối với giao dịch vừa ghi\n          // Không lọc theo status: webhook hợp lệ đến trễ sau khi đơn bị coi là hết hạn vẫn phải\n          // nối đơn với bút toán nguyên tử, không để ví đã cộng mà đơn còn expired.\n          await manager.update(\n            PayosPaymentOrder,\n            { id: locked.id },\n            {\n              status: PayosPaymentOrderStatus.Paid,\n              transactionId: txn.id,\n            },\n          );\n        },\n      });\n      return !result.replayed;\n    } catch (err) {\n      if (\n        err instanceof DomainException &&\n        err.code === EconomyErrors.PAYOS_WEBHOOK_MISMATCH\n      ) {\n        return false;\n      }\n      throw err;\n    }\n\n    // Step 10: Trả { received: true } cho payOS\n    return { received: true };\n  }\n}\n\n// [POSTGRES] CREATE TABLE payos_payment_orders  ·  1756300000000-payos-diamond.ts L19–43\n// Unique transaction_id: mỗi đơn chỉ nối được với đúng một transaction credit. order_code lấy từ\n// sequence 16 chữ số để vẫn nằm trong số nguyên an toàn của JavaScript (payOS nhận number).\nawait queryRunner.query(`\n  CREATE TABLE payos_payment_orders (\n    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n    user_id uuid NOT NULL REFERENCES users(id),\n    package_id varchar(64) NOT NULL REFERENCES payos_packages(package_id),\n    amount_vnd bigint NOT NULL CHECK (amount_vnd > 0),\n    diamonds bigint NOT NULL CHECK (diamonds > 0),\n    currency varchar(3) NOT NULL DEFAULT 'VND' CHECK (currency = 'VND'),\n    order_code bigint NOT NULL DEFAULT nextval('payos_order_code_seq'),\n    idempotency_key varchar(255) NOT NULL,\n    request_hash char(64) NOT NULL,\n    status varchar(32) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'cancelled', 'expired')),\n    payment_link_id varchar(128) NULL,\n    checkout_url text NULL,\n    qr_code text NULL,\n    expires_at timestamptz NOT NULL,\n    transaction_id uuid NULL REFERENCES transactions(id),\n    created_at timestamptz NOT NULL DEFAULT now(),\n    updated_at timestamptz NOT NULL DEFAULT now(),\n    CONSTRAINT uq_payos_payment_orders_order_code UNIQUE (order_code),\n    CONSTRAINT uq_payos_payment_orders_idempotency_key UNIQUE (idempotency_key),\n    CONSTRAINT uq_payos_payment_orders_payment_link_id UNIQUE (payment_link_id),\n    CONSTRAINT uq_payos_payment_orders_transaction_id UNIQUE (transaction_id)\n  )\n`);\n"
+  },
+  "provenance": {
+    "catalog": {
+      "path": "annotated-09-diamond-top-up-va-vip.mjs",
+      "sha256": "14613674bf4168e304a64d5de42eee89ecb4d66bbe207a648ba14d3482fae5dd"
+    },
+    "displayedCodeSha256": "8627ed812e6a3b5c61c88f98931bd6c1631103a53469069b0d959a871c4dff60"
+  }
+}

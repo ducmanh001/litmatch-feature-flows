@@ -1,0 +1,668 @@
+{
+  "id": "20-short-video",
+  "title": "Short Video",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#20-short-video",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/20-short-video.json",
+  "feature": {
+    "id": "20-short-video",
+    "title": "Short Video",
+    "sources": [
+      "docs/services/short-video-service.md",
+      "docs/services/gift-service.md"
+    ],
+    "core": [
+      "ShortVideo: lifecycle + views",
+      "Ranking + moderation guards",
+      "Safety / Admin / Gift qua DI"
+    ],
+    "rest": "REST: upload, finalize, view, report",
+    "dataLabel": "Video, View, Report",
+    "redisLabel": "",
+    "realtime": false,
+    "external": {
+      "lines": [
+        "Storage + transcode ports",
+        "Dev adapters / unavailable"
+      ],
+      "control": "Presign + transcode adapter",
+      "direct": "Client → storage: upload video",
+      "kind": "storage"
+    },
+    "archNotes": {
+      "important": "ShortVideo module giữ lifecycle và interactions trong PostgreSQL; body video upload trực tiếp lên storage. Storage/transcode là ports hạ tầng của core-api, không phải backend business deployable mới.",
+      "caution": "Repo có dev adapters và production view-only/unavailable; chưa có vendor storage/transcode thật cho video. VIDEO_UPLOAD_ENABLED và runtime capabilities chặn upload trước side effect; không suy provider ready từ sơ đồ."
+    },
+    "flow": [
+      {
+        "text": "Kiểm tra upload capability\nEnabled mới tạo upload intent"
+      },
+      {
+        "text": "Lưu Video uploading theo key\nCấp presigned URL cho storageKey"
+      },
+      {
+        "text": "Client upload trực tiếp storage\nFinalize: uploading → processing"
+      },
+      {
+        "text": "Transcode qua adapter\nLỗi: failed; thành công: theo review mode"
+      },
+      {
+        "branch": "Moderation mode?",
+        "options": [
+          {
+            "label": "PRE-REVIEW",
+            "text": "pending_review: chưa hiển thị\nAdmin approve → published\nAdmin reject → rejected",
+            "continues": true
+          },
+          {
+            "label": "POST-REVIEW",
+            "text": "Processing xong → published\nDuyệt / report tiếp tục sau công bố",
+            "continues": true
+          }
+        ]
+      },
+      {
+        "branch": "Video đã published?",
+        "options": [
+          {
+            "label": "PUBLISHED",
+            "text": "Cho phép xuất hiện trong video feed\nTiếp tục tương tác",
+            "continues": true
+          },
+          {
+            "label": "CHƯA PUBLISHED",
+            "text": "pending_review: còn chờ duyệt\nrejected / failed: không vào feed\nChỉ approve mới mở nhánh published",
+            "continues": false
+          }
+        ]
+      },
+      {
+        "text": "Qualified view unique; self-view bỏ qua\nLike / comment cập nhật counters"
+      },
+      {
+        "text": "Tính ranking + fallback recent\nReport distinct vượt ngưỡng: removed\nAdmin gỡ có audit"
+      }
+    ],
+    "flowNotes": {
+      "important": "Lifecycle dùng conditional transitions; pending_review chưa published. Qualified view chỉ false→true một lần cho mỗi viewer, counter cập nhật atomic; ranking là read model có fallback recent.",
+      "caution": "Upload timeout hoặc transcode lỗi chỉ chuyển uploading/processing sang failed; sweeper dọn storage của video failed theo lô. Trong pre-review, reject không đi tiếp sang feed. Video report không trừ trustScore user; không cấp lại upload URL sau khi video đã rời uploading.",
+      "followup": "Gift xác định recipient từ tác giả video; pin profile và share vào chat chưa thuộc slice này."
+    }
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Capability upload phải enabled; gửi upload intent",
+        "edge": "REST · POST videos/upload-intent + key"
+      },
+      {
+        "actor": "core-api · ShortVideo",
+        "text": "Flag/provider guard; tạo uploading và storageKey stable",
+        "edge": "SQL · INSERT Video"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lưu Video uploading idempotent",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · ShortVideo",
+        "text": "Issue upload URL qua port; trả intent",
+        "edge": "Storage port / REST result"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Upload trực tiếp storage, sau đó finalize",
+        "edge": "PUT storage; REST · finalize"
+      },
+      {
+        "actor": "core-api · ShortVideo",
+        "text": "Conditional uploading→processing; gọi transcode",
+        "edge": "SQL · status; VideoTranscodePort"
+      },
+      {
+        "actor": "VideoTranscodePort · dev",
+        "text": "Trả processing result đồng bộ; chưa có production webhook vendor",
+        "edge": "In-process result · core-api"
+      },
+      {
+        "actor": "core-api · ShortVideo",
+        "branch": "Processing/review result nào?",
+        "options": [
+          {
+            "label": "POST-REVIEW OK",
+            "steps": [
+              {
+                "actor": "core-api · ShortVideo",
+                "text": "Mode post: processing xong cho published",
+                "edge": "SQL · UPDATE published"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit Video published",
+                "edge": "SQL result · trả core-api"
+              }
+            ],
+            "continues": true
+          },
+          {
+            "label": "PRE-REVIEW",
+            "steps": [
+              {
+                "actor": "core-api · ShortVideo",
+                "text": "Mode pre: pending_review, chưa vào feed",
+                "edge": "SQL · UPDATE pending_review"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Lưu pending_review",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · ShortVideo",
+                "text": "Finalize trả VideoDto pending_review cho tác giả",
+                "edge": "REST result · finalize response"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Hành động riêng: staff review từ Admin UI",
+                "edge": "REST · admin approve/reject"
+              },
+              {
+                "actor": "core-api · Admin → ShortVideo",
+                "text": "Guard role/permission; approve→published, reject→rejected + audit",
+                "edge": "SQL · moderation + AdminAuditLog"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit moderation result; chỉ approved/published đi tiếp",
+                "edge": "SQL result · trả core-api"
+              }
+            ],
+            "continues": true
+          },
+          {
+            "label": "LỖI",
+            "steps": [
+              {
+                "actor": "core-api · ShortVideo",
+                "text": "Transcode fail hoặc upload timeout",
+                "edge": "SQL · UPDATE failed"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Lưu failed; sweeper dọn object khi chưa storage_cleaned_at",
+                "edge": "SQL result · trả core-api"
+              }
+            ],
+            "continues": false
+          }
+        ]
+      },
+      {
+        "actor": "core-api · ShortVideo",
+        "branch": "Status hiện tại đã published?",
+        "options": [
+          {
+            "label": "PUBLISHED",
+            "steps": [
+              {
+                "actor": "core-api · ShortVideo",
+                "text": "Cho phép query published feed và interaction",
+                "edge": "in-process · published guard"
+              }
+            ],
+            "continues": true
+          },
+          {
+            "label": "CHƯA PUBLISHED",
+            "steps": [
+              {
+                "actor": "core-api · ShortVideo",
+                "text": "Pending/rejected không xuất hiện trong feed; không cho tương tác",
+                "edge": "REST result · chưa khả dụng"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Pending tiếp tục chờ duyệt; rejected/failed không đi tiếp",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          }
+        ]
+      },
+      {
+        "actor": "core-api · ShortVideo",
+        "text": "Feed/interactions chỉ published; pending/rejected không được đi tiếp",
+        "edge": "REST result · published Video DTO"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Xem/like/comment published video",
+        "edge": "REST · view/reaction/comment"
+      },
+      {
+        "actor": "core-api · ShortVideo",
+        "text": "Qualified view unique, self-view bỏ; counters atomic",
+        "edge": "SQL · views/reactions/comments"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Commit interactions; qualified chỉ false→true một lần/viewer",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · VideoRanking",
+        "text": "Tính rankScore derived; chưa có score fallback recent",
+        "edge": "SQL · derived ranking update / query"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lưu ranking projection, không thay source interaction truth",
+        "edge": "SQL result · trả core-api"
+      }
+    ],
+    "important": "Backend report và distinct auto-hide vẫn có API; visible report button trong reel UI đang deferred. Admin remove published có audit riêng; Gift video là branch Gift→Economy/Notification.",
+    "caution": "Chưa có storage/transcode vendor thật cho production; production upload disabled/view-only. Pre-review pending/rejected không vào feed; code không có transcode webhook vendor.",
+    "sources": [
+      "docs/services/short-video-service.md",
+      "apps/core-api/src/modules/short-video/short-video.module.ts",
+      "docs/feature-registry.json"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "ShortVideo",
+        "uses": "Lifecycle + ranking + interactions",
+        "entities": [
+          "Video",
+          "VideoView",
+          "VideoReaction",
+          "VideoComment"
+        ],
+        "actions": [
+          "Conditional uploading/processing/review/published",
+          "Qualified view unique; atomic counters"
+        ]
+      },
+      {
+        "name": "Friend",
+        "uses": "Video following feed là graph bạn",
+        "entities": [
+          "Friendship"
+        ],
+        "actions": [
+          "listFriendIds để lọc following"
+        ]
+      },
+      {
+        "name": "Safety",
+        "uses": "Report nội dung video",
+        "entities": [
+          "Report"
+        ],
+        "actions": [
+          "Distinct video reporters; không trust penalty"
+        ]
+      },
+      {
+        "name": "User",
+        "uses": "Public author profiles",
+        "entities": [
+          "User"
+        ],
+        "actions": [
+          "Batch hydrate Video/VideoComment author"
+        ]
+      },
+      {
+        "name": "Admin",
+        "uses": "Nhánh approve/reject/remove",
+        "entities": [
+          "AdminAuditLog",
+          "AdminRolePermission"
+        ],
+        "actions": [
+          "Guard role+permission; moderation + audit atomic"
+        ]
+      },
+      {
+        "name": "Gift",
+        "uses": "Nhánh tặng tác giả video",
+        "entities": [
+          "Gift",
+          "GiftEvent"
+        ],
+        "actions": [
+          "Recipient suy từ video; validate visibility"
+        ]
+      },
+      {
+        "name": "Economy",
+        "uses": "Diamond / PTS qua ledger writer",
+        "entities": [
+          "LedgerAccount",
+          "LedgerTransaction",
+          "LedgerEntry",
+          "Wallet",
+          "OutboxEvent"
+        ],
+        "actions": [
+          "Lock Wallet; DB-unique idempotencyKey",
+          "Double-entry append-only; snapshot + outbox"
+        ]
+      },
+      {
+        "name": "Notification",
+        "uses": "In-app trước push; gọi qua DI",
+        "entities": [
+          "Notification",
+          "WebPushSubscription"
+        ],
+        "actions": [
+          "createWithManager hoặc create sau persist",
+          "sendPush best-effort sau commit"
+        ]
+      }
+    ],
+    "entities": [
+      "Video",
+      "VideoView",
+      "VideoReaction",
+      "VideoComment",
+      "Report"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "rate limit",
+          "label": "HTTP throttle nếu THROTTLE_STORAGE=redis",
+          "direction": "both"
+        }
+      ],
+      "signaling": false,
+      "mediaCluster": false
+    },
+    "externals": [
+      {
+        "id": "video-storage",
+        "lines": [
+          "VideoStoragePort",
+          "Dev / unavailable adapters"
+        ],
+        "request": "Issue upload URL, delete failed object",
+        "callback": "",
+        "direct": "Client → storage: video upload",
+        "direction": "both",
+        "redis": "",
+        "condition": "VIDEO_UPLOAD_ENABLED; production chưa có real vendor"
+      },
+      {
+        "id": "transcode",
+        "lines": [
+          "VideoTranscodePort",
+          "Dev / unavailable adapters"
+        ],
+        "request": "Transcode khi finalize",
+        "callback": "Dev trả kết quả đồng bộ; chưa có vendor webhook",
+        "direct": "",
+        "direction": "both",
+        "redis": "",
+        "condition": "Production view-only; vendor integration còn deferred"
+      },
+      {
+        "id": "push",
+        "lines": [
+          "FCM / APNs / Web Push",
+          "Notification push adapters"
+        ],
+        "request": "Push sau Notification commit",
+        "callback": "",
+        "direct": "Provider → device / Service Worker",
+        "direction": "to-client",
+        "redis": "",
+        "condition": "Provider + credentials; native token cần caller; Web Push opt-in"
+      },
+      {
+        "id": "broker",
+        "lines": [
+          "Kafka",
+          "Economy events + dead letter"
+        ],
+        "request": "OutboxRelay → litmatch.economy.events / DLQ",
+        "callback": "",
+        "direct": "",
+        "direction": "to-provider",
+        "redis": "",
+        "condition": "ECONOMY_OUTBOX_RELAY_ENABLED; chưa có domain consumer đăng ký"
+      }
+    ],
+    "operations": [
+      "VideoSweeperService: timeout uploading → failed, dọn failed storage",
+      "VideoRankingService tính score derived; fallback recent",
+      "Reports vượt threshold: conditional published → removed",
+      "Gift nhánh riêng: Economy outbox/reconciliation + Notification"
+    ],
+    "notes": "Video binary/storage/transcode ports là hạ tầng, không thêm backend deployable. Chưa có vendor transcode webhook thật; không vẽ tương lai thành flow đã chạy. Redis chỉ HTTP throttle; Gift video dùng push, không room gift realtime; Kafka chỉ outbox Economy khi tặng quà.",
+    "sources": [
+      "apps/core-api/src/modules/short-video/short-video.module.ts",
+      "apps/core-api/src/modules/short-video/short-video.service.ts",
+      "apps/core-api/src/modules/short-video/ports/video-provider.factory.ts",
+      "apps/core-api/src/modules/short-video/jobs/video-sweeper.service.ts",
+      "apps/core-api/src/modules/short-video/jobs/video-ranking.service.ts",
+      "apps/core-api/src/modules/admin/admin.service.ts",
+      "apps/core-api/src/modules/gift/gift.service.ts",
+      "apps/core-api/src/app/app.module.ts"
+    ],
+    "links": [
+      {
+        "from": "ShortVideo",
+        "to": "Friend",
+        "label": "listFriendIds cho following feed",
+        "condition": ""
+      },
+      {
+        "from": "ShortVideo",
+        "to": "Safety",
+        "label": "reportVideo distinct reporters",
+        "condition": ""
+      },
+      {
+        "from": "ShortVideo",
+        "to": "User",
+        "label": "Batch hydrate public author",
+        "condition": ""
+      },
+      {
+        "from": "Admin",
+        "to": "ShortVideo",
+        "label": "approve/reject/remove + audit",
+        "condition": ""
+      },
+      {
+        "from": "Gift",
+        "to": "ShortVideo",
+        "label": "Video visible → author recipient",
+        "condition": ""
+      },
+      {
+        "from": "Gift",
+        "to": "Economy",
+        "label": "Gift DIA/PTS + GiftEvent atomic",
+        "condition": ""
+      },
+      {
+        "from": "Gift",
+        "to": "Notification",
+        "label": "gift_received sau video Gift",
+        "condition": ""
+      }
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "video-storage",
+        "label": "VideoStoragePort"
+      },
+      {
+        "id": "transcode",
+        "label": "VideoTranscodePort"
+      },
+      {
+        "id": "push",
+        "label": "FCM / APNs / Web Push"
+      },
+      {
+        "id": "broker",
+        "label": "Kafka"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      },
+      {
+        "id": "core-video-storage",
+        "from": "core",
+        "to": "video-storage",
+        "bidirectional": false,
+        "protocol": "upload/media"
+      },
+      {
+        "id": "core-transcode",
+        "from": "core",
+        "to": "transcode",
+        "bidirectional": true,
+        "protocol": "transcode (dev)"
+      },
+      {
+        "id": "core-push",
+        "from": "core",
+        "to": "push",
+        "bidirectional": false,
+        "protocol": "push"
+      },
+      {
+        "id": "core-broker",
+        "from": "core",
+        "to": "broker",
+        "bidirectional": false,
+        "protocol": "stream (tuỳ cấu hình)"
+      },
+      {
+        "id": "client-video-storage",
+        "from": "client",
+        "to": "video-storage",
+        "bidirectional": true,
+        "protocol": "upload/media"
+      },
+      {
+        "id": "client-push",
+        "from": "push",
+        "to": "client",
+        "bidirectional": false,
+        "protocol": "push"
+      }
+    ]
+  },
+  "featureSequence": [
+    "1. Kiểm tra upload capability\nEnabled mới tạo upload intent",
+    "2. Lưu Video uploading theo key\nCấp presigned URL cho storageKey",
+    "3. Client upload trực tiếp storage\nFinalize: uploading → processing",
+    "4. Transcode qua adapter\nLỗi: failed; thành công: theo review mode",
+    "5. Moderation mode?",
+    "5.1. PRE-REVIEW: pending_review: chưa hiển thị\nAdmin approve → published\nAdmin reject → rejected",
+    "5.2. POST-REVIEW: Processing xong → published\nDuyệt / report tiếp tục sau công bố",
+    "6. Video đã published?",
+    "6.1. PUBLISHED: Cho phép xuất hiện trong video feed\nTiếp tục tương tác",
+    "6.2. CHƯA PUBLISHED [continues=false]: pending_review: còn chờ duyệt\nrejected / failed: không vào feed\nChỉ approve mới mở nhánh published",
+    "7. Qualified view unique; self-view bỏ qua\nLike / comment cập nhật counters",
+    "8. Tính ranking + fallback recent\nReport distinct vượt ngưỡng: removed\nAdmin gỡ có audit"
+  ],
+  "layerSequence": [
+    "1. Frontend: Capability upload phải enabled; gửi upload intent [REST · POST videos/upload-intent + key]",
+    "2. core-api · ShortVideo: Flag/provider guard; tạo uploading và storageKey stable [SQL · INSERT Video]",
+    "3. PostgreSQL: Lưu Video uploading idempotent [SQL result · trả core-api]",
+    "4. core-api · ShortVideo: Issue upload URL qua port; trả intent [Storage port / REST result]",
+    "5. Frontend: Upload trực tiếp storage, sau đó finalize [PUT storage; REST · finalize]",
+    "6. core-api · ShortVideo: Conditional uploading→processing; gọi transcode [SQL · status; VideoTranscodePort]",
+    "7. VideoTranscodePort · dev: Trả processing result đồng bộ; chưa có production webhook vendor [In-process result · core-api]",
+    "8. core-api · ShortVideo: Processing/review result nào?",
+    "8.1. POST-REVIEW OK",
+    "8.1.1. core-api · ShortVideo: Mode post: processing xong cho published [SQL · UPDATE published]",
+    "8.1.2. PostgreSQL: Commit Video published [SQL result · trả core-api]",
+    "8.2. PRE-REVIEW",
+    "8.2.1. core-api · ShortVideo: Mode pre: pending_review, chưa vào feed [SQL · UPDATE pending_review]",
+    "8.2.2. PostgreSQL: Lưu pending_review [SQL result · trả core-api]",
+    "8.2.3. core-api · ShortVideo: Finalize trả VideoDto pending_review cho tác giả [REST result · finalize response]",
+    "8.2.4. Frontend: Hành động riêng: staff review từ Admin UI [REST · admin approve/reject]",
+    "8.2.5. core-api · Admin → ShortVideo: Guard role/permission; approve→published, reject→rejected + audit [SQL · moderation + AdminAuditLog]",
+    "8.2.6. PostgreSQL: Commit moderation result; chỉ approved/published đi tiếp [SQL result · trả core-api]",
+    "8.3. LỖI [continues=false]",
+    "8.3.1. core-api · ShortVideo: Transcode fail hoặc upload timeout [SQL · UPDATE failed]",
+    "8.3.2. PostgreSQL: Lưu failed; sweeper dọn object khi chưa storage_cleaned_at [SQL result · trả core-api]",
+    "9. core-api · ShortVideo: Status hiện tại đã published?",
+    "9.1. PUBLISHED",
+    "9.1.1. core-api · ShortVideo: Cho phép query published feed và interaction [in-process · published guard]",
+    "9.2. CHƯA PUBLISHED [continues=false]",
+    "9.2.1. core-api · ShortVideo: Pending/rejected không xuất hiện trong feed; không cho tương tác [REST result · chưa khả dụng]",
+    "9.2.2. Frontend: Pending tiếp tục chờ duyệt; rejected/failed không đi tiếp",
+    "10. core-api · ShortVideo: Feed/interactions chỉ published; pending/rejected không được đi tiếp [REST result · published Video DTO]",
+    "11. Frontend: Xem/like/comment published video [REST · view/reaction/comment]",
+    "12. core-api · ShortVideo: Qualified view unique, self-view bỏ; counters atomic [SQL · views/reactions/comments]",
+    "13. PostgreSQL: Commit interactions; qualified chỉ false→true một lần/viewer [SQL result · trả core-api]",
+    "14. core-api · VideoRanking: Tính rankScore derived; chưa có score fallback recent [SQL · derived ranking update / query]",
+    "15. PostgreSQL: Lưu ranking projection, không thay source interaction truth [SQL result · trả core-api]"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

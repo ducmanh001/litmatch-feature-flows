@@ -1,0 +1,550 @@
+{
+  "id": "11-gift",
+  "title": "Gift",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#11-gift",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/11-gift.json",
+  "feature": {
+    "id": "11-gift",
+    "title": "Gift",
+    "sources": [
+      "docs/services/gift-service.md",
+      "docs/services/economy-service.md",
+      "docs/services/friend-service.md"
+    ],
+    "core": [
+      "Gift: catalog + context",
+      "Economy: DIA + PTS ledger",
+      "Party / Video / Friend guard"
+    ],
+    "rest": "REST: gifts, room/video/profile gift",
+    "dataLabel": "GiftEvent, tx, LedgerEntry",
+    "redisLabel": "Pub/Sub: gift.sent ở Party",
+    "realtime": true,
+    "external": null,
+    "archNotes": {
+      "important": "Gift module xác định recipient và context; Economy ghi chân DIA và PTS độc lập, mỗi currency tự cân. GiftEvent, entries, Wallet snapshot và profile conversation khi cần nằm trong cùng transaction PostgreSQL.",
+      "caution": "Gift không chuyển Diamond user→user 1:1; người nhận guest nhận PTS=0. gift.sent chỉ fanout Party sau commit; video/profile dùng notification và kết quả REST, không có room fanout riêng."
+    },
+    "flow": [
+      {
+        "text": "Lấy catalog quà active\nClient chỉ chọn giftId + context"
+      },
+      {
+        "text": "Server xác định recipient\nRoom: active members\nVideo / profile: suy từ URL context"
+      },
+      {
+        "text": "Re-check quyền + giá hiện tại\nChặn self-gift; xác định PTS guest"
+      },
+      {
+        "branch": "Context hợp lệ và đủ Diamond?",
+        "options": [
+          {
+            "label": "HỢP LỆ",
+            "text": "Lock wallet theo thứ tự\nClaim Transaction idempotencyKey\nSnapshot giá + tỷ lệ",
+            "continues": true
+          },
+          {
+            "label": "BỊ CHẶN",
+            "text": "Từ chối request\nKhông GiftEvent / ledger mới",
+            "continues": false
+          }
+        ]
+      },
+      {
+        "text": "Ghi DIA debit + PTS credit\nMỗi chân double-entry\nGuest: bỏ chân PTS"
+      },
+      {
+        "text": "Cùng transaction: GiftEvent\nProfile first-contact: mở Conversation\nGhi notification phù hợp"
+      },
+      {
+        "text": "Sau commit: trả GiftEvent\nParty mới fanout gift.sent\nClient bắn hiệu ứng sau xác nhận"
+      }
+    ],
+    "flowNotes": {
+      "important": "Transaction.idempotencyKey unique ở DB và GiftEvent unique theo transactionId; replay trả event cũ. Một bước tiền hoặc nghiệp vụ fail sẽ rollback toàn bộ.",
+      "caution": "PTS là currency riêng, không phải Diamond chuyển thẳng cho người nhận và chưa quy đổi ngược. Hoàn Gift chưa có flow; mọi correction tài chính phải dùng reversal, không sửa ledger cũ.",
+      "followup": "Quà profile mở chat một lần cho cặp; không tính phí trên từng message. Room đóng sau commit có thể mất hiệu ứng nhưng không làm giao dịch sai."
+    }
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Chọn quà active và context",
+        "edge": "REST · room/video/profile Gift + key"
+      },
+      {
+        "actor": "core-api · Gift",
+        "text": "Giá từ catalog; xác định recipient và kiểm tra self-gift/guest",
+        "edge": ""
+      },
+      {
+        "actor": "core-api · Gift",
+        "branch": "Ngữ cảnh Gift nào?",
+        "options": [
+          {
+            "label": "PARTY",
+            "steps": [
+              {
+                "actor": "core-api · Gift → PartyRoom",
+                "text": "Sender và receiver phải active cùng room",
+                "edge": "in-process · getActiveRoomMembers"
+              }
+            ],
+            "continues": true
+          },
+          {
+            "label": "VIDEO",
+            "steps": [
+              {
+                "actor": "core-api · Gift → ShortVideo",
+                "text": "Video phải visible; recipient suy từ author",
+                "edge": "in-process · getVideoOrThrow"
+              }
+            ],
+            "continues": true
+          },
+          {
+            "label": "PROFILE",
+            "steps": [
+              {
+                "actor": "core-api · Gift → ProfileSocial",
+                "text": "Recipient từ profile; chuẩn bị mở Conversation/contact",
+                "edge": "in-process · profile eligibility"
+              }
+            ],
+            "continues": true
+          }
+        ]
+      },
+      {
+        "actor": "core-api · Gift → Economy",
+        "text": "Lock wallets; unique key; DIA debit và PTS credit theo tỷ lệ",
+        "edge": "SQL · entries + GiftEvent + Notification"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Commit các chân currency tự cân, GiftEvent/Wallet; profile còn có Conversation/contact",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Gift",
+        "text": "Sau commit: chuẩn bị GiftEvent result và nhánh context fanout",
+        "edge": "in-process · context side effects"
+      },
+      {
+        "actor": "core-api · Gift",
+        "branch": "Có Party room fanout?",
+        "options": [
+          {
+            "label": "PARTY",
+            "steps": [
+              {
+                "actor": "core-api · Gift",
+                "text": "Sau commit: phát gift.sent cho recipients đã authorize",
+                "edge": "Redis · PUBLISH"
+              },
+              {
+                "actor": "Redis · Pub/Sub",
+                "text": "Chuyển gift.sent trên per-user channel",
+                "edge": "Pub/Sub · PSUBSCRIBE"
+              },
+              {
+                "actor": "signaling-gateway",
+                "text": "Relay envelope tới socket room từ JWT",
+                "edge": "WebSocket · gift.sent"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Chỉ bắn hiệu ứng sau xác nhận server",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          },
+          {
+            "label": "VIDEO / PROFILE",
+            "steps": [
+              {
+                "actor": "core-api · Notification",
+                "text": "In-app đã durable; push chỉ best-effort",
+                "edge": "Push adapter · provider nếu configured"
+              },
+              {
+                "actor": "FCM / APNs / Web Push",
+                "text": "Giao push nếu endpoint/token có và provider thành công",
+                "edge": "Push · recipient device"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Hiển thị REST result / notification; không giả room event",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          }
+        ]
+      }
+    ],
+    "caution": "Guest recipient có PTS=0, Diamond không chuyển user→user 1:1. Ledger append-only, correction bằng reversal; chưa có Gift refund. Profile Gift mở chat một lần, không fee từng message.",
+    "sources": [
+      "docs/services/gift-service.md",
+      "docs/services/economy-service.md"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "Gift",
+        "uses": "Catalog + đúng một context/event",
+        "entities": [
+          "Gift",
+          "GiftEvent"
+        ],
+        "actions": [
+          "Room / video / profile recipient guard",
+          "GiftEvent cùng transaction với tiền"
+        ]
+      },
+      {
+        "name": "Economy",
+        "uses": "Diamond / PTS qua ledger writer",
+        "entities": [
+          "LedgerAccount",
+          "LedgerTransaction",
+          "LedgerEntry",
+          "Wallet",
+          "OutboxEvent"
+        ],
+        "actions": [
+          "Lock Wallet; DB-unique idempotencyKey",
+          "Double-entry append-only; snapshot + outbox"
+        ]
+      },
+      {
+        "name": "Notification",
+        "uses": "In-app trước push; gọi qua DI",
+        "entities": [
+          "Notification",
+          "WebPushSubscription"
+        ],
+        "actions": [
+          "createWithManager hoặc create sau persist",
+          "sendPush best-effort sau commit"
+        ]
+      },
+      {
+        "name": "PartyRoom",
+        "uses": "Nhánh room context",
+        "entities": [
+          "PartyRoom",
+          "PartyRoomMember"
+        ],
+        "actions": [
+          "Kiểm tra phòng/member active",
+          "Lấy recipients cho gift.sent"
+        ]
+      },
+      {
+        "name": "ShortVideo",
+        "uses": "Nhánh video context",
+        "entities": [
+          "Video"
+        ],
+        "actions": [
+          "getVideoOrThrow; suy author làm recipient"
+        ]
+      },
+      {
+        "name": "Friend.ProfileSocial",
+        "uses": "Nhánh profile context",
+        "entities": [
+          "Conversation",
+          "ProfileChatContact"
+        ],
+        "actions": [
+          "Tạo profile chat/contact trong transaction Gift"
+        ]
+      },
+      {
+        "name": "User",
+        "uses": "Guest recipient và eligibility",
+        "entities": [
+          "User"
+        ],
+        "actions": [
+          "Đọc người nhận; guest có PTS=0"
+        ]
+      }
+    ],
+    "entities": [
+      "Gift",
+      "GiftEvent",
+      "LedgerAccount",
+      "LedgerTransaction",
+      "LedgerEntry",
+      "Wallet",
+      "OutboxEvent"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "rate limit",
+          "label": "HTTP throttle nếu THROTTLE_STORAGE=redis",
+          "direction": "both"
+        },
+        {
+          "role": "Pub/Sub",
+          "label": "gift.sent chỉ nhánh Party Room",
+          "direction": "write"
+        }
+      ],
+      "signaling": true,
+      "mediaCluster": false
+    },
+    "externals": [
+      {
+        "id": "push",
+        "lines": [
+          "FCM / APNs / Web Push",
+          "Notification push adapters"
+        ],
+        "request": "Push sau Notification commit",
+        "callback": "",
+        "direct": "Provider → device / Service Worker",
+        "direction": "to-client",
+        "redis": "",
+        "condition": "Provider + credentials; native token cần caller; Web Push opt-in"
+      },
+      {
+        "id": "broker",
+        "lines": [
+          "Kafka",
+          "Economy events + dead letter"
+        ],
+        "request": "OutboxRelay → litmatch.economy.events / DLQ",
+        "callback": "",
+        "direct": "",
+        "direction": "to-provider",
+        "redis": "",
+        "condition": "ECONOMY_OUTBOX_RELAY_ENABLED; chưa có domain consumer đăng ký"
+      }
+    ],
+    "operations": [
+      "Ledger DIA/PTS và GiftEvent atomic; Notification cùng manager",
+      "Sau commit: push; Party mới có room fanout",
+      "Economy reconciliation/outbox theo cấu hình; chưa có Gift refund"
+    ],
+    "notes": "Gift endpoint không gọi LiveKit để truyền quà và không gọi payment provider để trừ Diamond; nó gọi Economy trong process. PostgreSQL giữ ledger/event; Kafka chỉ Economy outbox, Notification vẫn DI, video/profile không fanout gift.sent phòng.",
+    "sources": [
+      "apps/core-api/src/modules/gift/gift.module.ts",
+      "apps/core-api/src/modules/gift/gift.service.ts",
+      "apps/core-api/src/modules/economy/economy.service.ts",
+      "apps/core-api/src/modules/friend/services/profile-social.service.ts",
+      "apps/core-api/src/modules/notification/notification.service.ts",
+      "apps/core-api/src/app/app.module.ts"
+    ],
+    "links": [
+      {
+        "from": "Gift",
+        "to": "PartyRoom",
+        "label": "Validate sender/receiver active",
+        "condition": "Room context"
+      },
+      {
+        "from": "Gift",
+        "to": "ShortVideo",
+        "label": "Visible video → author recipient",
+        "condition": "Video context"
+      },
+      {
+        "from": "Gift",
+        "to": "Friend.ProfileSocial",
+        "label": "Open chat/contact trong transaction",
+        "condition": "Profile context"
+      },
+      {
+        "from": "Gift",
+        "to": "User",
+        "label": "Guest recipient → PTS = 0",
+        "condition": ""
+      },
+      {
+        "from": "Gift",
+        "to": "Economy",
+        "label": "DIA / PTS + GiftEvent atomic",
+        "condition": ""
+      },
+      {
+        "from": "Gift",
+        "to": "Notification",
+        "label": "gift_received cùng manager",
+        "condition": ""
+      }
+    ],
+    "entityRelations": [
+      {
+        "from": "GiftEvent",
+        "to": "LedgerTransaction",
+        "label": "transactionId unique"
+      }
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "redis",
+        "label": "Redis"
+      },
+      {
+        "id": "gateway",
+        "label": "signaling-gateway"
+      },
+      {
+        "id": "push",
+        "label": "FCM / APNs / Web Push"
+      },
+      {
+        "id": "broker",
+        "label": "Kafka"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      },
+      {
+        "id": "core-redis",
+        "from": "core",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "Pub/Sub"
+      },
+      {
+        "id": "core-push",
+        "from": "core",
+        "to": "push",
+        "bidirectional": false,
+        "protocol": "push"
+      },
+      {
+        "id": "core-broker",
+        "from": "core",
+        "to": "broker",
+        "bidirectional": false,
+        "protocol": "stream (tuỳ cấu hình)"
+      },
+      {
+        "id": "redis-gateway",
+        "from": "redis",
+        "to": "gateway",
+        "bidirectional": false,
+        "protocol": "realtime Pub/Sub"
+      },
+      {
+        "id": "gateway-redis",
+        "from": "gateway",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "presence · quota"
+      },
+      {
+        "id": "client-push",
+        "from": "push",
+        "to": "client",
+        "bidirectional": false,
+        "protocol": "push"
+      },
+      {
+        "id": "gateway-client",
+        "from": "gateway",
+        "to": "client",
+        "bidirectional": true,
+        "protocol": "Socket: realtime"
+      }
+    ]
+  },
+  "featureSequence": [
+    "1. Lấy catalog quà active\nClient chỉ chọn giftId + context",
+    "2. Server xác định recipient\nRoom: active members\nVideo / profile: suy từ URL context",
+    "3. Re-check quyền + giá hiện tại\nChặn self-gift; xác định PTS guest",
+    "4. Context hợp lệ và đủ Diamond?",
+    "4.1. HỢP LỆ: Lock wallet theo thứ tự\nClaim Transaction idempotencyKey\nSnapshot giá + tỷ lệ",
+    "4.2. BỊ CHẶN [continues=false]: Từ chối request\nKhông GiftEvent / ledger mới",
+    "5. Ghi DIA debit + PTS credit\nMỗi chân double-entry\nGuest: bỏ chân PTS",
+    "6. Cùng transaction: GiftEvent\nProfile first-contact: mở Conversation\nGhi notification phù hợp",
+    "7. Sau commit: trả GiftEvent\nParty mới fanout gift.sent\nClient bắn hiệu ứng sau xác nhận"
+  ],
+  "layerSequence": [
+    "1. Frontend: Chọn quà active và context [REST · room/video/profile Gift + key]",
+    "2. core-api · Gift: Giá từ catalog; xác định recipient và kiểm tra self-gift/guest",
+    "3. core-api · Gift: Ngữ cảnh Gift nào?",
+    "3.1. PARTY",
+    "3.1.1. core-api · Gift → PartyRoom: Sender và receiver phải active cùng room [in-process · getActiveRoomMembers]",
+    "3.2. VIDEO",
+    "3.2.1. core-api · Gift → ShortVideo: Video phải visible; recipient suy từ author [in-process · getVideoOrThrow]",
+    "3.3. PROFILE",
+    "3.3.1. core-api · Gift → ProfileSocial: Recipient từ profile; chuẩn bị mở Conversation/contact [in-process · profile eligibility]",
+    "4. core-api · Gift → Economy: Lock wallets; unique key; DIA debit và PTS credit theo tỷ lệ [SQL · entries + GiftEvent + Notification]",
+    "5. PostgreSQL: Commit các chân currency tự cân, GiftEvent/Wallet; profile còn có Conversation/contact [SQL result · trả core-api]",
+    "6. core-api · Gift: Sau commit: chuẩn bị GiftEvent result và nhánh context fanout [in-process · context side effects]",
+    "7. core-api · Gift: Có Party room fanout?",
+    "7.1. PARTY [continues=false]",
+    "7.1.1. core-api · Gift: Sau commit: phát gift.sent cho recipients đã authorize [Redis · PUBLISH]",
+    "7.1.2. Redis · Pub/Sub: Chuyển gift.sent trên per-user channel [Pub/Sub · PSUBSCRIBE]",
+    "7.1.3. signaling-gateway: Relay envelope tới socket room từ JWT [WebSocket · gift.sent]",
+    "7.1.4. Frontend: Chỉ bắn hiệu ứng sau xác nhận server",
+    "7.2. VIDEO / PROFILE [continues=false]",
+    "7.2.1. core-api · Notification: In-app đã durable; push chỉ best-effort [Push adapter · provider nếu configured]",
+    "7.2.2. FCM / APNs / Web Push: Giao push nếu endpoint/token có và provider thành công [Push · recipient device]",
+    "7.2.3. Frontend: Hiển thị REST result / notification; không giả room event"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

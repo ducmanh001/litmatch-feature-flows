@@ -1,0 +1,501 @@
+{
+  "id": "13-trust-safety/01-post-report",
+  "featureId": "13-trust-safety",
+  "feature": "Trust & Safety",
+  "summary": "Báo cáo người dùng và chặn người dùng: report trừ trust score có chống lạm dụng, trust score thấp thì bị xếp sau khi ghép.",
+  "name": "Báo cáo một người dùng",
+  "title": "Ghi report và trừ trust score của người bị báo cáo trong 1 transaction, có chống lạm dụng theo cặp và theo ngày.",
+  "method": "POST",
+  "route": "/api/v1/safety/reports",
+  "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.ts",
+  "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/13-trust-safety/01-post-report.json",
+  "diagramUrl": "https://ducmanh001.github.io/litmatch-feature-flows/#13-trust-safety",
+  "catalog": "annotated-13-trust-safety.mjs",
+  "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES]",
+  "roles": [
+    [
+      "CONTROLLER",
+      "Nhận report (giới hạn 10 lần/giờ), giao cho service và trả report vừa ghi."
+    ],
+    [
+      "SERVICE",
+      "Chặn tự report, khóa người bị báo cáo, tính điểm phạt theo cooldown của cặp và trần penalty trong ngày, ghi report rồi trừ điểm."
+    ],
+    [
+      "POSTGRES",
+      "Khóa dòng user (FOR UPDATE) tuần tự hóa mọi penalty của 1 người; report ghi append-only; trừ điểm bằng UPDATE nguyên tử có sàn."
+    ]
+  ],
+  "tables": [
+    [
+      "users",
+      "dòng người bị báo cáo bị khóa FOR UPDATE; cột trust_score bị trừ (không xuống dưới sàn)."
+    ],
+    [
+      "reports",
+      "log append-only: người báo, người bị báo, lý do, trust_penalty_applied (số điểm đã trừ thật, có thể là 0); đồng thời là nguồn đếm cooldown theo cặp và tổng penalty trong ngày."
+    ]
+  ],
+  "redis": [],
+  "related": [
+    [
+      "User",
+      "getByIdOrThrow kiểm người bị báo cáo tồn tại; adjustTrustScore trừ điểm bằng UPDATE GREATEST(sàn, điểm + delta) cùng transaction (không chép)."
+    ],
+    [
+      "Matching",
+      "đọc trust_score lúc user vào hàng đợi: điểm thấp thì bị cộng thêm thời gian chờ ảo nên xếp sau; canPair còn không ghép lại cặp vừa report trong N ngày (chưa chép)."
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "text": "Nhận report (giới hạn 10 lần/giờ; user từ JWT, người bị báo từ body)",
+      "line": 24,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html#L24",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/13-trust-safety/01-post-report.ts#L24"
+    },
+    {
+      "number": 2,
+      "text": "Chặn tự report, kiểm người bị báo cáo có tồn tại",
+      "line": 45,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html#L45",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/13-trust-safety/01-post-report.ts#L45"
+    },
+    {
+      "number": 3,
+      "text": "Mở transaction, khóa dòng user bị báo cáo (FOR UPDATE)",
+      "line": 71,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html#L71",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/13-trust-safety/01-post-report.ts#L71"
+    },
+    {
+      "number": 4,
+      "text": "Đếm report đã trừ điểm của cặp này trong cooldown",
+      "line": 82,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html#L82",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/13-trust-safety/01-post-report.ts#L82"
+    },
+    {
+      "number": 5,
+      "text": "Tính phần trần penalty 24 giờ còn lại của người bị báo",
+      "line": 95,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html#L95",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/13-trust-safety/01-post-report.ts#L95"
+    },
+    {
+      "number": 6,
+      "text": "Tính điểm phạt: 0 nếu cặp đã bị phạt, không vượt trần ngày",
+      "line": 108,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html#L108",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/13-trust-safety/01-post-report.ts#L108"
+    },
+    {
+      "number": 7,
+      "text": "Ghi report (append-only) kèm số điểm đã trừ thật",
+      "line": 113,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html#L113",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/13-trust-safety/01-post-report.ts#L113"
+    },
+    {
+      "number": 8,
+      "text": "Trừ trust score (có sàn) trong cùng transaction",
+      "line": 126,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html#L126",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/13-trust-safety/01-post-report.ts#L126"
+    },
+    {
+      "number": 9,
+      "text": "Controller trả report vừa ghi",
+      "line": 140,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html#L140",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/13-trust-safety/01-post-report.ts#L140"
+    }
+  ],
+  "declaredSteps": [
+    {
+      "at": "@Post('reports')",
+      "text": "Nhận report (giới hạn 10 lần/giờ; user từ JWT, người bị báo từ body)"
+    },
+    {
+      "at": "if (reporterUserId === targetUserId) {",
+      "text": "Chặn tự report, kiểm người bị báo cáo có tồn tại"
+    },
+    {
+      "at": "return this.dataSource.transaction(",
+      "text": "Mở transaction, khóa dòng user bị báo cáo (FOR UPDATE)"
+    },
+    {
+      "at": "const alreadyPenalizedThisPair =",
+      "text": "Đếm report đã trừ điểm của cặp này trong cooldown"
+    },
+    {
+      "at": "const dailyCutoff = new Date(Date.now() - DAY_MS);",
+      "text": "Tính phần trần penalty 24 giờ còn lại của người bị báo"
+    },
+    {
+      "at": "const penalty = alreadyPenalizedThisPair",
+      "text": "Tính điểm phạt: 0 nếu cặp đã bị phạt, không vượt trần ngày"
+    },
+    {
+      "at": "const report = await manager.save(",
+      "text": "Ghi report (append-only) kèm số điểm đã trừ thật"
+    },
+    {
+      "at": "if (penalty > 0) {",
+      "text": "Trừ trust score (có sàn) trong cùng transaction"
+    },
+    {
+      "at": "return ReportDto.from(report);",
+      "text": "Controller trả report vừa ghi"
+    }
+  ],
+  "whyComments": [
+    {
+      "at": "const floor = this.config.getOrThrow('SAFETY_TRUST_SCORE_FLOOR', {",
+      "text": [
+        "Sàn trust score clamp ở tầng ứng dụng, không đặt CHECK ở DB (cùng tinh thần Wallet)."
+      ],
+      "src": "docs/services/safety-service.md mục 4 (\"Sàn trust score: không đặt CHECK ở DB ... clamp ở tầng service\")",
+      "file": "apps/core-api/src/modules/safety/safety.service.ts"
+    },
+    {
+      "at": "await manager.getRepository(User).findOne({",
+      "text": [
+        "[POSTGRES] Khóa dòng user bị báo cáo (FOR UPDATE) để tuần tự hóa mọi penalty của 1 người: không khóa thì 2 report đồng thời cùng đọc tổng penalty và cooldown rồi cùng vượt trần."
+      ],
+      "src": "comment gốc safety.service.ts L84-86",
+      "file": "apps/core-api/src/modules/safety/safety.service.ts"
+    },
+    {
+      "at": "const alreadyPenalizedThisPair =",
+      "text": [
+        "Mỗi cặp người báo → người bị báo chỉ bị trừ điểm 1 lần trong mỗi cooldown; report thêm vẫn được ghi để giữ bằng chứng nhưng penalty = 0, chống \"vote-kick\"."
+      ],
+      "src": "doc report safety.service.ts L49-52 + docs/services/safety-service.md mục 4",
+      "file": "apps/core-api/src/modules/safety/safety.service.ts"
+    },
+    {
+      "at": "const dailyCutoff = new Date(Date.now() - DAY_MS);",
+      "text": [
+        "Trần penalty trong 24 giờ cho 1 người: chặn nhiều người báo khác nhau dồn dập đánh sập trust score của ai đó trong vài phút."
+      ],
+      "src": "docs/services/safety-service.md mục 4",
+      "file": "apps/core-api/src/modules/safety/safety.service.ts"
+    },
+    {
+      "at": "const report = await manager.save(",
+      "text": [
+        "Luôn ghi report (append-only), kể cả khi penalty = 0. trustPenaltyApplied lưu ĐÚNG số điểm đã trừ, để audit mà không phải suy ngược từ config hiện tại."
+      ],
+      "src": "doc entity report.entity.ts L35-39",
+      "file": "apps/core-api/src/modules/safety/safety.service.ts"
+    },
+    {
+      "at": "if (penalty > 0) {",
+      "text": [
+        "Trừ điểm dùng chung manager nên cùng transaction với insert report: không có trạng thái \"đã ghi report mà chưa trừ điểm\"."
+      ],
+      "src": "doc adjustTrustScore user.service.ts L208-212 + docs/services/safety-service.md mục 4",
+      "file": "apps/core-api/src/modules/safety/safety.service.ts"
+    }
+  ],
+  "sources": [
+    "apps/core-api/src/modules/safety/safety.controller.ts",
+    "apps/core-api/src/modules/safety/safety.service.ts"
+  ],
+  "sourceContext": {
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/safety/safety.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('reports')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/safety/safety.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async report(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const floor = this.config.getOrThrow('SAFETY_TRUST_SCORE_FLOOR', {",
+            "text": [
+              "Sàn trust score clamp ở tầng ứng dụng, không đặt CHECK ở DB (cùng tinh thần Wallet)."
+            ],
+            "src": "docs/services/safety-service.md mục 4 (\"Sàn trust score: không đặt CHECK ở DB ... clamp ở tầng service\")"
+          },
+          {
+            "at": "await manager.getRepository(User).findOne({",
+            "text": [
+              "[POSTGRES] Khóa dòng user bị báo cáo (FOR UPDATE) để tuần tự hóa mọi penalty của 1 người: không khóa thì 2 report đồng thời cùng đọc tổng penalty và cooldown rồi cùng vượt trần."
+            ],
+            "src": "comment gốc safety.service.ts L84-86"
+          },
+          {
+            "at": "const alreadyPenalizedThisPair =",
+            "text": [
+              "Mỗi cặp người báo → người bị báo chỉ bị trừ điểm 1 lần trong mỗi cooldown; report thêm vẫn được ghi để giữ bằng chứng nhưng penalty = 0, chống \"vote-kick\"."
+            ],
+            "src": "doc report safety.service.ts L49-52 + docs/services/safety-service.md mục 4"
+          },
+          {
+            "at": "const dailyCutoff = new Date(Date.now() - DAY_MS);",
+            "text": [
+              "Trần penalty trong 24 giờ cho 1 người: chặn nhiều người báo khác nhau dồn dập đánh sập trust score của ai đó trong vài phút."
+            ],
+            "src": "docs/services/safety-service.md mục 4"
+          },
+          {
+            "at": "const report = await manager.save(",
+            "text": [
+              "Luôn ghi report (append-only), kể cả khi penalty = 0. trustPenaltyApplied lưu ĐÚNG số điểm đã trừ, để audit mà không phải suy ngược từ config hiện tại."
+            ],
+            "src": "doc entity report.entity.ts L35-39"
+          },
+          {
+            "at": "if (penalty > 0) {",
+            "text": [
+              "Trừ điểm dùng chung manager nên cùng transaction với insert report: không có trạng thái \"đã ghi report mà chưa trừ điểm\"."
+            ],
+            "src": "doc adjustTrustScore user.service.ts L208-212 + docs/services/safety-service.md mục 4"
+          }
+        ]
+      }
+    ],
+    "ranges": [
+      {
+        "file": "apps/core-api/src/modules/safety/safety.controller.ts",
+        "range": {
+          "at": "@Post('reports')",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/safety/safety.service.ts",
+        "range": {
+          "at": "async report(",
+          "to": "^  }$"
+        }
+      }
+    ],
+    "helpers": [],
+    "skip": [],
+    "attach": {},
+    "nested": true
+  },
+  "omittedContext": {
+    "note": "Curated source selection; unlisted call bodies, shared request infrastructure, DTOs and other context may be omitted. skip names stay unexpanded; helpers may be substituted; attach controls placement. Flattened scopes are not executable code.",
+    "skip": [],
+    "attach": {},
+    "helpers": []
+  },
+  "featureMetadata": {
+    "id": "13-trust-safety",
+    "short": "Trust & Safety",
+    "title": "Trust & Safety",
+    "summary": "Báo cáo người dùng và chặn người dùng: report trừ trust score có chống lạm dụng, trust score thấp thì bị xếp sau khi ghép.",
+    "diagramAnchor": "13-trust-safety"
+  },
+  "endpointCatalog": {
+    "n": "01",
+    "slug": "post-report",
+    "method": "POST",
+    "short": "/safety/reports",
+    "route": "/api/v1/safety/reports",
+    "name": "Báo cáo một người dùng",
+    "title": "Ghi report và trừ trust score của người bị báo cáo trong 1 transaction, có chống lạm dụng theo cặp và theo ngày.",
+    "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES]",
+    "roles": [
+      [
+        "CONTROLLER",
+        "Nhận report (giới hạn 10 lần/giờ), giao cho service và trả report vừa ghi."
+      ],
+      [
+        "SERVICE",
+        "Chặn tự report, khóa người bị báo cáo, tính điểm phạt theo cooldown của cặp và trần penalty trong ngày, ghi report rồi trừ điểm."
+      ],
+      [
+        "POSTGRES",
+        "Khóa dòng user (FOR UPDATE) tuần tự hóa mọi penalty của 1 người; report ghi append-only; trừ điểm bằng UPDATE nguyên tử có sàn."
+      ]
+    ],
+    "tables": [
+      [
+        "users",
+        "dòng người bị báo cáo bị khóa FOR UPDATE; cột trust_score bị trừ (không xuống dưới sàn)."
+      ],
+      [
+        "reports",
+        "log append-only: người báo, người bị báo, lý do, trust_penalty_applied (số điểm đã trừ thật, có thể là 0); đồng thời là nguồn đếm cooldown theo cặp và tổng penalty trong ngày."
+      ]
+    ],
+    "related": [
+      [
+        "User",
+        "getByIdOrThrow kiểm người bị báo cáo tồn tại; adjustTrustScore trừ điểm bằng UPDATE GREATEST(sàn, điểm + delta) cùng transaction (không chép)."
+      ],
+      [
+        "Matching",
+        "đọc trust_score lúc user vào hàng đợi: điểm thấp thì bị cộng thêm thời gian chờ ảo nên xếp sau; canPair còn không ghép lại cặp vừa report trong N ngày (chưa chép)."
+      ]
+    ],
+    "nested": true,
+    "steps": [
+      {
+        "at": "@Post('reports')",
+        "text": "Nhận report (giới hạn 10 lần/giờ; user từ JWT, người bị báo từ body)"
+      },
+      {
+        "at": "if (reporterUserId === targetUserId) {",
+        "text": "Chặn tự report, kiểm người bị báo cáo có tồn tại"
+      },
+      {
+        "at": "return this.dataSource.transaction(",
+        "text": "Mở transaction, khóa dòng user bị báo cáo (FOR UPDATE)"
+      },
+      {
+        "at": "const alreadyPenalizedThisPair =",
+        "text": "Đếm report đã trừ điểm của cặp này trong cooldown"
+      },
+      {
+        "at": "const dailyCutoff = new Date(Date.now() - DAY_MS);",
+        "text": "Tính phần trần penalty 24 giờ còn lại của người bị báo"
+      },
+      {
+        "at": "const penalty = alreadyPenalizedThisPair",
+        "text": "Tính điểm phạt: 0 nếu cặp đã bị phạt, không vượt trần ngày"
+      },
+      {
+        "at": "const report = await manager.save(",
+        "text": "Ghi report (append-only) kèm số điểm đã trừ thật"
+      },
+      {
+        "at": "if (penalty > 0) {",
+        "text": "Trừ trust score (có sàn) trong cùng transaction"
+      },
+      {
+        "at": "return ReportDto.from(report);",
+        "text": "Controller trả report vừa ghi"
+      }
+    ],
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/safety/safety.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('reports')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/safety/safety.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async report(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const floor = this.config.getOrThrow('SAFETY_TRUST_SCORE_FLOOR', {",
+            "text": [
+              "Sàn trust score clamp ở tầng ứng dụng, không đặt CHECK ở DB (cùng tinh thần Wallet)."
+            ],
+            "src": "docs/services/safety-service.md mục 4 (\"Sàn trust score: không đặt CHECK ở DB ... clamp ở tầng service\")"
+          },
+          {
+            "at": "await manager.getRepository(User).findOne({",
+            "text": [
+              "[POSTGRES] Khóa dòng user bị báo cáo (FOR UPDATE) để tuần tự hóa mọi penalty của 1 người: không khóa thì 2 report đồng thời cùng đọc tổng penalty và cooldown rồi cùng vượt trần."
+            ],
+            "src": "comment gốc safety.service.ts L84-86"
+          },
+          {
+            "at": "const alreadyPenalizedThisPair =",
+            "text": [
+              "Mỗi cặp người báo → người bị báo chỉ bị trừ điểm 1 lần trong mỗi cooldown; report thêm vẫn được ghi để giữ bằng chứng nhưng penalty = 0, chống \"vote-kick\"."
+            ],
+            "src": "doc report safety.service.ts L49-52 + docs/services/safety-service.md mục 4"
+          },
+          {
+            "at": "const dailyCutoff = new Date(Date.now() - DAY_MS);",
+            "text": [
+              "Trần penalty trong 24 giờ cho 1 người: chặn nhiều người báo khác nhau dồn dập đánh sập trust score của ai đó trong vài phút."
+            ],
+            "src": "docs/services/safety-service.md mục 4"
+          },
+          {
+            "at": "const report = await manager.save(",
+            "text": [
+              "Luôn ghi report (append-only), kể cả khi penalty = 0. trustPenaltyApplied lưu ĐÚNG số điểm đã trừ, để audit mà không phải suy ngược từ config hiện tại."
+            ],
+            "src": "doc entity report.entity.ts L35-39"
+          },
+          {
+            "at": "if (penalty > 0) {",
+            "text": [
+              "Trừ điểm dùng chung manager nên cùng transaction với insert report: không có trạng thái \"đã ghi report mà chưa trừ điểm\"."
+            ],
+            "src": "doc adjustTrustScore user.service.ts L208-212 + docs/services/safety-service.md mục 4"
+          }
+        ]
+      }
+    ]
+  },
+  "sourceManifest": {
+    "verifiedCodeSha256": true,
+    "mode": "published-presentation",
+    "baselineCommit": "cb30743143bd8f6576b154db4b606380c365c674",
+    "sourceCommit": "d3cb28c",
+    "sources": [
+      "apps/core-api/src/modules/safety/safety.controller.ts",
+      "apps/core-api/src/modules/safety/safety.service.ts"
+    ],
+    "steps": [
+      "Step 1: Nhận report (giới hạn 10 lần/giờ; user từ JWT, người bị báo từ body)",
+      "Step 2: Chặn tự report, kiểm người bị báo cáo có tồn tại",
+      "Step 3: Mở transaction, khóa dòng user bị báo cáo (FOR UPDATE)",
+      "Step 4: Đếm report đã trừ điểm của cặp này trong cooldown",
+      "Step 5: Tính phần trần penalty 24 giờ còn lại của người bị báo",
+      "Step 6: Tính điểm phạt: 0 nếu cặp đã bị phạt, không vượt trần ngày",
+      "Step 7: Ghi report (append-only) kèm số điểm đã trừ thật",
+      "Step 8: Trừ trust score (có sàn) trong cùng transaction",
+      "Step 9: Controller trả report vừa ghi"
+    ],
+    "removedOverview": "// ════════════════════════════════════════════════════════════════════════════\n//  POST /api/v1/safety/reports\n//  Ghi report và trừ trust score của người bị báo cáo trong 1 transaction, có chống lạm dụng theo cặp và theo ngày.\n// ════════════════════════════════════════════════════════════════════════════\n//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES]\n//\n//  Vai trò từng tầng\n//    [CONTROLLER] Nhận report (giới hạn 10 lần/giờ), giao cho service và trả report vừa\n//                 ghi.\n//    [SERVICE]    Chặn tự report, khóa người bị báo cáo, tính điểm phạt theo cooldown\n//                 của cặp và trần penalty trong ngày, ghi report rồi trừ điểm.\n//    [POSTGRES]   Khóa dòng user (FOR UPDATE) tuần tự hóa mọi penalty của 1 người;\n//                 report ghi append-only; trừ điểm bằng UPDATE nguyên tử có sàn.\n//\n//  Bảng       users — dòng người bị báo cáo bị khóa FOR UPDATE; cột trust_score bị trừ\n//               (không xuống dưới sàn).\n//             reports — log append-only: người báo, người bị báo, lý do,\n//               trust_penalty_applied (số điểm đã trừ thật, có thể là 0); đồng thời là\n//               nguồn đếm cooldown theo cặp và tổng penalty trong ngày.\n//  Liên quan  User — getByIdOrThrow kiểm người bị báo cáo tồn tại; adjustTrustScore trừ\n//               điểm bằng UPDATE GREATEST(sàn, điểm + delta) cùng transaction (không\n//               chép).\n//             Matching — đọc trust_score lúc user vào hàng đợi: điểm thấp thì bị cộng\n//               thêm thời gian chờ ảo nên xếp sau; canPair còn không ghép lại cặp vừa\n//               report trong N ngày (chưa chép).\n//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi\n//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới\n//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //\n//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các\n//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số\n//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức\n//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong\n//             repo.\n",
+    "baselineBodySha256": "c6e3ac00771c628e6c31d770bf42e7694cb11cba6eee7c55f85fdde415294752",
+    "bodySha256": "c6e3ac00771c628e6c31d770bf42e7694cb11cba6eee7c55f85fdde415294752",
+    "rawSha256": "71d3e956b6248b61b51725f9cd524cd320811b7fc70d0de24439a47b264df293",
+    "codeSha256": "71d3e956b6248b61b51725f9cd524cd320811b7fc70d0de24439a47b264df293"
+  },
+  "code": {
+    "path": "code/13-trust-safety/01-post-report.ts",
+    "sha256": "71d3e956b6248b61b51725f9cd524cd320811b7fc70d0de24439a47b264df293",
+    "hashAlgorithm": "sha256",
+    "content": "//  POST /api/v1/safety/reports\n//  Ghi report và trừ trust score của người bị báo cáo trong 1 transaction, có chống lạm dụng theo cặp và theo ngày.\n//  Step 1: Nhận report (giới hạn 10 lần/giờ; user từ JWT, người bị báo từ body)\n//  Step 2: Chặn tự report, kiểm người bị báo cáo có tồn tại\n//  Step 3: Mở transaction, khóa dòng user bị báo cáo (FOR UPDATE)\n//  Step 4: Đếm report đã trừ điểm của cặp này trong cooldown\n//  Step 5: Tính phần trần penalty 24 giờ còn lại của người bị báo\n//  Step 6: Tính điểm phạt: 0 nếu cặp đã bị phạt, không vượt trần ngày\n//  Step 7: Ghi report (append-only) kèm số điểm đã trừ thật\n//  Step 8: Trừ trust score (có sàn) trong cùng transaction\n//  Step 9: Controller trả report vừa ghi\n\n// [CONTROLLER] SafetyController.createReport  ·  safety.controller.ts L29–30, L33–53\n@Controller('safety')\nexport class SafetyController {\n  constructor(\n    private readonly safetyService: SafetyService,\n    // SafetyService\n    @InjectDataSource() private readonly dataSource: DataSource,\n    private readonly userService: UserService,\n    private readonly config: ConfigService<CoreApiEnv, true>,\n  ) {}\n\n  // Step 1: Nhận report (giới hạn 10 lần/giờ; user từ JWT, người bị báo từ body)\n  @Post('reports')\n  @HttpCode(HttpStatus.CREATED)\n  @Throttle({ default: { limit: 10, ttl: minutes(60) } })\n  async createReport(\n    @CurrentUser() user: AuthenticatedUser,\n    @Body() dto: CreateReportDto,\n  ): Promise<ReportDto> {\n    const report = await this.safetyService.report(\n      user.userId,\n      dto.targetUserId,\n      dto.reason,\n      dto.description,\n    );\n\n    // [SERVICE] SafetyService.report  ·  safety.service.ts L53–137\n    const reporterUserId = user.userId;\n    const targetUserId = dto.targetUserId;\n    const reason = dto.reason;\n    const description = dto.description;\n\n    // Step 2: Chặn tự report, kiểm người bị báo cáo có tồn tại\n    if (reporterUserId === targetUserId) {\n      throw new DomainException(\n        SafetyErrors.SELF_REPORT_FORBIDDEN,\n        'Không thể tự report chính mình',\n        HttpStatus.BAD_REQUEST,\n      );\n    }\n    await this.userService.getByIdOrThrow(targetUserId);\n\n    const pairCooldownDays = this.config.getOrThrow(\n      'SAFETY_REPORT_COOLDOWN_DAYS',\n      { infer: true },\n    );\n    const penaltyPerReport = this.config.getOrThrow(\n      'SAFETY_TRUST_PENALTY_PER_REPORT',\n      { infer: true },\n    );\n    const dailyCap = this.config.getOrThrow('SAFETY_TRUST_PENALTY_DAILY_CAP', {\n      infer: true,\n    });\n    // Sàn trust score clamp ở tầng ứng dụng, không đặt CHECK ở DB (cùng tinh thần Wallet).\n    const floor = this.config.getOrThrow('SAFETY_TRUST_SCORE_FLOOR', {\n      infer: true,\n    });\n\n    // Step 3: Mở transaction, khóa dòng user bị báo cáo (FOR UPDATE)\n    return this.dataSource.transaction(async (manager) => {\n      // [POSTGRES] Khóa dòng user bị báo cáo (FOR UPDATE) để tuần tự hóa mọi penalty của 1 người:\n      // không khóa thì 2 report đồng thời cùng đọc tổng penalty và cooldown rồi cùng vượt trần.\n      await manager.getRepository(User).findOne({\n        where: { id: targetUserId },\n        lock: { mode: 'pessimistic_write' },\n      });\n\n      const pairCutoff = new Date(Date.now() - pairCooldownDays * DAY_MS);\n\n      // Step 4: Đếm report đã trừ điểm của cặp này trong cooldown\n      // Mỗi cặp người báo → người bị báo chỉ bị trừ điểm 1 lần trong mỗi cooldown; report thêm\n      // vẫn được ghi để giữ bằng chứng nhưng penalty = 0, chống \"vote-kick\".\n      const alreadyPenalizedThisPair =\n        (await manager.count(Report, {\n          where: {\n            reporterUserId,\n            targetUserId,\n            createdAt: MoreThanOrEqual(pairCutoff),\n            trustPenaltyApplied: MoreThan(0),\n          },\n        })) > 0;\n\n      // Step 5: Tính phần trần penalty 24 giờ còn lại của người bị báo\n      // Trần penalty trong 24 giờ cho 1 người: chặn nhiều người báo khác nhau dồn dập đánh sập\n      // trust score của ai đó trong vài phút.\n      const dailyCutoff = new Date(Date.now() - DAY_MS);\n      const raw = await manager\n        .createQueryBuilder(Report, 'r')\n        .select('COALESCE(SUM(r.trustPenaltyApplied), 0)', 'sum')\n        .where('r.targetUserId = :targetUserId', { targetUserId })\n        .andWhere('r.createdAt >= :dailyCutoff', { dailyCutoff })\n        .getRawOne<{ sum: string }>();\n      const appliedToday = Number(raw?.sum ?? 0);\n      const remainingCap = Math.max(0, dailyCap - appliedToday);\n\n      // Step 6: Tính điểm phạt: 0 nếu cặp đã bị phạt, không vượt trần ngày\n      const penalty = alreadyPenalizedThisPair\n        ? 0\n        : Math.min(penaltyPerReport, remainingCap);\n\n      // Step 7: Ghi report (append-only) kèm số điểm đã trừ thật\n      // Luôn ghi report (append-only), kể cả khi penalty = 0. trustPenaltyApplied lưu ĐÚNG số\n      // điểm đã trừ, để audit mà không phải suy ngược từ config hiện tại.\n      const report = await manager.save(\n        manager.create(Report, {\n          reporterUserId,\n          targetUserId,\n          reason,\n          description: description ?? null,\n          trustPenaltyApplied: penalty,\n        }),\n      );\n\n      // Step 8: Trừ trust score (có sàn) trong cùng transaction\n      // Trừ điểm dùng chung manager nên cùng transaction với insert report: không có trạng thái\n      // \"đã ghi report mà chưa trừ điểm\".\n      if (penalty > 0) {\n        await this.userService.adjustTrustScore(\n          manager,\n          targetUserId,\n          -penalty,\n          floor,\n        );\n      }\n      return report;\n    });\n\n    // Step 9: Controller trả report vừa ghi\n    return ReportDto.from(report);\n  }\n}\n"
+  },
+  "provenance": {
+    "catalog": {
+      "path": "annotated-13-trust-safety.mjs",
+      "sha256": "f29394c051ae1973c6ea6bfa0a926a5a4b604829a4205e904b74cd081da5f1a0"
+    },
+    "displayedCodeSha256": "71d3e956b6248b61b51725f9cd524cd320811b7fc70d0de24439a47b264df293"
+  }
+}

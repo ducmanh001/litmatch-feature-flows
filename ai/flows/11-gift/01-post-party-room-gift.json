@@ -1,0 +1,1188 @@
+{
+  "id": "11-gift/01-post-party-room-gift",
+  "featureId": "11-gift",
+  "feature": "Gift",
+  "summary": "Tặng quà trong Party Room: trừ Diamond của người tặng và cộng điểm PTS cho người nhận trong cùng một transaction.",
+  "name": "Tặng quà trong phòng",
+  "title": "Tặng quà trong Party Room: trừ DIA người tặng, cộng PTS người nhận, ghi GiftEvent trong cùng một transaction.",
+  "method": "POST",
+  "route": "/api/v1/party/rooms/:roomId/gifts",
+  "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.ts",
+  "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/11-gift/01-post-party-room-gift.json",
+  "diagramUrl": "https://ducmanh001.github.io/litmatch-feature-flows/#11-gift",
+  "catalog": "annotated-11-gift.mjs",
+  "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]",
+  "roles": [
+    [
+      "CONTROLLER",
+      "Nhận yêu cầu tặng quà (giới hạn 30 lần/phút) kèm Idempotency-Key bắt buộc; user lấy từ JWT, giftId và người nhận từ body."
+    ],
+    [
+      "SERVICE",
+      "GiftService đọc giá quà từ DB, kiểm 2 người cùng ở trong phòng và tính điểm PTS; EconomyService dựng 2 chân sổ kép (DIA và PTS) rồi giao cho LedgerService ghi."
+    ],
+    [
+      "POSTGRES",
+      "Một transaction ghi giao dịch, bút toán DIA và PTS, số dư và điểm của ví, outbox, GiftEvent, notification; bước nào lỗi thì rollback tất cả."
+    ],
+    [
+      "REDIS",
+      "Sau khi commit, phát gift.sent tới từng thành viên đang ở phòng qua pub/sub để client chạy hiệu ứng."
+    ]
+  ],
+  "tables": [
+    [
+      "gifts",
+      "catalog quà: giá Diamond là dữ liệu trong DB, server đọc lại đúng lúc tặng."
+    ],
+    [
+      "transactions",
+      "1 giao dịch gift_send; key idempotency gift:send:{người tặng}:{key client}."
+    ],
+    [
+      "ledger_entries",
+      "bút toán nhiều chân: DIA Nợ ví người tặng / Có system_gift_pool; PTS Nợ system_points_mint / Có user_earnings của người nhận."
+    ],
+    [
+      "wallets",
+      "ví người tặng bị trừ DIA (khóa FOR UPDATE); ví người nhận được cộng điểm PTS vào earnings."
+    ],
+    [
+      "gift_events",
+      "1 dòng cho mỗi lần tặng, unique transaction_id; chỉ là snapshot hiển thị, nguồn sự thật là sổ cái."
+    ],
+    [
+      "outbox_events",
+      "event economy.gift.sent và economy.diamond.debited, ghi cùng transaction."
+    ],
+    [
+      "notifications",
+      "thông báo gift_received cho người nhận, tạo trong cùng transaction."
+    ],
+    [
+      "party_rooms",
+      "chỉ đọc: phòng phải đang mở (active) mới tặng được quà."
+    ],
+    [
+      "party_room_members",
+      "chỉ đọc: người tặng và người nhận phải là thành viên đang ở trong phòng."
+    ]
+  ],
+  "redis": [
+    [
+      "realtime:user:{userId}",
+      "kênh pub/sub theo người nhận; core-api phát gift.sent cho từng thành viên trong phòng, signaling-gateway chuyển xuống socket."
+    ]
+  ],
+  "related": [
+    [
+      "Economy (LedgerService)",
+      "record: idempotency theo key, khóa ví FOR UPDATE, check số dư và earnings, outbox; phần lõi này có trong luồng Mua VIP."
+    ],
+    [
+      "Party Room",
+      "getActiveRoomMembers: danh sách thành viên của phòng đang mở."
+    ],
+    [
+      "User",
+      "getByIdOrThrow: đọc người nhận để biết có phải guest không."
+    ],
+    [
+      "Notification",
+      "createWithManager tạo thông báo trong transaction, sendPush gửi push sau commit."
+    ],
+    [
+      "signaling-gateway",
+      "subscribe kênh realtime của user, đẩy gift.sent xuống client."
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "text": "Nhận request (user từ JWT, roomId từ URL, Idempotency-Key từ header)",
+      "line": 40,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L40",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L40"
+    },
+    {
+      "number": 2,
+      "text": "Chặn tự tặng, đọc giá quà từ DB",
+      "line": 62,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L62",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L62"
+    },
+    {
+      "number": 3,
+      "text": "Kiểm người tặng và người nhận cùng ở trong phòng",
+      "line": 81,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L81",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L81"
+    },
+    {
+      "number": 4,
+      "text": "Tính điểm PTS cho người nhận (guest thì 0)",
+      "line": 106,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L106",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L106"
+    },
+    {
+      "number": 5,
+      "text": "Economy dựng 2 chân sổ kép: DIA người tặng, PTS người nhận",
+      "line": 195,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L195",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L195"
+    },
+    {
+      "number": 6,
+      "text": "Ledger kiểm sổ kép: mỗi currency tự cân Nợ = Có",
+      "line": 265,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L265",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L265"
+    },
+    {
+      "number": 7,
+      "text": "Mở transaction DB, chèn giao dịch idempotent",
+      "line": 319,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L319",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L319"
+    },
+    {
+      "number": 8,
+      "text": "Khóa ví người tặng và người nhận theo thứ tự userId",
+      "line": 372,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L372",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L372"
+    },
+    {
+      "number": 9,
+      "text": "Cập nhật số dư (DIA) và earnings (PTS), ghi outbox",
+      "line": 396,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L396",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L396"
+    },
+    {
+      "number": 10,
+      "text": "Chạy tiếp outbox, GiftEvent, notification trong cùng transaction",
+      "line": 474,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L474",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L474"
+    },
+    {
+      "number": 11,
+      "text": "Sau commit, lần đầu mới phát gift.sent qua Redis và push",
+      "line": 511,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L511",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L511"
+    },
+    {
+      "number": 12,
+      "text": "Controller trả response (GiftEventDto)",
+      "line": 553,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L553",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L553"
+    }
+  ],
+  "declaredSteps": [
+    {
+      "at": "@Post('party/rooms/:roomId/gifts')",
+      "text": "Nhận request (user từ JWT, roomId từ URL, Idempotency-Key từ header)"
+    },
+    {
+      "at": "if (receiverUserId === user.userId) {",
+      "text": "Chặn tự tặng, đọc giá quà từ DB"
+    },
+    {
+      "at": "const { members } =",
+      "text": "Kiểm người tặng và người nhận cùng ở trong phòng"
+    },
+    {
+      "at": "const pointsAwarded = receiver.isGuest",
+      "text": "Tính điểm PTS cho người nhận (guest thì 0)"
+    },
+    {
+      "at": "const entries = [",
+      "text": "Economy dựng 2 chân sổ kép: DIA người tặng, PTS người nhận"
+    },
+    {
+      "at": "this.validateInput(input);",
+      "text": "Ledger kiểm sổ kép: mỗi currency tự cân Nợ = Có"
+    },
+    {
+      "at": "const result = await this.dataSource.transaction(",
+      "text": "Mở transaction DB, chèn giao dịch idempotent"
+    },
+    {
+      "at": "const userIds = [",
+      "text": "Khóa ví người tặng và người nhận theo thứ tự userId"
+    },
+    {
+      "at": "await this.applyWalletDeltas(",
+      "text": "Cập nhật số dư (DIA) và earnings (PTS), ghi outbox"
+    },
+    {
+      "at": "await input.withinTransaction?.(manager, txn);",
+      "text": "Chạy tiếp outbox, GiftEvent, notification trong cùng transaction"
+    },
+    {
+      "at": "if (!result.replayed) {",
+      "text": "Sau commit, lần đầu mới phát gift.sent qua Redis và push"
+    },
+    {
+      "at": "return GiftEventDto.from(",
+      "text": "Controller trả response (GiftEventDto)"
+    }
+  ],
+  "whyComments": [
+    {
+      "at": "const gift = await this.giftRepo.findOneBy({ id: giftId, active: true });",
+      "text": [
+        "Giá đọc từ DB đúng lúc tặng; client chỉ gửi giftId, không bao giờ gửi giá."
+      ],
+      "src": "comment gốc gift.service.ts L171",
+      "file": "apps/core-api/src/modules/gift/gift.service.ts"
+    },
+    {
+      "at": "const { members } =",
+      "text": [
+        "Kiểm thành viên chỉ là luật nghiệp vụ, KHÔNG phải chốt an toàn tiền: tiền vẫn đúng dù có race rời phòng nhờ transaction và idempotency của Economy."
+      ],
+      "src": "comment gốc gift.service.ts L181-182",
+      "file": "apps/core-api/src/modules/gift/gift.service.ts"
+    },
+    {
+      "at": "const pointsAwarded = receiver.isGuest",
+      "text": [
+        "Người nhận là guest thì chân PTS = 0 (quà vẫn tặng được); còn lại điểm = giá × tỉ lệ%, làm tròn xuống."
+      ],
+      "src": "comment gốc gift.service.ts L200 + docs/services/gift-service.md mục 1 (floor(giá × GIFT_POINTS_RATE_PERCENT / 100))",
+      "file": "apps/core-api/src/modules/gift/gift.service.ts"
+    },
+    {
+      "at": "idempotencyKey: giftSendIdempotencyKey(user.userId, idempotencyKey),",
+      "text": [
+        "Key = gift:send:{người tặng}:{key client}, unique ở DB trên transactions: retry không trừ tiền hai lần."
+      ],
+      "src": "doc gốc gift.constants.ts L3-6",
+      "file": "apps/core-api/src/modules/gift/gift.service.ts"
+    },
+    {
+      "at": "metadata: {",
+      "text": [
+        "Snapshot tỉ lệ quy đổi vào metadata của giao dịch; đổi cấu hình sau này không diễn giải lại giao dịch cũ."
+      ],
+      "src": "comment gốc gift.service.ts L216 + docs/services/economy-service.md mục 1 (bất biến 5: snapshot giá và tỉ lệ)",
+      "file": "apps/core-api/src/modules/gift/gift.service.ts"
+    },
+    {
+      "at": "withinTransaction: async (manager, transactionId) => {",
+      "text": [
+        "[POSTGRES] GiftEvent và notification ghi CÙNG transaction với các bút toán: bước nào lỗi thì rollback hết, không có chuyện trừ tiền mà không có quà."
+      ],
+      "src": "doc class gift.service.ts L62-65 + doc economy.service.ts L555-557",
+      "file": "apps/core-api/src/modules/gift/gift.service.ts"
+    },
+    {
+      "at": "const giftEvent = await this.giftEventRepo.findOneByOrFail({",
+      "text": [
+        "Replay trả lại đúng GiftEvent cũ nhờ unique transaction_id, không tạo event mới."
+      ],
+      "src": "comment gốc gift.service.ts L254",
+      "file": "apps/core-api/src/modules/gift/gift.service.ts"
+    },
+    {
+      "at": "if (!result.replayed) {",
+      "text": [
+        "Chỉ lần đầu mới phát realtime và push, và chỉ SAU khi giao dịch tiền đã commit: retry không bắn hiệu ứng lần hai."
+      ],
+      "src": "docs/services/gift-service.md mục 6 (publish SAU khi transaction tiền commit) + suy ra từ code: chỉ chạy khi !result.replayed",
+      "file": "apps/core-api/src/modules/gift/gift.service.ts"
+    },
+    {
+      "at": "if (pointsAwarded > priceDiamond) {",
+      "text": [
+        "Bất biến chống nhân đôi giá trị: điểm quy đổi không bao giờ vượt giá quà (tỉ lệ dưới 1:1)."
+      ],
+      "src": "comment gốc economy.service.ts L593",
+      "file": "apps/core-api/src/modules/economy/economy.service.ts"
+    },
+    {
+      "at": "const entries = [",
+      "text": [
+        "Hai chân độc lập, mỗi chân tự cân theo currency: DIA từ người tặng vào quỹ quà, PTS do hệ thống mint cho người nhận. Diamond không bao giờ chuyển thẳng user sang user; phần chênh (giá trừ điểm) ở lại system_gift_pool."
+      ],
+      "src": "doc gốc economy.service.ts L551-558 + docs/services/economy-service.md mục 6",
+      "file": "apps/core-api/src/modules/economy/economy.service.ts"
+    },
+    {
+      "at": "...(points > 0n",
+      "text": [
+        "Chân PTS chỉ có khi điểm lớn hơn 0: bút toán amount 0 bị validateEntries chặn."
+      ],
+      "src": "comment gốc economy.service.ts L618",
+      "file": "apps/core-api/src/modules/economy/economy.service.ts"
+    },
+    {
+      "at": "withinTransaction: async (manager, txn) => {",
+      "text": [
+        "Event economy.gift.sent riêng vì consumer cần người nhận (event mặc định chỉ nói về ví người tặng); rồi chạy tiếp phần việc của module Gift (GiftEvent, notification) trong cùng transaction."
+      ],
+      "src": "comment gốc economy.service.ts L645-646 + dòng input.withinTransaction ở cuối callback (L662)",
+      "file": "apps/core-api/src/modules/economy/economy.service.ts"
+    },
+    {
+      "at": "const winner = await this.dataSource",
+      "text": [
+        "[POSTGRES] Kiểm trước chỉ là đường nhanh; nguồn chân lý là unique idempotency_key ở DB. 2 request cùng key chạy song song thì bên thua đọc lại dòng của bên thắng và trả như replay."
+      ],
+      "src": "docs/services/economy-service.md mục 3 + comment migration 1752000000000-economy-ledger.ts (transactions.idempotency_key UNIQUE)",
+      "file": "apps/core-api/src/modules/economy/services/ledger.service.ts"
+    },
+    {
+      "at": "for (const [currency, sum] of sums) {",
+      "text": [
+        "Mỗi currency phải tự cân (tổng Nợ bằng tổng Có): giao dịch 2 currency được tách thành các chân độc lập, DIA và PTS không bù trừ cho nhau."
+      ],
+      "src": "docs/services/economy-service.md mục 1 (bất biến 1) và mục 6",
+      "file": "apps/core-api/src/modules/economy/services/ledger.service.ts"
+    },
+    {
+      "at": "const insertResult = await manager",
+      "text": [
+        "[POSTGRES] ON CONFLICT DO NOTHING thay vì bắt lỗi unique, vì lỗi đó làm abort cả transaction của caller. Postgres chờ bên thắng commit; không chèn được dòng mới thì đây là replay, không ghi bút toán."
+      ],
+      "src": "comment gốc ledger.service.ts L117-119 + suy ra từ code: !insertedId trả replayed: true",
+      "file": "apps/core-api/src/modules/economy/services/ledger.service.ts"
+    },
+    {
+      "at": "const userIds = [",
+      "text": [
+        "Khóa ví theo thứ tự userId đã sắp xếp để tránh deadlock khi một giao dịch chạm nhiều ví (quà chạm ví người tặng và, khi có chân PTS, cả ví người nhận)."
+      ],
+      "src": "docs/services/economy-service.md mục 3 (lock theo thứ tự userId khi chạm nhiều ví để tránh deadlock) + suy ra từ code: userIds lấy từ các bút toán có userId (UserWallet người tặng, UserEarnings người nhận chỉ khi points > 0)",
+      "file": "apps/core-api/src/modules/economy/services/ledger.service.ts"
+    },
+    {
+      "at": "const newEarnings = BigInt(wallet.earnings) + earningsDelta;",
+      "text": [
+        "[POSTGRES] Ví người tặng đổi balance (DIA), ví người nhận đổi earnings (PTS), cùng một vòng lặp trong cùng transaction: không thể trừ DIA mà không cộng PTS."
+      ],
+      "src": "suy ra từ code: applyWalletDeltas lặp từng ví đã khóa, cộng delta theo accountKind UserWallet (balance) và UserEarnings (earnings) + docs/services/economy-service.md mục 6",
+      "file": "apps/core-api/src/modules/economy/services/ledger.service.ts"
+    },
+    {
+      "at": "if (newEarnings < 0n) {",
+      "text": [
+        "Điểm earnings không bao giờ âm (DB cũng có CHECK earnings >= 0), nên hoàn quà sau khi người nhận đã tiêu điểm sẽ bị chặn ở đây; luồng hoàn quà chưa làm."
+      ],
+      "src": "docs/services/gift-service.md mục 5 (reverse gift bị chặn bởi guard newEarnings < 0 và CHECK earnings >= 0) + comment migration 1752000000000-economy-ledger.ts",
+      "file": "apps/core-api/src/modules/economy/services/ledger.service.ts"
+    },
+    {
+      "at": "await queryRunner.query(`",
+      "text": [
+        "Các bất biến của Economy cũng được khóa ở DB: unique transaction_id (1 GiftEvent ứng 1 giao dịch), không tự tặng, điểm không vượt giá. Đây là bản gốc của bảng; sau đó thêm video_id và profile_user_id (CHECK đúng 1 ngữ cảnh)."
+      ],
+      "src": "comment migration 1752700000000-party-room-gift.ts L7-9 + migrations 1755700000000-gift-event-video.ts và 1757500000000-profile-gift-context.ts",
+      "file": "apps/core-api/src/database/migrations/1752700000000-party-room-gift.ts"
+    },
+    {
+      "at": "await Promise.all(",
+      "text": [
+        "[REDIS] Phát gift.sent cho từng thành viên đang ở phòng qua kênh realtime:user:{id}, SAU khi giao dịch commit: client chỉ thấy hiệu ứng khi tiền đã trừ."
+      ],
+      "src": "doc gift.service.ts L474 + docs/services/gift-service.md mục 6",
+      "file": "apps/core-api/src/modules/gift/gift.service.ts"
+    },
+    {
+      "at": "this.logger.warn(",
+      "text": [
+        "Phòng vừa đóng giữa chừng thì chỉ mất hiệu ứng realtime, giao dịch quà vẫn hợp lệ."
+      ],
+      "src": "comment gốc gift.service.ts L502",
+      "file": "apps/core-api/src/modules/gift/gift.service.ts"
+    }
+  ],
+  "sources": [
+    "apps/core-api/src/database/migrations/1752700000000-party-room-gift.ts",
+    "apps/core-api/src/modules/economy/economy.service.ts",
+    "apps/core-api/src/modules/economy/services/ledger.service.ts",
+    "apps/core-api/src/modules/gift/gift.controller.ts",
+    "apps/core-api/src/modules/gift/gift.service.ts"
+  ],
+  "sourceContext": {
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/gift/gift.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('party/rooms/:roomId/gifts')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/gift/gift.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async sendGift(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const gift = await this.giftRepo.findOneBy({ id: giftId, active: true });",
+            "text": [
+              "Giá đọc từ DB đúng lúc tặng; client chỉ gửi giftId, không bao giờ gửi giá."
+            ],
+            "src": "comment gốc gift.service.ts L171"
+          },
+          {
+            "at": "const { members } =",
+            "text": [
+              "Kiểm thành viên chỉ là luật nghiệp vụ, KHÔNG phải chốt an toàn tiền: tiền vẫn đúng dù có race rời phòng nhờ transaction và idempotency của Economy."
+            ],
+            "src": "comment gốc gift.service.ts L181-182"
+          },
+          {
+            "at": "const pointsAwarded = receiver.isGuest",
+            "text": [
+              "Người nhận là guest thì chân PTS = 0 (quà vẫn tặng được); còn lại điểm = giá × tỉ lệ%, làm tròn xuống."
+            ],
+            "src": "comment gốc gift.service.ts L200 + docs/services/gift-service.md mục 1 (floor(giá × GIFT_POINTS_RATE_PERCENT / 100))"
+          },
+          {
+            "at": "idempotencyKey: giftSendIdempotencyKey(user.userId, idempotencyKey),",
+            "text": [
+              "Key = gift:send:{người tặng}:{key client}, unique ở DB trên transactions: retry không trừ tiền hai lần."
+            ],
+            "src": "doc gốc gift.constants.ts L3-6"
+          },
+          {
+            "at": "metadata: {",
+            "text": [
+              "Snapshot tỉ lệ quy đổi vào metadata của giao dịch; đổi cấu hình sau này không diễn giải lại giao dịch cũ."
+            ],
+            "src": "comment gốc gift.service.ts L216 + docs/services/economy-service.md mục 1 (bất biến 5: snapshot giá và tỉ lệ)"
+          },
+          {
+            "at": "withinTransaction: async (manager, transactionId) => {",
+            "text": [
+              "[POSTGRES] GiftEvent và notification ghi CÙNG transaction với các bút toán: bước nào lỗi thì rollback hết, không có chuyện trừ tiền mà không có quà."
+            ],
+            "src": "doc class gift.service.ts L62-65 + doc economy.service.ts L555-557"
+          },
+          {
+            "at": "const giftEvent = await this.giftEventRepo.findOneByOrFail({",
+            "text": [
+              "Replay trả lại đúng GiftEvent cũ nhờ unique transaction_id, không tạo event mới."
+            ],
+            "src": "comment gốc gift.service.ts L254"
+          },
+          {
+            "at": "if (!result.replayed) {",
+            "text": [
+              "Chỉ lần đầu mới phát realtime và push, và chỉ SAU khi giao dịch tiền đã commit: retry không bắn hiệu ứng lần hai."
+            ],
+            "src": "docs/services/gift-service.md mục 6 (publish SAU khi transaction tiền commit) + suy ra từ code: chỉ chạy khi !result.replayed"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/economy/economy.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async sendGift(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "if (pointsAwarded > priceDiamond) {",
+            "text": [
+              "Bất biến chống nhân đôi giá trị: điểm quy đổi không bao giờ vượt giá quà (tỉ lệ dưới 1:1)."
+            ],
+            "src": "comment gốc economy.service.ts L593"
+          },
+          {
+            "at": "const entries = [",
+            "text": [
+              "Hai chân độc lập, mỗi chân tự cân theo currency: DIA từ người tặng vào quỹ quà, PTS do hệ thống mint cho người nhận. Diamond không bao giờ chuyển thẳng user sang user; phần chênh (giá trừ điểm) ở lại system_gift_pool."
+            ],
+            "src": "doc gốc economy.service.ts L551-558 + docs/services/economy-service.md mục 6"
+          },
+          {
+            "at": "...(points > 0n",
+            "text": [
+              "Chân PTS chỉ có khi điểm lớn hơn 0: bút toán amount 0 bị validateEntries chặn."
+            ],
+            "src": "comment gốc economy.service.ts L618"
+          },
+          {
+            "at": "withinTransaction: async (manager, txn) => {",
+            "text": [
+              "Event economy.gift.sent riêng vì consumer cần người nhận (event mặc định chỉ nói về ví người tặng); rồi chạy tiếp phần việc của module Gift (GiftEvent, notification) trong cùng transaction."
+            ],
+            "src": "comment gốc economy.service.ts L645-646 + dòng input.withinTransaction ở cuối callback (L662)"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/economy/services/ledger.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async record(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private validateInput(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private validateEntries(",
+            "to": "^  }$"
+          },
+          {
+            "at": "async recordInManager(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async applyWalletDeltas(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const winner = await this.dataSource",
+            "text": [
+              "[POSTGRES] Kiểm trước chỉ là đường nhanh; nguồn chân lý là unique idempotency_key ở DB. 2 request cùng key chạy song song thì bên thua đọc lại dòng của bên thắng và trả như replay."
+            ],
+            "src": "docs/services/economy-service.md mục 3 + comment migration 1752000000000-economy-ledger.ts (transactions.idempotency_key UNIQUE)"
+          },
+          {
+            "at": "for (const [currency, sum] of sums) {",
+            "text": [
+              "Mỗi currency phải tự cân (tổng Nợ bằng tổng Có): giao dịch 2 currency được tách thành các chân độc lập, DIA và PTS không bù trừ cho nhau."
+            ],
+            "src": "docs/services/economy-service.md mục 1 (bất biến 1) và mục 6"
+          },
+          {
+            "at": "const insertResult = await manager",
+            "text": [
+              "[POSTGRES] ON CONFLICT DO NOTHING thay vì bắt lỗi unique, vì lỗi đó làm abort cả transaction của caller. Postgres chờ bên thắng commit; không chèn được dòng mới thì đây là replay, không ghi bút toán."
+            ],
+            "src": "comment gốc ledger.service.ts L117-119 + suy ra từ code: !insertedId trả replayed: true"
+          },
+          {
+            "at": "const userIds = [",
+            "text": [
+              "Khóa ví theo thứ tự userId đã sắp xếp để tránh deadlock khi một giao dịch chạm nhiều ví (quà chạm ví người tặng và, khi có chân PTS, cả ví người nhận)."
+            ],
+            "src": "docs/services/economy-service.md mục 3 (lock theo thứ tự userId khi chạm nhiều ví để tránh deadlock) + suy ra từ code: userIds lấy từ các bút toán có userId (UserWallet người tặng, UserEarnings người nhận chỉ khi points > 0)"
+          },
+          {
+            "at": "const newEarnings = BigInt(wallet.earnings) + earningsDelta;",
+            "text": [
+              "[POSTGRES] Ví người tặng đổi balance (DIA), ví người nhận đổi earnings (PTS), cùng một vòng lặp trong cùng transaction: không thể trừ DIA mà không cộng PTS."
+            ],
+            "src": "suy ra từ code: applyWalletDeltas lặp từng ví đã khóa, cộng delta theo accountKind UserWallet (balance) và UserEarnings (earnings) + docs/services/economy-service.md mục 6"
+          },
+          {
+            "at": "if (newEarnings < 0n) {",
+            "text": [
+              "Điểm earnings không bao giờ âm (DB cũng có CHECK earnings >= 0), nên hoàn quà sau khi người nhận đã tiêu điểm sẽ bị chặn ở đây; luồng hoàn quà chưa làm."
+            ],
+            "src": "docs/services/gift-service.md mục 5 (reverse gift bị chặn bởi guard newEarnings < 0 và CHECK earnings >= 0) + comment migration 1752000000000-economy-ledger.ts"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752700000000-party-room-gift.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE gift_events (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ],
+        "inline": [
+          {
+            "at": "await queryRunner.query(`",
+            "text": [
+              "Các bất biến của Economy cũng được khóa ở DB: unique transaction_id (1 GiftEvent ứng 1 giao dịch), không tự tặng, điểm không vượt giá. Đây là bản gốc của bảng; sau đó thêm video_id và profile_user_id (CHECK đúng 1 ngữ cảnh)."
+            ],
+            "src": "comment migration 1752700000000-party-room-gift.ts L7-9 + migrations 1755700000000-gift-event-video.ts và 1757500000000-profile-gift-context.ts"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/gift/gift.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async publishGiftSent(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "await Promise.all(",
+            "text": [
+              "[REDIS] Phát gift.sent cho từng thành viên đang ở phòng qua kênh realtime:user:{id}, SAU khi giao dịch commit: client chỉ thấy hiệu ứng khi tiền đã trừ."
+            ],
+            "src": "doc gift.service.ts L474 + docs/services/gift-service.md mục 6"
+          },
+          {
+            "at": "this.logger.warn(",
+            "text": [
+              "Phòng vừa đóng giữa chừng thì chỉ mất hiệu ứng realtime, giao dịch quà vẫn hợp lệ."
+            ],
+            "src": "comment gốc gift.service.ts L502"
+          }
+        ]
+      }
+    ],
+    "ranges": [
+      {
+        "file": "apps/core-api/src/modules/gift/gift.controller.ts",
+        "range": {
+          "at": "@Post('party/rooms/:roomId/gifts')",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/gift/gift.service.ts",
+        "range": {
+          "at": "async sendGift(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/economy.service.ts",
+        "range": {
+          "at": "async sendGift(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/services/ledger.service.ts",
+        "range": {
+          "at": "async record(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/services/ledger.service.ts",
+        "range": {
+          "at": "private validateInput(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/services/ledger.service.ts",
+        "range": {
+          "at": "private validateEntries(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/services/ledger.service.ts",
+        "range": {
+          "at": "async recordInManager(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/services/ledger.service.ts",
+        "range": {
+          "at": "private async applyWalletDeltas(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/database/migrations/1752700000000-party-room-gift.ts",
+        "range": {
+          "at": "CREATE TABLE gift_events (",
+          "to": "^    `\\);$",
+          "pad": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/gift/gift.service.ts",
+        "range": {
+          "at": "private async publishGiftSent(",
+          "to": "^  }$"
+        }
+      }
+    ],
+    "helpers": [],
+    "skip": [],
+    "attach": {},
+    "nested": true
+  },
+  "omittedContext": {
+    "note": "Curated source selection; unlisted call bodies, shared request infrastructure, DTOs and other context may be omitted. skip names stay unexpanded; helpers may be substituted; attach controls placement. Flattened scopes are not executable code.",
+    "skip": [],
+    "attach": {},
+    "helpers": []
+  },
+  "featureMetadata": {
+    "id": "11-gift",
+    "short": "Gift",
+    "title": "Gift",
+    "summary": "Tặng quà trong Party Room: trừ Diamond của người tặng và cộng điểm PTS cho người nhận trong cùng một transaction.",
+    "diagramAnchor": "11-gift"
+  },
+  "endpointCatalog": {
+    "n": "01",
+    "slug": "post-party-room-gift",
+    "method": "POST",
+    "short": "/party/rooms/:roomId/gifts",
+    "route": "/api/v1/party/rooms/:roomId/gifts",
+    "name": "Tặng quà trong phòng",
+    "title": "Tặng quà trong Party Room: trừ DIA người tặng, cộng PTS người nhận, ghi GiftEvent trong cùng một transaction.",
+    "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]",
+    "roles": [
+      [
+        "CONTROLLER",
+        "Nhận yêu cầu tặng quà (giới hạn 30 lần/phút) kèm Idempotency-Key bắt buộc; user lấy từ JWT, giftId và người nhận từ body."
+      ],
+      [
+        "SERVICE",
+        "GiftService đọc giá quà từ DB, kiểm 2 người cùng ở trong phòng và tính điểm PTS; EconomyService dựng 2 chân sổ kép (DIA và PTS) rồi giao cho LedgerService ghi."
+      ],
+      [
+        "POSTGRES",
+        "Một transaction ghi giao dịch, bút toán DIA và PTS, số dư và điểm của ví, outbox, GiftEvent, notification; bước nào lỗi thì rollback tất cả."
+      ],
+      [
+        "REDIS",
+        "Sau khi commit, phát gift.sent tới từng thành viên đang ở phòng qua pub/sub để client chạy hiệu ứng."
+      ]
+    ],
+    "tables": [
+      [
+        "gifts",
+        "catalog quà: giá Diamond là dữ liệu trong DB, server đọc lại đúng lúc tặng."
+      ],
+      [
+        "transactions",
+        "1 giao dịch gift_send; key idempotency gift:send:{người tặng}:{key client}."
+      ],
+      [
+        "ledger_entries",
+        "bút toán nhiều chân: DIA Nợ ví người tặng / Có system_gift_pool; PTS Nợ system_points_mint / Có user_earnings của người nhận."
+      ],
+      [
+        "wallets",
+        "ví người tặng bị trừ DIA (khóa FOR UPDATE); ví người nhận được cộng điểm PTS vào earnings."
+      ],
+      [
+        "gift_events",
+        "1 dòng cho mỗi lần tặng, unique transaction_id; chỉ là snapshot hiển thị, nguồn sự thật là sổ cái."
+      ],
+      [
+        "outbox_events",
+        "event economy.gift.sent và economy.diamond.debited, ghi cùng transaction."
+      ],
+      [
+        "notifications",
+        "thông báo gift_received cho người nhận, tạo trong cùng transaction."
+      ],
+      [
+        "party_rooms",
+        "chỉ đọc: phòng phải đang mở (active) mới tặng được quà."
+      ],
+      [
+        "party_room_members",
+        "chỉ đọc: người tặng và người nhận phải là thành viên đang ở trong phòng."
+      ]
+    ],
+    "redis": [
+      [
+        "realtime:user:{userId}",
+        "kênh pub/sub theo người nhận; core-api phát gift.sent cho từng thành viên trong phòng, signaling-gateway chuyển xuống socket."
+      ]
+    ],
+    "related": [
+      [
+        "Economy (LedgerService)",
+        "record: idempotency theo key, khóa ví FOR UPDATE, check số dư và earnings, outbox; phần lõi này có trong luồng Mua VIP."
+      ],
+      [
+        "Party Room",
+        "getActiveRoomMembers: danh sách thành viên của phòng đang mở."
+      ],
+      [
+        "User",
+        "getByIdOrThrow: đọc người nhận để biết có phải guest không."
+      ],
+      [
+        "Notification",
+        "createWithManager tạo thông báo trong transaction, sendPush gửi push sau commit."
+      ],
+      [
+        "signaling-gateway",
+        "subscribe kênh realtime của user, đẩy gift.sent xuống client."
+      ]
+    ],
+    "nested": true,
+    "steps": [
+      {
+        "at": "@Post('party/rooms/:roomId/gifts')",
+        "text": "Nhận request (user từ JWT, roomId từ URL, Idempotency-Key từ header)"
+      },
+      {
+        "at": "if (receiverUserId === user.userId) {",
+        "text": "Chặn tự tặng, đọc giá quà từ DB"
+      },
+      {
+        "at": "const { members } =",
+        "text": "Kiểm người tặng và người nhận cùng ở trong phòng"
+      },
+      {
+        "at": "const pointsAwarded = receiver.isGuest",
+        "text": "Tính điểm PTS cho người nhận (guest thì 0)"
+      },
+      {
+        "at": "const entries = [",
+        "text": "Economy dựng 2 chân sổ kép: DIA người tặng, PTS người nhận"
+      },
+      {
+        "at": "this.validateInput(input);",
+        "text": "Ledger kiểm sổ kép: mỗi currency tự cân Nợ = Có"
+      },
+      {
+        "at": "const result = await this.dataSource.transaction(",
+        "text": "Mở transaction DB, chèn giao dịch idempotent"
+      },
+      {
+        "at": "const userIds = [",
+        "text": "Khóa ví người tặng và người nhận theo thứ tự userId"
+      },
+      {
+        "at": "await this.applyWalletDeltas(",
+        "text": "Cập nhật số dư (DIA) và earnings (PTS), ghi outbox"
+      },
+      {
+        "at": "await input.withinTransaction?.(manager, txn);",
+        "text": "Chạy tiếp outbox, GiftEvent, notification trong cùng transaction"
+      },
+      {
+        "at": "if (!result.replayed) {",
+        "text": "Sau commit, lần đầu mới phát gift.sent qua Redis và push"
+      },
+      {
+        "at": "return GiftEventDto.from(",
+        "text": "Controller trả response (GiftEventDto)"
+      }
+    ],
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/gift/gift.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('party/rooms/:roomId/gifts')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/gift/gift.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async sendGift(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const gift = await this.giftRepo.findOneBy({ id: giftId, active: true });",
+            "text": [
+              "Giá đọc từ DB đúng lúc tặng; client chỉ gửi giftId, không bao giờ gửi giá."
+            ],
+            "src": "comment gốc gift.service.ts L171"
+          },
+          {
+            "at": "const { members } =",
+            "text": [
+              "Kiểm thành viên chỉ là luật nghiệp vụ, KHÔNG phải chốt an toàn tiền: tiền vẫn đúng dù có race rời phòng nhờ transaction và idempotency của Economy."
+            ],
+            "src": "comment gốc gift.service.ts L181-182"
+          },
+          {
+            "at": "const pointsAwarded = receiver.isGuest",
+            "text": [
+              "Người nhận là guest thì chân PTS = 0 (quà vẫn tặng được); còn lại điểm = giá × tỉ lệ%, làm tròn xuống."
+            ],
+            "src": "comment gốc gift.service.ts L200 + docs/services/gift-service.md mục 1 (floor(giá × GIFT_POINTS_RATE_PERCENT / 100))"
+          },
+          {
+            "at": "idempotencyKey: giftSendIdempotencyKey(user.userId, idempotencyKey),",
+            "text": [
+              "Key = gift:send:{người tặng}:{key client}, unique ở DB trên transactions: retry không trừ tiền hai lần."
+            ],
+            "src": "doc gốc gift.constants.ts L3-6"
+          },
+          {
+            "at": "metadata: {",
+            "text": [
+              "Snapshot tỉ lệ quy đổi vào metadata của giao dịch; đổi cấu hình sau này không diễn giải lại giao dịch cũ."
+            ],
+            "src": "comment gốc gift.service.ts L216 + docs/services/economy-service.md mục 1 (bất biến 5: snapshot giá và tỉ lệ)"
+          },
+          {
+            "at": "withinTransaction: async (manager, transactionId) => {",
+            "text": [
+              "[POSTGRES] GiftEvent và notification ghi CÙNG transaction với các bút toán: bước nào lỗi thì rollback hết, không có chuyện trừ tiền mà không có quà."
+            ],
+            "src": "doc class gift.service.ts L62-65 + doc economy.service.ts L555-557"
+          },
+          {
+            "at": "const giftEvent = await this.giftEventRepo.findOneByOrFail({",
+            "text": [
+              "Replay trả lại đúng GiftEvent cũ nhờ unique transaction_id, không tạo event mới."
+            ],
+            "src": "comment gốc gift.service.ts L254"
+          },
+          {
+            "at": "if (!result.replayed) {",
+            "text": [
+              "Chỉ lần đầu mới phát realtime và push, và chỉ SAU khi giao dịch tiền đã commit: retry không bắn hiệu ứng lần hai."
+            ],
+            "src": "docs/services/gift-service.md mục 6 (publish SAU khi transaction tiền commit) + suy ra từ code: chỉ chạy khi !result.replayed"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/economy/economy.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async sendGift(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "if (pointsAwarded > priceDiamond) {",
+            "text": [
+              "Bất biến chống nhân đôi giá trị: điểm quy đổi không bao giờ vượt giá quà (tỉ lệ dưới 1:1)."
+            ],
+            "src": "comment gốc economy.service.ts L593"
+          },
+          {
+            "at": "const entries = [",
+            "text": [
+              "Hai chân độc lập, mỗi chân tự cân theo currency: DIA từ người tặng vào quỹ quà, PTS do hệ thống mint cho người nhận. Diamond không bao giờ chuyển thẳng user sang user; phần chênh (giá trừ điểm) ở lại system_gift_pool."
+            ],
+            "src": "doc gốc economy.service.ts L551-558 + docs/services/economy-service.md mục 6"
+          },
+          {
+            "at": "...(points > 0n",
+            "text": [
+              "Chân PTS chỉ có khi điểm lớn hơn 0: bút toán amount 0 bị validateEntries chặn."
+            ],
+            "src": "comment gốc economy.service.ts L618"
+          },
+          {
+            "at": "withinTransaction: async (manager, txn) => {",
+            "text": [
+              "Event economy.gift.sent riêng vì consumer cần người nhận (event mặc định chỉ nói về ví người tặng); rồi chạy tiếp phần việc của module Gift (GiftEvent, notification) trong cùng transaction."
+            ],
+            "src": "comment gốc economy.service.ts L645-646 + dòng input.withinTransaction ở cuối callback (L662)"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/economy/services/ledger.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async record(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private validateInput(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private validateEntries(",
+            "to": "^  }$"
+          },
+          {
+            "at": "async recordInManager(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async applyWalletDeltas(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const winner = await this.dataSource",
+            "text": [
+              "[POSTGRES] Kiểm trước chỉ là đường nhanh; nguồn chân lý là unique idempotency_key ở DB. 2 request cùng key chạy song song thì bên thua đọc lại dòng của bên thắng và trả như replay."
+            ],
+            "src": "docs/services/economy-service.md mục 3 + comment migration 1752000000000-economy-ledger.ts (transactions.idempotency_key UNIQUE)"
+          },
+          {
+            "at": "for (const [currency, sum] of sums) {",
+            "text": [
+              "Mỗi currency phải tự cân (tổng Nợ bằng tổng Có): giao dịch 2 currency được tách thành các chân độc lập, DIA và PTS không bù trừ cho nhau."
+            ],
+            "src": "docs/services/economy-service.md mục 1 (bất biến 1) và mục 6"
+          },
+          {
+            "at": "const insertResult = await manager",
+            "text": [
+              "[POSTGRES] ON CONFLICT DO NOTHING thay vì bắt lỗi unique, vì lỗi đó làm abort cả transaction của caller. Postgres chờ bên thắng commit; không chèn được dòng mới thì đây là replay, không ghi bút toán."
+            ],
+            "src": "comment gốc ledger.service.ts L117-119 + suy ra từ code: !insertedId trả replayed: true"
+          },
+          {
+            "at": "const userIds = [",
+            "text": [
+              "Khóa ví theo thứ tự userId đã sắp xếp để tránh deadlock khi một giao dịch chạm nhiều ví (quà chạm ví người tặng và, khi có chân PTS, cả ví người nhận)."
+            ],
+            "src": "docs/services/economy-service.md mục 3 (lock theo thứ tự userId khi chạm nhiều ví để tránh deadlock) + suy ra từ code: userIds lấy từ các bút toán có userId (UserWallet người tặng, UserEarnings người nhận chỉ khi points > 0)"
+          },
+          {
+            "at": "const newEarnings = BigInt(wallet.earnings) + earningsDelta;",
+            "text": [
+              "[POSTGRES] Ví người tặng đổi balance (DIA), ví người nhận đổi earnings (PTS), cùng một vòng lặp trong cùng transaction: không thể trừ DIA mà không cộng PTS."
+            ],
+            "src": "suy ra từ code: applyWalletDeltas lặp từng ví đã khóa, cộng delta theo accountKind UserWallet (balance) và UserEarnings (earnings) + docs/services/economy-service.md mục 6"
+          },
+          {
+            "at": "if (newEarnings < 0n) {",
+            "text": [
+              "Điểm earnings không bao giờ âm (DB cũng có CHECK earnings >= 0), nên hoàn quà sau khi người nhận đã tiêu điểm sẽ bị chặn ở đây; luồng hoàn quà chưa làm."
+            ],
+            "src": "docs/services/gift-service.md mục 5 (reverse gift bị chặn bởi guard newEarnings < 0 và CHECK earnings >= 0) + comment migration 1752000000000-economy-ledger.ts"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752700000000-party-room-gift.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE gift_events (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ],
+        "inline": [
+          {
+            "at": "await queryRunner.query(`",
+            "text": [
+              "Các bất biến của Economy cũng được khóa ở DB: unique transaction_id (1 GiftEvent ứng 1 giao dịch), không tự tặng, điểm không vượt giá. Đây là bản gốc của bảng; sau đó thêm video_id và profile_user_id (CHECK đúng 1 ngữ cảnh)."
+            ],
+            "src": "comment migration 1752700000000-party-room-gift.ts L7-9 + migrations 1755700000000-gift-event-video.ts và 1757500000000-profile-gift-context.ts"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/gift/gift.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async publishGiftSent(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "await Promise.all(",
+            "text": [
+              "[REDIS] Phát gift.sent cho từng thành viên đang ở phòng qua kênh realtime:user:{id}, SAU khi giao dịch commit: client chỉ thấy hiệu ứng khi tiền đã trừ."
+            ],
+            "src": "doc gift.service.ts L474 + docs/services/gift-service.md mục 6"
+          },
+          {
+            "at": "this.logger.warn(",
+            "text": [
+              "Phòng vừa đóng giữa chừng thì chỉ mất hiệu ứng realtime, giao dịch quà vẫn hợp lệ."
+            ],
+            "src": "comment gốc gift.service.ts L502"
+          }
+        ]
+      }
+    ]
+  },
+  "sourceManifest": {
+    "verifiedCodeSha256": true,
+    "mode": "published-presentation",
+    "baselineCommit": "cb30743143bd8f6576b154db4b606380c365c674",
+    "sourceCommit": "d3cb28c",
+    "sources": [
+      "apps/core-api/src/database/migrations/1752700000000-party-room-gift.ts",
+      "apps/core-api/src/modules/economy/economy.service.ts",
+      "apps/core-api/src/modules/economy/services/ledger.service.ts",
+      "apps/core-api/src/modules/gift/gift.controller.ts",
+      "apps/core-api/src/modules/gift/gift.service.ts"
+    ],
+    "steps": [
+      "Step 1: Nhận request (user từ JWT, roomId từ URL, Idempotency-Key từ header)",
+      "Step 2: Chặn tự tặng, đọc giá quà từ DB",
+      "Step 3: Kiểm người tặng và người nhận cùng ở trong phòng",
+      "Step 4: Tính điểm PTS cho người nhận (guest thì 0)",
+      "Step 5: Economy dựng 2 chân sổ kép: DIA người tặng, PTS người nhận",
+      "Step 6: Ledger kiểm sổ kép: mỗi currency tự cân Nợ = Có",
+      "Step 7: Mở transaction DB, chèn giao dịch idempotent",
+      "Step 8: Khóa ví người tặng và người nhận theo thứ tự userId",
+      "Step 9: Cập nhật số dư (DIA) và earnings (PTS), ghi outbox",
+      "Step 10: Chạy tiếp outbox, GiftEvent, notification trong cùng transaction",
+      "Step 11: Sau commit, lần đầu mới phát gift.sent qua Redis và push",
+      "Step 12: Controller trả response (GiftEventDto)"
+    ],
+    "removedOverview": "// ════════════════════════════════════════════════════════════════════════════\n//  POST /api/v1/party/rooms/:roomId/gifts\n//  Tặng quà trong Party Room: trừ DIA người tặng, cộng PTS người nhận, ghi GiftEvent trong cùng một transaction.\n// ════════════════════════════════════════════════════════════════════════════\n//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]\n//\n//  Vai trò từng tầng\n//    [CONTROLLER] Nhận yêu cầu tặng quà (giới hạn 30 lần/phút) kèm Idempotency-Key bắt\n//                 buộc; user lấy từ JWT, giftId và người nhận từ body.\n//    [SERVICE]    GiftService đọc giá quà từ DB, kiểm 2 người cùng ở trong phòng và\n//                 tính điểm PTS; EconomyService dựng 2 chân sổ kép (DIA và PTS) rồi\n//                 giao cho LedgerService ghi.\n//    [POSTGRES]   Một transaction ghi giao dịch, bút toán DIA và PTS, số dư và điểm của\n//                 ví, outbox, GiftEvent, notification; bước nào lỗi thì rollback tất\n//                 cả.\n//    [REDIS]      Sau khi commit, phát gift.sent tới từng thành viên đang ở phòng qua\n//                 pub/sub để client chạy hiệu ứng.\n//\n//  Bảng       gifts — catalog quà: giá Diamond là dữ liệu trong DB, server đọc lại đúng\n//               lúc tặng.\n//             transactions — 1 giao dịch gift_send; key idempotency gift:send:{người\n//               tặng}:{key client}.\n//             ledger_entries — bút toán nhiều chân: DIA Nợ ví người tặng / Có\n//               system_gift_pool; PTS Nợ system_points_mint / Có user_earnings của\n//               người nhận.\n//             wallets — ví người tặng bị trừ DIA (khóa FOR UPDATE); ví người nhận được\n//               cộng điểm PTS vào earnings.\n//             gift_events — 1 dòng cho mỗi lần tặng, unique transaction_id; chỉ là\n//               snapshot hiển thị, nguồn sự thật là sổ cái.\n//             outbox_events — event economy.gift.sent và economy.diamond.debited, ghi\n//               cùng transaction.\n//             notifications — thông báo gift_received cho người nhận, tạo trong cùng\n//               transaction.\n//             party_rooms — chỉ đọc: phòng phải đang mở (active) mới tặng được quà.\n//             party_room_members — chỉ đọc: người tặng và người nhận phải là thành viên\n//               đang ở trong phòng.\n//  Redis      realtime:user:{userId} — kênh pub/sub theo người nhận; core-api phát\n//               gift.sent cho từng thành viên trong phòng, signaling-gateway chuyển\n//               xuống socket.\n//  Liên quan  Economy (LedgerService) — record: idempotency theo key, khóa ví FOR\n//               UPDATE, check số dư và earnings, outbox; phần lõi này có trong luồng\n//               Mua VIP.\n//             Party Room — getActiveRoomMembers: danh sách thành viên của phòng đang\n//               mở.\n//             User — getByIdOrThrow: đọc người nhận để biết có phải guest không.\n//             Notification — createWithManager tạo thông báo trong transaction,\n//               sendPush gửi push sau commit.\n//             signaling-gateway — subscribe kênh realtime của user, đẩy gift.sent xuống\n//               client.\n//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi\n//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới\n//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //\n//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các\n//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số\n//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức\n//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong\n//             repo.\n",
+    "baselineBodySha256": "6ce008682c018ae2839e0d6c591b35fcf5815fcb321ca06ebdbbda3c0b260d9c",
+    "bodySha256": "6ce008682c018ae2839e0d6c591b35fcf5815fcb321ca06ebdbbda3c0b260d9c",
+    "rawSha256": "6595e891dd416730fbc2a0bd53a94b567315f8ef40c51de99fed9ba2646972bf",
+    "codeSha256": "6595e891dd416730fbc2a0bd53a94b567315f8ef40c51de99fed9ba2646972bf"
+  },
+  "code": {
+    "path": "code/11-gift/01-post-party-room-gift.ts",
+    "sha256": "6595e891dd416730fbc2a0bd53a94b567315f8ef40c51de99fed9ba2646972bf",
+    "hashAlgorithm": "sha256",
+    "content": "//  POST /api/v1/party/rooms/:roomId/gifts\n//  Tặng quà trong Party Room: trừ DIA người tặng, cộng PTS người nhận, ghi GiftEvent trong cùng một transaction.\n//  Step 1: Nhận request (user từ JWT, roomId từ URL, Idempotency-Key từ header)\n//  Step 2: Chặn tự tặng, đọc giá quà từ DB\n//  Step 3: Kiểm người tặng và người nhận cùng ở trong phòng\n//  Step 4: Tính điểm PTS cho người nhận (guest thì 0)\n//  Step 5: Economy dựng 2 chân sổ kép: DIA người tặng, PTS người nhận\n//  Step 6: Ledger kiểm sổ kép: mỗi currency tự cân Nợ = Có\n//  Step 7: Mở transaction DB, chèn giao dịch idempotent\n//  Step 8: Khóa ví người tặng và người nhận theo thứ tự userId\n//  Step 9: Cập nhật số dư (DIA) và earnings (PTS), ghi outbox\n//  Step 10: Chạy tiếp outbox, GiftEvent, notification trong cùng transaction\n//  Step 11: Sau commit, lần đầu mới phát gift.sent qua Redis và push\n//  Step 12: Controller trả response (GiftEventDto)\n\n// [CONTROLLER] GiftController.sendGift  ·  gift.controller.ts L37–38, L50–73\n@Controller()\nexport class GiftController {\n  // GiftService\n  private readonly logger = new Logger(GiftService.name);\n  constructor(\n    private readonly giftService: GiftService,\n    // GiftService\n    @InjectRepository(Gift) private readonly giftRepo: Repository<Gift>,\n    @InjectRepository(GiftEvent)\n    private readonly giftEventRepo: Repository<GiftEvent>,\n    private readonly economy: EconomyService,\n    private readonly partyRoomService: PartyRoomService,\n    private readonly userService: UserService,\n    private readonly notificationService: NotificationService,\n    private readonly config: ConfigService<CoreApiEnv, true>,\n    @Inject(GIFT_REDIS) private readonly redis: Redis,\n    // EconomyService\n    private readonly ledger: LedgerPersistencePort,\n    // LedgerService\n    @InjectDataSource() private readonly dataSource: DataSource,\n    private readonly metrics: EconomyMetrics,\n  ) {}\n\n  // Step 1: Nhận request (user từ JWT, roomId từ URL, Idempotency-Key từ header)\n  @Post('party/rooms/:roomId/gifts')\n  @HttpCode(HttpStatus.OK)\n  @Throttle({ default: { limit: 30, ttl: minutes(1) } })\n  async sendGift(\n    @CurrentUser() user: AuthenticatedUser,\n    @Param('roomId', ParseUUIDPipe) roomId: string,\n    @Body() body: SendGiftDto,\n    @IdempotencyKey() idempotencyKey: string,\n  ): Promise<GiftEventDto> {\n    const { giftEvent, gift, replayed } = await this.giftService.sendGift(\n      user,\n      roomId,\n      body.giftId,\n      body.receiverUserId,\n      idempotencyKey,\n    );\n\n    // [SERVICE] GiftService.sendGift  ·  gift.service.ts L156–264\n    const giftId = body.giftId;\n    const receiverUserId = body.receiverUserId;\n\n    // Step 2: Chặn tự tặng, đọc giá quà từ DB\n    if (receiverUserId === user.userId) {\n      throw new DomainException(\n        GiftErrors.SELF_GIFT_FORBIDDEN,\n        'Không tự tặng quà cho chính mình',\n        HttpStatus.BAD_REQUEST,\n      );\n    }\n\n    // Giá đọc từ DB đúng lúc tặng; client chỉ gửi giftId, không bao giờ gửi giá.\n    const gift = await this.giftRepo.findOneBy({ id: giftId, active: true });\n    if (!gift) {\n      throw new DomainException(\n        GiftErrors.GIFT_NOT_FOUND,\n        'Quà không tồn tại hoặc đã ngừng bán',\n        HttpStatus.NOT_FOUND,\n      );\n    }\n\n    // Step 3: Kiểm người tặng và người nhận cùng ở trong phòng\n    // Kiểm thành viên chỉ là luật nghiệp vụ, KHÔNG phải chốt an toàn tiền: tiền vẫn đúng dù có\n    // race rời phòng nhờ transaction và idempotency của Economy.\n    const { members } =\n      await this.partyRoomService.getActiveRoomMembers(roomId);\n    if (!members.some((m) => m.userId === user.userId)) {\n      throw new DomainException(\n        GiftErrors.SENDER_NOT_IN_ROOM,\n        'Bạn không ở trong phòng này',\n        HttpStatus.FORBIDDEN,\n      );\n    }\n    if (!members.some((m) => m.userId === receiverUserId)) {\n      throw new DomainException(\n        GiftErrors.RECEIVER_NOT_IN_ROOM,\n        'Người nhận không ở trong phòng này',\n        HttpStatus.CONFLICT,\n      );\n    }\n\n    const receiver = await this.userService.getByIdOrThrow(receiverUserId);\n    const ratePercent = this.config.getOrThrow('GIFT_POINTS_RATE_PERCENT', {\n      infer: true,\n    });\n\n    // Step 4: Tính điểm PTS cho người nhận (guest thì 0)\n    // Người nhận là guest thì chân PTS = 0 (quà vẫn tặng được); còn lại điểm = giá × tỉ lệ%, làm\n    // tròn xuống.\n    const pointsAwarded = receiver.isGuest\n      ? 0\n      : Math.floor((gift.priceDiamond * ratePercent) / 100);\n\n    let notification: Notification | undefined;\n    const result = await this.economy.sendGift({\n      senderUserId: user.userId,\n      receiverUserId,\n      priceDiamond: gift.priceDiamond,\n      pointsAwarded,\n      // Key = gift:send:{người tặng}:{key client}, unique ở DB trên transactions: retry không trừ\n      // tiền hai lần.\n      idempotencyKey: giftSendIdempotencyKey(user.userId, idempotencyKey),\n      // Snapshot tỉ lệ quy đổi vào metadata của giao dịch; đổi cấu hình sau này không diễn giải\n      // lại giao dịch cũ.\n      metadata: {\n        giftId: gift.id,\n        giftCode: gift.code,\n        roomId,\n        pointsRatePercent: ratePercent,\n        receiverIsGuest: receiver.isGuest,\n      },\n      // [POSTGRES] GiftEvent và notification ghi CÙNG transaction với các bút toán: bước nào lỗi\n      // thì rollback hết, không có chuyện trừ tiền mà không có quà.\n      withinTransaction: async (manager, transactionId) => {\n        await manager.save(\n          manager.create(GiftEvent, {\n            giftId: gift.id,\n            roomId,\n            senderUserId: user.userId,\n            receiverUserId,\n            priceDiamond: gift.priceDiamond,\n            pointsAwarded,\n            pointsRatePercent: ratePercent,\n            transactionId,\n          }),\n        );\n        notification = await this.notificationService.createWithManager(\n          manager,\n          {\n            userId: receiverUserId,\n            type: NotificationType.GiftReceived,\n            payload: {\n              roomId,\n              senderUserId: user.userId,\n              giftCode: gift.code,\n              priceDiamond: gift.priceDiamond,\n            },\n          },\n        );\n      },\n    });\n\n    // [SERVICE] EconomyService.sendGift  ·  economy.service.ts L559–666\n    // input = đối số 1 của lời gọi ở trên\n    const {\n      senderUserId,\n      receiverUserId,\n      priceDiamond,\n      pointsAwarded,\n      idempotencyKey,\n      metadata,\n    } = input;\n    if (!Number.isSafeInteger(priceDiamond) || priceDiamond <= 0) {\n      throw new Error(\n        `sendGift: priceDiamond phải là số nguyên dương, nhận ${priceDiamond}`,\n      );\n    }\n    if (!Number.isSafeInteger(pointsAwarded) || pointsAwarded < 0) {\n      throw new Error(\n        `sendGift: pointsAwarded phải là số nguyên >= 0, nhận ${pointsAwarded}`,\n      );\n    }\n    // Bất biến chống nhân đôi giá trị: điểm quy đổi không bao giờ vượt giá quà (tỉ lệ dưới 1:1).\n    if (pointsAwarded > priceDiamond) {\n      throw new Error(\n        `sendGift: pointsAwarded (${pointsAwarded}) không được vượt priceDiamond (${priceDiamond})`,\n      );\n    }\n    if (senderUserId === receiverUserId) {\n      throw new Error('sendGift: không tự tặng quà cho chính mình');\n    }\n\n    const price = BigInt(priceDiamond);\n    const points = BigInt(pointsAwarded);\n\n    // Step 5: Economy dựng 2 chân sổ kép: DIA người tặng, PTS người nhận\n    // Hai chân độc lập, mỗi chân tự cân theo currency: DIA từ người tặng vào quỹ quà, PTS do hệ\n    // thống mint cho người nhận. Diamond không bao giờ chuyển thẳng user sang user; phần chênh\n    // (giá trừ điểm) ở lại system_gift_pool.\n    const entries = [\n      {\n        accountKind: LedgerAccountKind.UserWallet,\n        userId: senderUserId,\n        direction: LedgerDirection.Debit,\n        amount: price,\n        currency: LedgerCurrency.Diamond,\n      },\n      {\n        accountKind: LedgerAccountKind.SystemGiftPool,\n        direction: LedgerDirection.Credit,\n        amount: price,\n        currency: LedgerCurrency.Diamond,\n      },\n      // Chân PTS chỉ có khi điểm lớn hơn 0: bút toán amount 0 bị validateEntries chặn.\n      ...(points > 0n\n        ? [\n            {\n              accountKind: LedgerAccountKind.SystemPointsMint,\n              direction: LedgerDirection.Debit,\n              amount: points,\n              currency: LedgerCurrency.Points,\n            },\n            {\n              accountKind: LedgerAccountKind.UserEarnings,\n              userId: receiverUserId,\n              direction: LedgerDirection.Credit,\n              amount: points,\n              currency: LedgerCurrency.Points,\n            },\n          ]\n        : []),\n    ];\n\n    const result = await this.ledger.record({\n      type: TransactionType.GiftSend,\n      idempotencyKey,\n      actorUserId: senderUserId,\n      metadata: { ...metadata, receiverUserId },\n      entries,\n      // Event economy.gift.sent riêng vì consumer cần người nhận (event mặc định chỉ nói về ví\n      // người tặng); rồi chạy tiếp phần việc của module Gift (GiftEvent, notification) trong cùng\n      // transaction.\n      withinTransaction: async (manager, txn) => {\n        await manager.save(\n          manager.create(OutboxEvent, {\n            topic: ECONOMY_EVENTS_TOPIC,\n            eventType: 'economy.gift.sent',\n            payload: {\n              version: 1,\n              transactionId: txn.id,\n              senderUserId,\n              receiverUserId,\n              priceDiamond: price.toString(),\n              pointsAwarded: points.toString(),\n              ...metadata,\n            },\n          }),\n        );\n        await input.withinTransaction?.(manager, txn.id);\n      },\n    });\n\n    // [SERVICE] LedgerService.record  ·  ledger.service.ts L56–99\n    // input = đối số 1 của lời gọi ở trên\n\n    // Step 6: Ledger kiểm sổ kép: mỗi currency tự cân Nợ = Có\n    this.validateInput(input);\n\n    // [SERVICE] LedgerService.validateInput  ·  ledger.service.ts L313–320\n    this.validateEntries(input.entries);\n\n    // [SERVICE] LedgerService.validateEntries  ·  ledger.service.ts L322–343\n    // entries = input.entries\n    if (entries.length < 2)\n      throw new Error('Giao dịch double-entry cần tối thiểu 2 bút toán');\n    const sums = new Map<string, bigint>();\n    for (const e of entries) {\n      if (e.amount <= 0n)\n        throw new Error('Bút toán phải có amount nguyên dương');\n      if (USER_ACCOUNT_KINDS.has(e.accountKind) && !e.userId) {\n        throw new Error(`Tài khoản ${e.accountKind} bắt buộc có userId`);\n      }\n      const delta =\n        e.direction === LedgerDirection.Debit ? e.amount : -e.amount;\n      sums.set(e.currency, (sums.get(e.currency) ?? 0n) + delta);\n    }\n    // Mỗi currency phải tự cân (tổng Nợ bằng tổng Có): giao dịch 2 currency được tách thành các\n    // chân độc lập, DIA và PTS không bù trừ cho nhau.\n    for (const [currency, sum] of sums) {\n      if (sum !== 0n) {\n        throw new Error(\n          `Tổng Nợ != tổng Có cho currency ${currency} — vi phạm bất biến double-entry`,\n        );\n      }\n    }\n\n    if (input.type === TransactionType.Adjustment && !input.actorUserId) {\n      throw new Error(\n        'Transaction type=adjustment bắt buộc có actorUserId (ai thực hiện sửa sai) để audit',\n      );\n    }\n\n    const requestHash = this.hashRequest(input);\n    const existing = await this.dataSource\n      .getRepository(LedgerTransaction)\n      .findOneBy({ idempotencyKey: input.idempotencyKey });\n    if (existing) {\n      try {\n        const transaction = this.assertSameRequest(existing, requestHash);\n        this.metrics.record(input.type, 'replayed');\n        return { transaction, replayed: true };\n      } catch (err) {\n        this.metrics.record(input.type, 'failed');\n        throw err;\n      }\n    }\n\n    try {\n\n      // Step 7: Mở transaction DB, chèn giao dịch idempotent\n      const result = await this.dataSource.transaction((manager) =>\n        this.recordInManager(manager, input),\n      );\n\n      // [SERVICE] LedgerService.recordInManager  ·  ledger.service.ts L101–181\n      this.validateInput(input);\n      const requestHash = this.hashRequest(input);\n      const existing = await manager.findOne(LedgerTransaction, {\n        where: { idempotencyKey: input.idempotencyKey },\n      });\n      if (existing) {\n        return {\n          transaction: this.assertSameRequest(existing, requestHash),\n          replayed: true,\n        };\n      }\n\n      // [POSTGRES] ON CONFLICT DO NOTHING thay vì bắt lỗi unique, vì lỗi đó làm abort cả\n      // transaction của caller. Postgres chờ bên thắng commit; không chèn được dòng mới thì đây\n      // là replay, không ghi bút toán.\n      const insertResult = await manager\n        .createQueryBuilder()\n        .insert()\n        .into(LedgerTransaction)\n        .values({\n          type: input.type,\n          status: TransactionStatus.Completed,\n          idempotencyKey: input.idempotencyKey,\n          requestHash,\n          actorUserId: input.actorUserId ?? null,\n          reversalOf: input.reversalOf ?? null,\n          metadata: (input.metadata ?? {}) as never,\n        })\n        .orIgnore()\n        .execute();\n\n      const insertedId =\n        insertResult.identifiers[0]?.id ?? insertResult.raw[0]?.id;\n\n      const txn = await manager.findOneByOrFail(LedgerTransaction, {\n        idempotencyKey: input.idempotencyKey,\n      });\n      if (!insertedId)\n        return {\n          transaction: this.assertSameRequest(txn, requestHash),\n          replayed: true,\n        };\n\n      const accounts: LedgerAccount[] = [];\n      for (const entry of input.entries)\n        accounts.push(await this.resolveAccount(manager, entry));\n\n      // Step 8: Khóa ví người tặng và người nhận theo thứ tự userId\n      // Khóa ví theo thứ tự userId đã sắp xếp để tránh deadlock khi một giao dịch chạm nhiều ví\n      // (quà chạm ví người tặng và, khi có chân PTS, cả ví người nhận).\n      const userIds = [\n        ...new Set(\n          input.entries.filter((e) => e.userId).map((e) => e.userId as string),\n        ),\n      ].sort();\n      const wallets = new Map<string, Wallet>();\n      for (const userId of userIds)\n        wallets.set(userId, await this.lockWallet(manager, userId));\n\n      await manager.save(\n        input.entries.map((entry, i) =>\n          manager.create(LedgerEntry, {\n            transactionId: txn.id,\n            accountId: accounts[i].id,\n            direction: entry.direction,\n            amount: entry.amount.toString(),\n            currency: entry.currency,\n          }),\n        ),\n      );\n\n      // Step 9: Cập nhật số dư (DIA) và earnings (PTS), ghi outbox\n      await this.applyWalletDeltas(\n        manager,\n        txn,\n        input.entries,\n        wallets,\n        input.outboxEventTypeOverride,\n      );\n\n      // [SERVICE] LedgerService.applyWalletDeltas  ·  ledger.service.ts L427–499\n      // entries = input.entries\n      const outboxEventTypeOverride = input.outboxEventTypeOverride;\n      for (const [userId, wallet] of wallets) {\n        let balanceDelta = 0n;\n        let earningsDelta = 0n;\n        for (const e of entries) {\n          if (e.userId !== userId) continue;\n          const signed =\n            e.direction === LedgerDirection.Credit ? e.amount : -e.amount;\n          if (e.accountKind === LedgerAccountKind.UserWallet)\n            balanceDelta += signed;\n          if (e.accountKind === LedgerAccountKind.UserEarnings)\n            earningsDelta += signed;\n        }\n\n        const newBalance = BigInt(wallet.balance) + balanceDelta;\n        // [POSTGRES] Ví người tặng đổi balance (DIA), ví người nhận đổi earnings (PTS), cùng một\n        // vòng lặp trong cùng transaction: không thể trừ DIA mà không cộng PTS.\n        const newEarnings = BigInt(wallet.earnings) + earningsDelta;\n        const mayGoNegative =\n          txn.type === TransactionType.Reversal ||\n          txn.type === TransactionType.Adjustment;\n        if (newBalance < 0n && !mayGoNegative) {\n          throw new DomainException(\n            EconomyErrors.WALLET_INSUFFICIENT_BALANCE,\n            'Không đủ diamond',\n            HttpStatus.UNPROCESSABLE_ENTITY,\n            { required: (-newBalance).toString() },\n          );\n        }\n        // Điểm earnings không bao giờ âm (DB cũng có CHECK earnings >= 0), nên hoàn quà sau khi\n        // người nhận đã tiêu điểm sẽ bị chặn ở đây; luồng hoàn quà chưa làm.\n        if (newEarnings < 0n) {\n          throw new DomainException(\n            EconomyErrors.WALLET_INSUFFICIENT_BALANCE,\n            'Không đủ điểm quy đổi',\n            HttpStatus.UNPROCESSABLE_ENTITY,\n          );\n        }\n\n        wallet.balance = newBalance.toString();\n        wallet.earnings = newEarnings.toString();\n        await manager.save(wallet);\n\n        if (balanceDelta !== 0n) {\n          await manager.save(\n            manager.create(OutboxEvent, {\n              topic: ECONOMY_EVENTS_TOPIC,\n              eventType:\n                outboxEventTypeOverride ??\n                (balanceDelta > 0n\n                  ? 'economy.diamond.credited'\n                  : 'economy.diamond.debited'),\n              payload: {\n                version: 1,\n                transactionId: txn.id,\n                transactionType: txn.type,\n                userId,\n                amount: (balanceDelta > 0n\n                  ? balanceDelta\n                  : -balanceDelta\n                ).toString(),\n              },\n            }),\n          );\n        }\n      }\n\n      // Step 10: Chạy tiếp outbox, GiftEvent, notification trong cùng transaction\n      await input.withinTransaction?.(manager, txn);\n      return { transaction: txn, replayed: false };\n\n      this.metrics.record(input.type, result.replayed ? 'replayed' : 'success');\n      return result;\n    } catch (err) {\n      if (\n        isUniqueViolation(err) &&\n        violatedConstraint(err, UQ_TRANSACTIONS_IDEMPOTENCY_KEY)\n      ) {\n        // [POSTGRES] Kiểm trước chỉ là đường nhanh; nguồn chân lý là unique idempotency_key ở DB.\n        // 2 request cùng key chạy song song thì bên thua đọc lại dòng của bên thắng và trả như\n        // replay.\n        const winner = await this.dataSource\n          .getRepository(LedgerTransaction)\n          .findOneByOrFail({ idempotencyKey: input.idempotencyKey });\n        try {\n          const transaction = this.assertSameRequest(winner, requestHash);\n          this.metrics.record(input.type, 'replayed');\n          return { transaction, replayed: true };\n        } catch (assertErr) {\n          this.metrics.record(input.type, 'failed');\n          throw assertErr;\n        }\n      }\n      this.metrics.record(input.type, 'failed');\n      throw err;\n    }\n\n    return { transactionId: result.transaction.id, replayed: result.replayed };\n\n    // Replay trả lại đúng GiftEvent cũ nhờ unique transaction_id, không tạo event mới.\n    const giftEvent = await this.giftEventRepo.findOneByOrFail({\n      transactionId: result.transactionId,\n    });\n\n    // Step 11: Sau commit, lần đầu mới phát gift.sent qua Redis và push\n    // Chỉ lần đầu mới phát realtime và push, và chỉ SAU khi giao dịch tiền đã commit: retry không\n    // bắn hiệu ứng lần hai.\n    if (!result.replayed) {\n      await this.publishGiftSent(roomId, gift, giftEvent);\n\n      // [SERVICE] GiftService.publishGiftSent  ·  gift.service.ts L475–507\n      const event = giftEvent;\n      const envelope: RealtimeEnvelope<GiftSentEventData> = {\n        event: RealtimeEvents.GiftSent,\n        data: {\n          roomId,\n          giftEventId: event.id,\n          giftCode: gift.code,\n          senderUserId: event.senderUserId,\n          receiverUserId: event.receiverUserId,\n          priceDiamond: event.priceDiamond,\n          pointsAwarded: event.pointsAwarded,\n          sentAt: event.createdAt.toISOString(),\n        },\n      };\n      try {\n        const { members } =\n          await this.partyRoomService.getActiveRoomMembers(roomId);\n        // [REDIS] Phát gift.sent cho từng thành viên đang ở phòng qua kênh realtime:user:{id},\n        // SAU khi giao dịch commit: client chỉ thấy hiệu ứng khi tiền đã trừ.\n        await Promise.all(\n          members.map((m) =>\n            publishRealtimeEvent(this.redis, this.logger, m.userId, envelope),\n          ),\n        );\n      } catch (err) {\n        // Phòng vừa đóng giữa chừng thì chỉ mất hiệu ứng realtime, giao dịch quà vẫn hợp lệ.\n        this.logger.warn(\n          `Fanout gift.sent phòng ${roomId} bỏ qua: ${err instanceof Error ? err.message : String(err)}`,\n        );\n      }\n\n      if (notification) await this.notificationService.sendPush(notification);\n    }\n    return { giftEvent, gift, replayed: result.replayed };\n\n    // Step 12: Controller trả response (GiftEventDto)\n    return GiftEventDto.from(giftEvent, gift.code, replayed);\n  }\n}\n\n// [POSTGRES] CREATE TABLE gift_events  ·  1752700000000-party-room-gift.ts L77–93\n// Các bất biến của Economy cũng được khóa ở DB: unique transaction_id (1 GiftEvent ứng 1 giao\n// dịch), không tự tặng, điểm không vượt giá. Đây là bản gốc của bảng; sau đó thêm video_id và\n// profile_user_id (CHECK đúng 1 ngữ cảnh).\nawait queryRunner.query(`\n  CREATE TABLE gift_events (\n    id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n    gift_id             uuid        NOT NULL REFERENCES gifts(id),\n    room_id             uuid        NOT NULL REFERENCES party_rooms(id),\n    sender_user_id      uuid        NOT NULL REFERENCES users(id),\n    receiver_user_id    uuid        NOT NULL REFERENCES users(id),\n    price_diamond       int         NOT NULL,\n    points_awarded      int         NOT NULL,\n    points_rate_percent int         NOT NULL,\n    transaction_id      uuid        NOT NULL REFERENCES transactions(id),\n    created_at          timestamptz NOT NULL DEFAULT now(),\n    CONSTRAINT uq_gift_events_transaction UNIQUE (transaction_id),\n    CONSTRAINT chk_gift_events_no_self_gift CHECK (sender_user_id <> receiver_user_id),\n    CONSTRAINT chk_gift_events_points_lte_price CHECK (points_awarded <= price_diamond)\n  )\n`);\n"
+  },
+  "provenance": {
+    "catalog": {
+      "path": "annotated-11-gift.mjs",
+      "sha256": "53d40fbd11c279189034927a06bb355a3fc3228040b36e13753a9c46e48372b2"
+    },
+    "displayedCodeSha256": "6595e891dd416730fbc2a0bd53a94b567315f8ef40c51de99fed9ba2646972bf"
+  }
+}

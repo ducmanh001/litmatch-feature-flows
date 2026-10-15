@@ -1,0 +1,783 @@
+{
+  "id": "02-soul-match/01-post-send-message",
+  "featureId": "02-soul-match",
+  "feature": "Soul Match",
+  "summary": "Chat ẩn danh vài phút giữa 2 người đã ghép, đánh giá nhau; cả 2 cùng thích thì thành bạn và giữ lại lịch sử chat.",
+  "name": "Gửi tin nhắn ẩn danh",
+  "title": "Gửi tin nhắn trong phòng ẩn danh: giờ chat tính ở server, idempotent theo key, realtime riêng cho từng người nhận.",
+  "method": "POST",
+  "route": "/api/v1/soul-match/sessions/:id/messages",
+  "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.ts",
+  "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/02-soul-match/01-post-send-message.json",
+  "diagramUrl": "https://ducmanh001.github.io/litmatch-feature-flows/#02-soul-match",
+  "catalog": "annotated-02-soul-match.mjs",
+  "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]",
+  "roles": [
+    [
+      "CONTROLLER",
+      "Nhận tin nhắn (giới hạn 60 lần/phút) kèm Idempotency-Key bắt buộc; user lấy từ JWT, id phòng từ URL; trả tin nhắn với vai trò me hoặc partner, không lộ id đối phương."
+    ],
+    [
+      "SERVICE",
+      "Tính phase của phòng theo giờ server, kiểm user chưa bị khóa và còn trong giờ chat, ghi tin nhắn trong transaction đã khóa session, rồi phát realtime riêng cho từng người."
+    ],
+    [
+      "POSTGRES",
+      "Khóa dòng match_sessions FOR UPDATE; unique idempotency_key chặn nhân đôi tin nhắn; seq do DB cấp để phân trang theo cursor."
+    ],
+    [
+      "REDIS",
+      "Pub/sub báo soul.message tới 2 người; payload tính sẵn cho từng người nhận để giữ ẩn danh."
+    ]
+  ],
+  "tables": [
+    [
+      "match_sessions",
+      "phòng chat là view dẫn xuất từ session soul đã confirmed; dòng bị khóa FOR UPDATE khi ghi tin."
+    ],
+    [
+      "soul_chat_messages",
+      "tin nhắn chỉ thêm, không sửa: nội dung, người gửi, idempotency_key unique, seq tăng dần."
+    ],
+    [
+      "users",
+      "chỉ đọc trạng thái (có bị khóa hay không) của người gửi."
+    ],
+    [
+      "friendships",
+      "chỉ đọc: đã là bạn thì phòng không còn hết giờ chat."
+    ]
+  ],
+  "redis": [
+    [
+      "realtime:user:{userId}",
+      "kênh pub/sub theo người nhận; core-api phát soul.message, signaling-gateway chuyển xuống socket."
+    ]
+  ],
+  "related": [
+    [
+      "Matching",
+      "findSessionById: đọc MatchSession; Matching giữ quyền ghi trạng thái session."
+    ],
+    [
+      "Friend",
+      "areFriends: Friendship là nguồn sự thật để chat không còn hết giờ sau khi cả 2 đã thích nhau."
+    ],
+    [
+      "User",
+      "getByIdOrThrow: đọc trạng thái người gửi để kiểm tra ban."
+    ],
+    [
+      "Soul Match (rating)",
+      "luồng khác khóa cùng dòng session rồi chụp lịch sử chat để import sang Friend Chat (xem luồng rating)."
+    ],
+    [
+      "signaling-gateway",
+      "subscribe kênh realtime của user, đẩy soul.message xuống client."
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "text": "Nhận request (user từ JWT, id phòng từ URL, Idempotency-Key từ header)",
+      "line": 33,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L33",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L33"
+    },
+    {
+      "number": 2,
+      "text": "Lấy phòng chat và tính phase theo giờ server",
+      "line": 52,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L52",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L52"
+    },
+    {
+      "number": 3,
+      "text": "Chặn nếu phòng không còn ở phase chatting",
+      "line": 125,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L125",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L125"
+    },
+    {
+      "number": 4,
+      "text": "Kiểm tra người gửi chưa bị khóa tài khoản",
+      "line": 135,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L135",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L135"
+    },
+    {
+      "number": 5,
+      "text": "Gắn user vào Idempotency-Key của client",
+      "line": 158,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L158",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L158"
+    },
+    {
+      "number": 6,
+      "text": "Trong transaction, khóa dòng session FOR UPDATE",
+      "line": 165,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L165",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L165"
+    },
+    {
+      "number": 7,
+      "text": "Kiểm lại hạn chat sau khi đã có khóa",
+      "line": 185,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L185",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L185"
+    },
+    {
+      "number": 8,
+      "text": "Ghi tin nhắn (unique idempotency_key chặn nhân đôi)",
+      "line": 197,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L197",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L197"
+    },
+    {
+      "number": 9,
+      "text": "Phát soul.message qua Redis, payload riêng cho từng người",
+      "line": 208,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L208",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L208"
+    },
+    {
+      "number": 10,
+      "text": "Trùng key: cùng nội dung thì trả tin cũ, khác thì 409",
+      "line": 240,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L240",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L240"
+    },
+    {
+      "number": 11,
+      "text": "Controller trả tin nhắn với vai trò me hoặc partner",
+      "line": 261,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L261",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L261"
+    }
+  ],
+  "declaredSteps": [
+    {
+      "at": "@Post('sessions/:id/messages')",
+      "text": "Nhận request (user từ JWT, id phòng từ URL, Idempotency-Key từ header)"
+    },
+    {
+      "at": "const room = await this.getRoomForMember(user, sessionId);",
+      "text": "Lấy phòng chat và tính phase theo giờ server"
+    },
+    {
+      "at": "if (room.phase !== SoulRoomPhase.Chatting) {",
+      "text": "Chặn nếu phòng không còn ở phase chatting"
+    },
+    {
+      "at": "const profile = await this.userService.getByIdOrThrow(user.userId);",
+      "text": "Kiểm tra người gửi chưa bị khóa tài khoản"
+    },
+    {
+      "at": "const prefixedKey = messageIdempotencyKey(user.userId, idempotencyKey);",
+      "text": "Gắn user vào Idempotency-Key của client"
+    },
+    {
+      "at": "const lockedSession = await manager.findOne(MatchSession, {",
+      "text": "Trong transaction, khóa dòng session FOR UPDATE"
+    },
+    {
+      "at": "if (!room.matched && Date.now() >= room.chatEndsAt.getTime()) {",
+      "text": "Kiểm lại hạn chat sau khi đã có khóa"
+    },
+    {
+      "at": "return manager.save(",
+      "text": "Ghi tin nhắn (unique idempotency_key chặn nhân đôi)"
+    },
+    {
+      "at": "const partnerId = this.partnerIdOf(room.session, user.userId);",
+      "text": "Phát soul.message qua Redis, payload riêng cho từng người"
+    },
+    {
+      "at": "if (!isUniqueViolation(err)) throw err;",
+      "text": "Trùng key: cùng nội dung thì trả tin cũ, khác thì 409"
+    },
+    {
+      "at": "return SoulMessageDto.from(",
+      "text": "Controller trả tin nhắn với vai trò me hoặc partner"
+    }
+  ],
+  "whyComments": [
+    {
+      "at": "const room = await this.getRoomForMember(user, sessionId);",
+      "text": [
+        "Phase chat tính từ giờ SERVER (lúc cả 2 xác nhận cộng thời lượng chat), không bao giờ tin đồng hồ của client."
+      ],
+      "src": "docs/services/soul-match-service.md mục 1 (timer enforce ở server, không tin timer client)",
+      "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+    },
+    {
+      "at": "const profile = await this.userService.getByIdOrThrow(user.userId);",
+      "text": [
+        "Kiểm lại trạng thái ban đúng lúc gửi: bị khóa giữa chừng phải cắt ngay."
+      ],
+      "src": "doc gốc soul-match.service.ts L117-120 (re-check ban tại thời điểm gửi) + docs/services/soul-match-service.md mục 4",
+      "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+    },
+    {
+      "at": "const prefixedKey = messageIdempotencyKey(user.userId, idempotencyKey);",
+      "text": [
+        "Key của client được gắn prefix soul:msg:{userId}: unique ở DB, retry không nhân đôi tin nhắn."
+      ],
+      "src": "soul-match.constants.ts L13 (doc messageIdempotencyKey) + soul-chat-message.entity.ts L37",
+      "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+    },
+    {
+      "at": "const lockedSession = await manager.findOne(MatchSession, {",
+      "text": [
+        "[POSTGRES] Khóa dòng MatchSession FOR UPDATE, cùng khóa với lúc rating chụp lịch sử chat để import sang Friend Chat: một tin nhắn không thể lọt vào giữa bước chụp và bước chuyển."
+      ],
+      "src": "comment gốc soul-match.service.ts L161-162",
+      "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+    },
+    {
+      "at": "if (!room.matched && Date.now() >= room.chatEndsAt.getTime()) {",
+      "text": [
+        "Kiểm lại hạn chat sau khi có khóa: phase tính ở đầu hàm có thể đã hết hạn trong lúc chờ khóa. Đã là bạn (matched) thì chat không còn hết hạn."
+      ],
+      "src": "suy ra từ code (room tính trước transaction, kiểm lại bên trong) + docs/services/soul-match-service.md mục 1 (cả hai like thì phase giữ chatting vô thời hạn)",
+      "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+    },
+    {
+      "at": "const partnerId = this.partnerIdOf(room.session, user.userId);",
+      "text": [
+        "[REDIS] Realtime phát SAU khi lưu, best-effort. Mỗi người nhận một payload riêng: senderRole (me hoặc partner) tính ngay ở đây để gateway không phải biết gì về ẩn danh."
+      ],
+      "src": "comment gốc soul-match.service.ts L195-196 + docs/services/soul-match-service.md mục 7",
+      "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+    },
+    {
+      "at": "if (!isUniqueViolation(err)) throw err;",
+      "text": [
+        "Trùng Idempotency-Key: cùng phòng và cùng nội dung thì trả lại tin cũ (replay, không phát realtime lại); khác nội dung thì 409."
+      ],
+      "src": "suy ra từ code: nhánh catch so existing.sessionId và content + comment gốc soul-match.service.ts L195 (chỉ message MỚI, replay không bắn lại)",
+      "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+    },
+    {
+      "at": "const session = await this.matchingService.findSessionById(sessionId);",
+      "text": [
+        "Không tồn tại hoặc không phải thành viên đều trả 404: không làm oracle dò sessionId."
+      ],
+      "src": "doc gốc soul-match.service.ts L426-428",
+      "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+    },
+    {
+      "at": "const chatEndsAt = new Date(confirmedAt.getTime() + chatSeconds * 1000);",
+      "text": [
+        "Phòng không có cột trạng thái riêng: hạn chat và hạn rating chỉ được tính khi đọc, từ lúc cả 2 xác nhận cộng thời lượng cấu hình."
+      ],
+      "src": "docs/services/soul-match-service.md mục 1 (derive khi đọc, không cột state riêng)",
+      "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+    },
+    {
+      "at": "const phase =",
+      "text": [
+        "Đã là bạn thì phòng ở chatting mãi: Friendship là nguồn sự thật, hạn cũ chỉ còn là dữ liệu lịch sử."
+      ],
+      "src": "docs/services/soul-match-service.md mục 1",
+      "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+    },
+    {
+      "at": "await queryRunner.query(`",
+      "text": [
+        "Unique idempotency_key là chốt chặn thật chống nhân đôi tin nhắn. seq bigint IDENTITY là thứ tự do DB cấp cho cursor: dùng created_at sẽ trùng mili-giây làm phân trang trùng hoặc mất dòng."
+      ],
+      "src": "soul-chat-message.entity.ts L21-22 + comment migration 1752400000000-soul-match.ts (seq bigint IDENTITY)",
+      "file": "apps/core-api/src/database/migrations/1752400000000-soul-match.ts"
+    }
+  ],
+  "sources": [
+    "apps/core-api/src/database/migrations/1752400000000-soul-match.ts",
+    "apps/core-api/src/modules/soul-match/soul-match.controller.ts",
+    "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+  ],
+  "sourceContext": {
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/soul-match/soul-match.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('sessions/:id/messages')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async sendMessage(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const room = await this.getRoomForMember(user, sessionId);",
+            "text": [
+              "Phase chat tính từ giờ SERVER (lúc cả 2 xác nhận cộng thời lượng chat), không bao giờ tin đồng hồ của client."
+            ],
+            "src": "docs/services/soul-match-service.md mục 1 (timer enforce ở server, không tin timer client)"
+          },
+          {
+            "at": "const profile = await this.userService.getByIdOrThrow(user.userId);",
+            "text": [
+              "Kiểm lại trạng thái ban đúng lúc gửi: bị khóa giữa chừng phải cắt ngay."
+            ],
+            "src": "doc gốc soul-match.service.ts L117-120 (re-check ban tại thời điểm gửi) + docs/services/soul-match-service.md mục 4"
+          },
+          {
+            "at": "const prefixedKey = messageIdempotencyKey(user.userId, idempotencyKey);",
+            "text": [
+              "Key của client được gắn prefix soul:msg:{userId}: unique ở DB, retry không nhân đôi tin nhắn."
+            ],
+            "src": "soul-match.constants.ts L13 (doc messageIdempotencyKey) + soul-chat-message.entity.ts L37"
+          },
+          {
+            "at": "const lockedSession = await manager.findOne(MatchSession, {",
+            "text": [
+              "[POSTGRES] Khóa dòng MatchSession FOR UPDATE, cùng khóa với lúc rating chụp lịch sử chat để import sang Friend Chat: một tin nhắn không thể lọt vào giữa bước chụp và bước chuyển."
+            ],
+            "src": "comment gốc soul-match.service.ts L161-162"
+          },
+          {
+            "at": "if (!room.matched && Date.now() >= room.chatEndsAt.getTime()) {",
+            "text": [
+              "Kiểm lại hạn chat sau khi có khóa: phase tính ở đầu hàm có thể đã hết hạn trong lúc chờ khóa. Đã là bạn (matched) thì chat không còn hết hạn."
+            ],
+            "src": "suy ra từ code (room tính trước transaction, kiểm lại bên trong) + docs/services/soul-match-service.md mục 1 (cả hai like thì phase giữ chatting vô thời hạn)"
+          },
+          {
+            "at": "const partnerId = this.partnerIdOf(room.session, user.userId);",
+            "text": [
+              "[REDIS] Realtime phát SAU khi lưu, best-effort. Mỗi người nhận một payload riêng: senderRole (me hoặc partner) tính ngay ở đây để gateway không phải biết gì về ẩn danh."
+            ],
+            "src": "comment gốc soul-match.service.ts L195-196 + docs/services/soul-match-service.md mục 7"
+          },
+          {
+            "at": "if (!isUniqueViolation(err)) throw err;",
+            "text": [
+              "Trùng Idempotency-Key: cùng phòng và cùng nội dung thì trả lại tin cũ (replay, không phát realtime lại); khác nội dung thì 409."
+            ],
+            "src": "suy ra từ code: nhánh catch so existing.sessionId và content + comment gốc soul-match.service.ts L195 (chỉ message MỚI, replay không bắn lại)"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async getRoomForMember(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const session = await this.matchingService.findSessionById(sessionId);",
+            "text": [
+              "Không tồn tại hoặc không phải thành viên đều trả 404: không làm oracle dò sessionId."
+            ],
+            "src": "doc gốc soul-match.service.ts L426-428"
+          },
+          {
+            "at": "const chatEndsAt = new Date(confirmedAt.getTime() + chatSeconds * 1000);",
+            "text": [
+              "Phòng không có cột trạng thái riêng: hạn chat và hạn rating chỉ được tính khi đọc, từ lúc cả 2 xác nhận cộng thời lượng cấu hình."
+            ],
+            "src": "docs/services/soul-match-service.md mục 1 (derive khi đọc, không cột state riêng)"
+          },
+          {
+            "at": "const phase =",
+            "text": [
+              "Đã là bạn thì phòng ở chatting mãi: Friendship là nguồn sự thật, hạn cũ chỉ còn là dữ liệu lịch sử."
+            ],
+            "src": "docs/services/soul-match-service.md mục 1"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752400000000-soul-match.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE soul_chat_messages (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ],
+        "inline": [
+          {
+            "at": "await queryRunner.query(`",
+            "text": [
+              "Unique idempotency_key là chốt chặn thật chống nhân đôi tin nhắn. seq bigint IDENTITY là thứ tự do DB cấp cho cursor: dùng created_at sẽ trùng mili-giây làm phân trang trùng hoặc mất dòng."
+            ],
+            "src": "soul-chat-message.entity.ts L21-22 + comment migration 1752400000000-soul-match.ts (seq bigint IDENTITY)"
+          }
+        ]
+      }
+    ],
+    "ranges": [
+      {
+        "file": "apps/core-api/src/modules/soul-match/soul-match.controller.ts",
+        "range": {
+          "at": "@Post('sessions/:id/messages')",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts",
+        "range": {
+          "at": "async sendMessage(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts",
+        "range": {
+          "at": "private async getRoomForMember(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/database/migrations/1752400000000-soul-match.ts",
+        "range": {
+          "at": "CREATE TABLE soul_chat_messages (",
+          "to": "^    `\\);$",
+          "pad": [
+            1,
+            0
+          ]
+        }
+      }
+    ],
+    "helpers": [],
+    "skip": [],
+    "attach": {},
+    "nested": true
+  },
+  "omittedContext": {
+    "note": "Curated source selection; unlisted call bodies, shared request infrastructure, DTOs and other context may be omitted. skip names stay unexpanded; helpers may be substituted; attach controls placement. Flattened scopes are not executable code.",
+    "skip": [],
+    "attach": {},
+    "helpers": []
+  },
+  "featureMetadata": {
+    "id": "02-soul-match",
+    "short": "Soul Match",
+    "title": "Soul Match",
+    "summary": "Chat ẩn danh vài phút giữa 2 người đã ghép, đánh giá nhau; cả 2 cùng thích thì thành bạn và giữ lại lịch sử chat.",
+    "diagramAnchor": "02-soul-match"
+  },
+  "endpointCatalog": {
+    "n": "01",
+    "slug": "post-send-message",
+    "method": "POST",
+    "short": "/soul-match/sessions/:id/messages",
+    "route": "/api/v1/soul-match/sessions/:id/messages",
+    "name": "Gửi tin nhắn ẩn danh",
+    "title": "Gửi tin nhắn trong phòng ẩn danh: giờ chat tính ở server, idempotent theo key, realtime riêng cho từng người nhận.",
+    "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]",
+    "roles": [
+      [
+        "CONTROLLER",
+        "Nhận tin nhắn (giới hạn 60 lần/phút) kèm Idempotency-Key bắt buộc; user lấy từ JWT, id phòng từ URL; trả tin nhắn với vai trò me hoặc partner, không lộ id đối phương."
+      ],
+      [
+        "SERVICE",
+        "Tính phase của phòng theo giờ server, kiểm user chưa bị khóa và còn trong giờ chat, ghi tin nhắn trong transaction đã khóa session, rồi phát realtime riêng cho từng người."
+      ],
+      [
+        "POSTGRES",
+        "Khóa dòng match_sessions FOR UPDATE; unique idempotency_key chặn nhân đôi tin nhắn; seq do DB cấp để phân trang theo cursor."
+      ],
+      [
+        "REDIS",
+        "Pub/sub báo soul.message tới 2 người; payload tính sẵn cho từng người nhận để giữ ẩn danh."
+      ]
+    ],
+    "tables": [
+      [
+        "match_sessions",
+        "phòng chat là view dẫn xuất từ session soul đã confirmed; dòng bị khóa FOR UPDATE khi ghi tin."
+      ],
+      [
+        "soul_chat_messages",
+        "tin nhắn chỉ thêm, không sửa: nội dung, người gửi, idempotency_key unique, seq tăng dần."
+      ],
+      [
+        "users",
+        "chỉ đọc trạng thái (có bị khóa hay không) của người gửi."
+      ],
+      [
+        "friendships",
+        "chỉ đọc: đã là bạn thì phòng không còn hết giờ chat."
+      ]
+    ],
+    "redis": [
+      [
+        "realtime:user:{userId}",
+        "kênh pub/sub theo người nhận; core-api phát soul.message, signaling-gateway chuyển xuống socket."
+      ]
+    ],
+    "related": [
+      [
+        "Matching",
+        "findSessionById: đọc MatchSession; Matching giữ quyền ghi trạng thái session."
+      ],
+      [
+        "Friend",
+        "areFriends: Friendship là nguồn sự thật để chat không còn hết giờ sau khi cả 2 đã thích nhau."
+      ],
+      [
+        "User",
+        "getByIdOrThrow: đọc trạng thái người gửi để kiểm tra ban."
+      ],
+      [
+        "Soul Match (rating)",
+        "luồng khác khóa cùng dòng session rồi chụp lịch sử chat để import sang Friend Chat (xem luồng rating)."
+      ],
+      [
+        "signaling-gateway",
+        "subscribe kênh realtime của user, đẩy soul.message xuống client."
+      ]
+    ],
+    "nested": true,
+    "skip": [],
+    "steps": [
+      {
+        "at": "@Post('sessions/:id/messages')",
+        "text": "Nhận request (user từ JWT, id phòng từ URL, Idempotency-Key từ header)"
+      },
+      {
+        "at": "const room = await this.getRoomForMember(user, sessionId);",
+        "text": "Lấy phòng chat và tính phase theo giờ server"
+      },
+      {
+        "at": "if (room.phase !== SoulRoomPhase.Chatting) {",
+        "text": "Chặn nếu phòng không còn ở phase chatting"
+      },
+      {
+        "at": "const profile = await this.userService.getByIdOrThrow(user.userId);",
+        "text": "Kiểm tra người gửi chưa bị khóa tài khoản"
+      },
+      {
+        "at": "const prefixedKey = messageIdempotencyKey(user.userId, idempotencyKey);",
+        "text": "Gắn user vào Idempotency-Key của client"
+      },
+      {
+        "at": "const lockedSession = await manager.findOne(MatchSession, {",
+        "text": "Trong transaction, khóa dòng session FOR UPDATE"
+      },
+      {
+        "at": "if (!room.matched && Date.now() >= room.chatEndsAt.getTime()) {",
+        "text": "Kiểm lại hạn chat sau khi đã có khóa"
+      },
+      {
+        "at": "return manager.save(",
+        "text": "Ghi tin nhắn (unique idempotency_key chặn nhân đôi)"
+      },
+      {
+        "at": "const partnerId = this.partnerIdOf(room.session, user.userId);",
+        "text": "Phát soul.message qua Redis, payload riêng cho từng người"
+      },
+      {
+        "at": "if (!isUniqueViolation(err)) throw err;",
+        "text": "Trùng key: cùng nội dung thì trả tin cũ, khác thì 409"
+      },
+      {
+        "at": "return SoulMessageDto.from(",
+        "text": "Controller trả tin nhắn với vai trò me hoặc partner"
+      }
+    ],
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/soul-match/soul-match.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('sessions/:id/messages')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async sendMessage(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const room = await this.getRoomForMember(user, sessionId);",
+            "text": [
+              "Phase chat tính từ giờ SERVER (lúc cả 2 xác nhận cộng thời lượng chat), không bao giờ tin đồng hồ của client."
+            ],
+            "src": "docs/services/soul-match-service.md mục 1 (timer enforce ở server, không tin timer client)"
+          },
+          {
+            "at": "const profile = await this.userService.getByIdOrThrow(user.userId);",
+            "text": [
+              "Kiểm lại trạng thái ban đúng lúc gửi: bị khóa giữa chừng phải cắt ngay."
+            ],
+            "src": "doc gốc soul-match.service.ts L117-120 (re-check ban tại thời điểm gửi) + docs/services/soul-match-service.md mục 4"
+          },
+          {
+            "at": "const prefixedKey = messageIdempotencyKey(user.userId, idempotencyKey);",
+            "text": [
+              "Key của client được gắn prefix soul:msg:{userId}: unique ở DB, retry không nhân đôi tin nhắn."
+            ],
+            "src": "soul-match.constants.ts L13 (doc messageIdempotencyKey) + soul-chat-message.entity.ts L37"
+          },
+          {
+            "at": "const lockedSession = await manager.findOne(MatchSession, {",
+            "text": [
+              "[POSTGRES] Khóa dòng MatchSession FOR UPDATE, cùng khóa với lúc rating chụp lịch sử chat để import sang Friend Chat: một tin nhắn không thể lọt vào giữa bước chụp và bước chuyển."
+            ],
+            "src": "comment gốc soul-match.service.ts L161-162"
+          },
+          {
+            "at": "if (!room.matched && Date.now() >= room.chatEndsAt.getTime()) {",
+            "text": [
+              "Kiểm lại hạn chat sau khi có khóa: phase tính ở đầu hàm có thể đã hết hạn trong lúc chờ khóa. Đã là bạn (matched) thì chat không còn hết hạn."
+            ],
+            "src": "suy ra từ code (room tính trước transaction, kiểm lại bên trong) + docs/services/soul-match-service.md mục 1 (cả hai like thì phase giữ chatting vô thời hạn)"
+          },
+          {
+            "at": "const partnerId = this.partnerIdOf(room.session, user.userId);",
+            "text": [
+              "[REDIS] Realtime phát SAU khi lưu, best-effort. Mỗi người nhận một payload riêng: senderRole (me hoặc partner) tính ngay ở đây để gateway không phải biết gì về ẩn danh."
+            ],
+            "src": "comment gốc soul-match.service.ts L195-196 + docs/services/soul-match-service.md mục 7"
+          },
+          {
+            "at": "if (!isUniqueViolation(err)) throw err;",
+            "text": [
+              "Trùng Idempotency-Key: cùng phòng và cùng nội dung thì trả lại tin cũ (replay, không phát realtime lại); khác nội dung thì 409."
+            ],
+            "src": "suy ra từ code: nhánh catch so existing.sessionId và content + comment gốc soul-match.service.ts L195 (chỉ message MỚI, replay không bắn lại)"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/soul-match/soul-match.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async getRoomForMember(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const session = await this.matchingService.findSessionById(sessionId);",
+            "text": [
+              "Không tồn tại hoặc không phải thành viên đều trả 404: không làm oracle dò sessionId."
+            ],
+            "src": "doc gốc soul-match.service.ts L426-428"
+          },
+          {
+            "at": "const chatEndsAt = new Date(confirmedAt.getTime() + chatSeconds * 1000);",
+            "text": [
+              "Phòng không có cột trạng thái riêng: hạn chat và hạn rating chỉ được tính khi đọc, từ lúc cả 2 xác nhận cộng thời lượng cấu hình."
+            ],
+            "src": "docs/services/soul-match-service.md mục 1 (derive khi đọc, không cột state riêng)"
+          },
+          {
+            "at": "const phase =",
+            "text": [
+              "Đã là bạn thì phòng ở chatting mãi: Friendship là nguồn sự thật, hạn cũ chỉ còn là dữ liệu lịch sử."
+            ],
+            "src": "docs/services/soul-match-service.md mục 1"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752400000000-soul-match.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE soul_chat_messages (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ],
+        "inline": [
+          {
+            "at": "await queryRunner.query(`",
+            "text": [
+              "Unique idempotency_key là chốt chặn thật chống nhân đôi tin nhắn. seq bigint IDENTITY là thứ tự do DB cấp cho cursor: dùng created_at sẽ trùng mili-giây làm phân trang trùng hoặc mất dòng."
+            ],
+            "src": "soul-chat-message.entity.ts L21-22 + comment migration 1752400000000-soul-match.ts (seq bigint IDENTITY)"
+          }
+        ]
+      }
+    ]
+  },
+  "sourceManifest": {
+    "verifiedCodeSha256": true,
+    "mode": "published-presentation",
+    "baselineCommit": "cb30743143bd8f6576b154db4b606380c365c674",
+    "sourceCommit": "d3cb28c",
+    "sources": [
+      "apps/core-api/src/database/migrations/1752400000000-soul-match.ts",
+      "apps/core-api/src/modules/soul-match/soul-match.controller.ts",
+      "apps/core-api/src/modules/soul-match/soul-match.service.ts"
+    ],
+    "steps": [
+      "Step 1: Nhận request (user từ JWT, id phòng từ URL, Idempotency-Key từ header)",
+      "Step 2: Lấy phòng chat và tính phase theo giờ server",
+      "Step 3: Chặn nếu phòng không còn ở phase chatting",
+      "Step 4: Kiểm tra người gửi chưa bị khóa tài khoản",
+      "Step 5: Gắn user vào Idempotency-Key của client",
+      "Step 6: Trong transaction, khóa dòng session FOR UPDATE",
+      "Step 7: Kiểm lại hạn chat sau khi đã có khóa",
+      "Step 8: Ghi tin nhắn (unique idempotency_key chặn nhân đôi)",
+      "Step 9: Phát soul.message qua Redis, payload riêng cho từng người",
+      "Step 10: Trùng key: cùng nội dung thì trả tin cũ, khác thì 409",
+      "Step 11: Controller trả tin nhắn với vai trò me hoặc partner"
+    ],
+    "removedOverview": "// ════════════════════════════════════════════════════════════════════════════\n//  POST /api/v1/soul-match/sessions/:id/messages\n//  Gửi tin nhắn trong phòng ẩn danh: giờ chat tính ở server, idempotent theo key, realtime riêng cho từng người nhận.\n// ════════════════════════════════════════════════════════════════════════════\n//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]\n//\n//  Vai trò từng tầng\n//    [CONTROLLER] Nhận tin nhắn (giới hạn 60 lần/phút) kèm Idempotency-Key bắt buộc;\n//                 user lấy từ JWT, id phòng từ URL; trả tin nhắn với vai trò me hoặc\n//                 partner, không lộ id đối phương.\n//    [SERVICE]    Tính phase của phòng theo giờ server, kiểm user chưa bị khóa và còn\n//                 trong giờ chat, ghi tin nhắn trong transaction đã khóa session, rồi\n//                 phát realtime riêng cho từng người.\n//    [POSTGRES]   Khóa dòng match_sessions FOR UPDATE; unique idempotency_key chặn nhân\n//                 đôi tin nhắn; seq do DB cấp để phân trang theo cursor.\n//    [REDIS]      Pub/sub báo soul.message tới 2 người; payload tính sẵn cho từng người\n//                 nhận để giữ ẩn danh.\n//\n//  Bảng       match_sessions — phòng chat là view dẫn xuất từ session soul đã\n//               confirmed; dòng bị khóa FOR UPDATE khi ghi tin.\n//             soul_chat_messages — tin nhắn chỉ thêm, không sửa: nội dung, người gửi,\n//               idempotency_key unique, seq tăng dần.\n//             users — chỉ đọc trạng thái (có bị khóa hay không) của người gửi.\n//             friendships — chỉ đọc: đã là bạn thì phòng không còn hết giờ chat.\n//  Redis      realtime:user:{userId} — kênh pub/sub theo người nhận; core-api phát\n//               soul.message, signaling-gateway chuyển xuống socket.\n//  Liên quan  Matching — findSessionById: đọc MatchSession; Matching giữ quyền ghi\n//               trạng thái session.\n//             Friend — areFriends: Friendship là nguồn sự thật để chat không còn hết\n//               giờ sau khi cả 2 đã thích nhau.\n//             User — getByIdOrThrow: đọc trạng thái người gửi để kiểm tra ban.\n//             Soul Match (rating) — luồng khác khóa cùng dòng session rồi chụp lịch sử\n//               chat để import sang Friend Chat (xem luồng rating).\n//             signaling-gateway — subscribe kênh realtime của user, đẩy soul.message\n//               xuống client.\n//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi\n//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới\n//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //\n//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các\n//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số\n//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức\n//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong\n//             repo.\n",
+    "baselineBodySha256": "321edce9690b522e8b0a202f4f5d4905c14e3b0b7ff3f6bf23cece1379d940e3",
+    "bodySha256": "321edce9690b522e8b0a202f4f5d4905c14e3b0b7ff3f6bf23cece1379d940e3",
+    "rawSha256": "cede0e3d7737df58d79fb081bc0d76d923b43f202cf959d69ae5e88494f7bedb",
+    "codeSha256": "cede0e3d7737df58d79fb081bc0d76d923b43f202cf959d69ae5e88494f7bedb"
+  },
+  "code": {
+    "path": "code/02-soul-match/01-post-send-message.ts",
+    "sha256": "cede0e3d7737df58d79fb081bc0d76d923b43f202cf959d69ae5e88494f7bedb",
+    "hashAlgorithm": "sha256",
+    "content": "//  POST /api/v1/soul-match/sessions/:id/messages\n//  Gửi tin nhắn trong phòng ẩn danh: giờ chat tính ở server, idempotent theo key, realtime riêng cho từng người nhận.\n//  Step 1: Nhận request (user từ JWT, id phòng từ URL, Idempotency-Key từ header)\n//  Step 2: Lấy phòng chat và tính phase theo giờ server\n//  Step 3: Chặn nếu phòng không còn ở phase chatting\n//  Step 4: Kiểm tra người gửi chưa bị khóa tài khoản\n//  Step 5: Gắn user vào Idempotency-Key của client\n//  Step 6: Trong transaction, khóa dòng session FOR UPDATE\n//  Step 7: Kiểm lại hạn chat sau khi đã có khóa\n//  Step 8: Ghi tin nhắn (unique idempotency_key chặn nhân đôi)\n//  Step 9: Phát soul.message qua Redis, payload riêng cho từng người\n//  Step 10: Trùng key: cùng nội dung thì trả tin cũ, khác thì 409\n//  Step 11: Controller trả tin nhắn với vai trò me hoặc partner\n\n// [CONTROLLER] SoulMatchController.sendMessage  ·  soul-match.controller.ts L43–44, L85–107\n@Controller('soul-match')\nexport class SoulMatchController {\n  // SoulMatchService\n  private readonly logger = new Logger(SoulMatchService.name);\n  constructor(\n    private readonly soulMatchService: SoulMatchService,\n    // SoulMatchService\n    @InjectDataSource() private readonly dataSource: DataSource,\n    @InjectRepository(SoulChatMessage)\n    private readonly messageRepo: Repository<SoulChatMessage>,\n    private readonly matchingService: MatchingService,\n    private readonly friendService: FriendService,\n    private readonly userService: UserService,\n    private readonly config: ConfigService<CoreApiEnv, true>,\n    @Inject(SOUL_MATCH_REDIS) private readonly redis: Redis,\n  ) {}\n\n  // Step 1: Nhận request (user từ JWT, id phòng từ URL, Idempotency-Key từ header)\n  @Post('sessions/:id/messages')\n  @Throttle({ default: { limit: 60, ttl: minutes(1) } })\n  async sendMessage(\n    @CurrentUser() user: AuthenticatedUser,\n    @Param('id', ParseUUIDPipe) id: string,\n    @Body() dto: SendSoulMessageDto,\n    @IdempotencyKey() idempotencyKey: string,\n  ): Promise<SoulMessageDto> {\n    const message = await this.soulMatchService.sendMessage(\n      user,\n      id,\n      dto,\n      idempotencyKey,\n    );\n\n    // [SERVICE] SoulMatchService.sendMessage  ·  soul-match.service.ts L121–242\n    const sessionId = id;\n\n    // Step 2: Lấy phòng chat và tính phase theo giờ server\n    // Phase chat tính từ giờ SERVER (lúc cả 2 xác nhận cộng thời lượng chat), không bao giờ tin\n    // đồng hồ của client.\n    const room = await this.getRoomForMember(user, sessionId);\n\n    // [SERVICE] SoulMatchService.getRoomForMember  ·  soul-match.service.ts L430–495\n    // Không tồn tại hoặc không phải thành viên đều trả 404: không làm oracle dò sessionId.\n    const session = await this.matchingService.findSessionById(sessionId);\n    if (\n      !session ||\n      (session.userAId !== user.userId && session.userBId !== user.userId)\n    ) {\n      throw new DomainException(\n        SoulMatchErrors.SESSION_NOT_FOUND,\n        'Không tìm thấy session',\n        HttpStatus.NOT_FOUND,\n      );\n    }\n    if (\n      session.matchType !== MatchType.Soul ||\n      ![MatchSessionStatus.Confirmed, MatchSessionStatus.Ended].includes(\n        session.status,\n      )\n    ) {\n      throw new DomainException(\n        SoulMatchErrors.CHAT_NOT_OPEN,\n        'Phòng chat chỉ mở khi session soul đã đủ 2 bên xác nhận',\n        HttpStatus.CONFLICT,\n      );\n    }\n    if (!session.confirmedAAt || !session.confirmedBAt) {\n      throw new Error(\n        `Session ${session.id} confirmed nhưng thiếu confirmedAAt/confirmedBAt — dữ liệu hỏng`,\n      );\n    }\n\n    const confirmedAt = new Date(\n      Math.max(session.confirmedAAt.getTime(), session.confirmedBAt.getTime()),\n    );\n    const chatSeconds = this.config.getOrThrow('SOUL_CHAT_DURATION_SECONDS', {\n      infer: true,\n    });\n    const ratingSeconds = this.config.getOrThrow('SOUL_RATING_WINDOW_SECONDS', {\n      infer: true,\n    });\n    // Phòng không có cột trạng thái riêng: hạn chat và hạn rating chỉ được tính khi đọc, từ lúc\n    // cả 2 xác nhận cộng thời lượng cấu hình.\n    const chatEndsAt = new Date(confirmedAt.getTime() + chatSeconds * 1000);\n    const ratingEndsAt = new Date(chatEndsAt.getTime() + ratingSeconds * 1000);\n    const matched = await this.friendService.areFriends(\n      session.userAId,\n      session.userBId,\n    );\n    if (session.status === MatchSessionStatus.Ended) {\n      return {\n        session,\n        chatEndsAt,\n        ratingEndsAt,\n        phase: SoulRoomPhase.Closed,\n        matched,\n      };\n    }\n    const now = Date.now();\n    // Đã là bạn thì phòng ở chatting mãi: Friendship là nguồn sự thật, hạn cũ chỉ còn là dữ liệu\n    // lịch sử.\n    const phase =\n      matched || now < chatEndsAt.getTime()\n        ? SoulRoomPhase.Chatting\n        : now < ratingEndsAt.getTime()\n          ? SoulRoomPhase.Rating\n          : SoulRoomPhase.Closed;\n    return { session, chatEndsAt, ratingEndsAt, phase, matched };\n\n    // Step 3: Chặn nếu phòng không còn ở phase chatting\n    if (room.phase !== SoulRoomPhase.Chatting) {\n      throw new DomainException(\n        SoulMatchErrors.CHAT_NOT_OPEN,\n        'Hết giờ chat — phòng đã chuyển sang đánh giá hoặc đã đóng',\n        HttpStatus.CONFLICT,\n        { phase: room.phase },\n      );\n    }\n\n    // Step 4: Kiểm tra người gửi chưa bị khóa tài khoản\n    // Kiểm lại trạng thái ban đúng lúc gửi: bị khóa giữa chừng phải cắt ngay.\n    const profile = await this.userService.getByIdOrThrow(user.userId);\n    if (profile.status === UserStatus.Banned) {\n      throw new DomainException(\n        SoulMatchErrors.USER_BANNED,\n        'Tài khoản bị khoá',\n        HttpStatus.FORBIDDEN,\n      );\n    }\n\n    const maxLength = this.config.getOrThrow('SOUL_CHAT_MESSAGE_MAX_LENGTH', {\n      infer: true,\n    });\n    if (dto.content.length > maxLength) {\n      throw new DomainException(\n        SoulMatchErrors.MESSAGE_TOO_LONG,\n        `Message dài quá ${maxLength} ký tự`,\n        HttpStatus.UNPROCESSABLE_ENTITY,\n        { maxLength },\n      );\n    }\n\n    // Step 5: Gắn user vào Idempotency-Key của client\n    // Key của client được gắn prefix soul:msg:{userId}: unique ở DB, retry không nhân đôi tin\n    // nhắn.\n    const prefixedKey = messageIdempotencyKey(user.userId, idempotencyKey);\n    try {\n      const message = await this.dataSource.transaction(async (manager) => {\n\n        // Step 6: Trong transaction, khóa dòng session FOR UPDATE\n        // [POSTGRES] Khóa dòng MatchSession FOR UPDATE, cùng khóa với lúc rating chụp lịch sử\n        // chat để import sang Friend Chat: một tin nhắn không thể lọt vào giữa bước chụp và bước\n        // chuyển.\n        const lockedSession = await manager.findOne(MatchSession, {\n          where: { id: sessionId },\n          lock: { mode: 'pessimistic_write' },\n        });\n        if (\n          !lockedSession ||\n          (lockedSession.userAId !== user.userId &&\n            lockedSession.userBId !== user.userId)\n        ) {\n          throw new DomainException(\n            SoulMatchErrors.SESSION_NOT_FOUND,\n            'Không tìm thấy session',\n            HttpStatus.NOT_FOUND,\n          );\n        }\n\n        // Step 7: Kiểm lại hạn chat sau khi đã có khóa\n        // Kiểm lại hạn chat sau khi có khóa: phase tính ở đầu hàm có thể đã hết hạn trong lúc chờ\n        // khóa. Đã là bạn (matched) thì chat không còn hết hạn.\n        if (!room.matched && Date.now() >= room.chatEndsAt.getTime()) {\n          throw new DomainException(\n            SoulMatchErrors.CHAT_NOT_OPEN,\n            'Hết giờ chat — phòng đã chuyển sang đánh giá hoặc đã đóng',\n            HttpStatus.CONFLICT,\n            { phase: SoulRoomPhase.Rating },\n          );\n        }\n\n        // Step 8: Ghi tin nhắn (unique idempotency_key chặn nhân đôi)\n        return manager.save(\n          manager.create(SoulChatMessage, {\n            sessionId,\n            senderUserId: user.userId,\n            content: dto.content,\n            idempotencyKey: prefixedKey,\n          }),\n        );\n      });\n\n      // Step 9: Phát soul.message qua Redis, payload riêng cho từng người\n      // [REDIS] Realtime phát SAU khi lưu, best-effort. Mỗi người nhận một payload riêng:\n      // senderRole (me hoặc partner) tính ngay ở đây để gateway không phải biết gì về ẩn danh.\n      const partnerId = this.partnerIdOf(room.session, user.userId);\n      await Promise.all(\n        (\n          [\n            [user.userId, 'me'],\n            [partnerId, 'partner'],\n          ] as const\n        ).map(([recipientId, senderRole]) => {\n          const envelope: RealtimeEnvelope<SoulMessageEventData> = {\n            event: RealtimeEvents.SoulMessage,\n            data: {\n              sessionId,\n              messageId: message.id,\n              senderRole,\n              content: message.content,\n              sentAt: message.createdAt.toISOString(),\n            },\n          };\n          return publishRealtimeEvent(\n            this.redis,\n            this.logger,\n            recipientId,\n            envelope,\n          );\n        }),\n      );\n      return message;\n    } catch (err) {\n\n      // Step 10: Trùng key: cùng nội dung thì trả tin cũ, khác thì 409\n      // Trùng Idempotency-Key: cùng phòng và cùng nội dung thì trả lại tin cũ (replay, không phát\n      // realtime lại); khác nội dung thì 409.\n      if (!isUniqueViolation(err)) throw err;\n      const existing = await this.messageRepo.findOneBy({\n        idempotencyKey: prefixedKey,\n      });\n      if (\n        existing &&\n        existing.sessionId === sessionId &&\n        existing.content === dto.content\n      ) {\n        return existing;\n      }\n      throw new DomainException(\n        SoulMatchErrors.MESSAGE_IDEMPOTENCY_CONFLICT,\n        'Idempotency-Key đã dùng cho 1 message khác nội dung',\n        HttpStatus.CONFLICT,\n      );\n    }\n\n    // Step 11: Controller trả tin nhắn với vai trò me hoặc partner\n    return SoulMessageDto.from(message, user.userId);\n  }\n}\n\n// [POSTGRES] CREATE TABLE soul_chat_messages  ·  1752400000000-soul-match.ts L44–55\n// Unique idempotency_key là chốt chặn thật chống nhân đôi tin nhắn. seq bigint IDENTITY là thứ tự\n// do DB cấp cho cursor: dùng created_at sẽ trùng mili-giây làm phân trang trùng hoặc mất dòng.\nawait queryRunner.query(`\n  CREATE TABLE soul_chat_messages (\n    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n    seq             bigint GENERATED ALWAYS AS IDENTITY,\n    session_id      uuid         NOT NULL REFERENCES match_sessions(id),\n    sender_user_id  uuid         NOT NULL REFERENCES users(id),\n    content         text         NOT NULL,\n    idempotency_key varchar(255) NOT NULL,\n    created_at      timestamptz  NOT NULL DEFAULT now(),\n    CONSTRAINT uq_soul_chat_messages_idempotency_key UNIQUE (idempotency_key)\n  )\n`);\n"
+  },
+  "provenance": {
+    "catalog": {
+      "path": "annotated-02-soul-match.mjs",
+      "sha256": "81b310ffecf97fe0df3db21b577a49fc741213c1d53dea907a6cb6b418494eb7"
+    },
+    "displayedCodeSha256": "cede0e3d7737df58d79fb081bc0d76d923b43f202cf959d69ae5e88494f7bedb"
+  }
+}

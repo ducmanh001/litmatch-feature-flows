@@ -1,0 +1,761 @@
+{
+  "id": "09-diamond-top-up-va-vip/02-post-iap-verify",
+  "featureId": "09-diamond-top-up-va-vip",
+  "feature": "Diamond, Top-up và VIP",
+  "summary": "Nạp Diamond qua store hoặc payOS, mua VIP bằng Diamond, hoàn tiền từ store; mọi thay đổi số dư đi qua một sổ kép duy nhất.",
+  "name": "Nạp Diamond bằng receipt của store",
+  "title": "Xác thực receipt với Apple hoặc Google ở server, rồi cộng Diamond đúng một lần theo id giao dịch của store.",
+  "method": "POST",
+  "route": "/api/v1/economy/iap/verify",
+  "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts",
+  "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/09-diamond-top-up-va-vip/02-post-iap-verify.json",
+  "diagramUrl": "https://ducmanh001.github.io/litmatch-feature-flows/#09-diamond-top-up-va-vip",
+  "catalog": "annotated-09-diamond-top-up-va-vip.mjs",
+  "flow": "[CONTROLLER] → [SERVICE] → [EXTERNAL] → [SERVICE] → [POSTGRES]",
+  "roles": [
+    [
+      "CONTROLLER",
+      "Nhận receipt hoặc purchase token từ app (giới hạn 10 lần/phút); user lấy từ JWT, provider, payload và productId từ body."
+    ],
+    [
+      "SERVICE",
+      "Tra catalog, nhờ verifier hỏi store để xác thực, rồi ghi sổ idempotent theo id giao dịch của store."
+    ],
+    [
+      "EXTERNAL",
+      "Apple verifyReceipt (production rồi sandbox) hoặc Google Play Developer API xác nhận giao dịch thật và trả providerTransactionId."
+    ],
+    [
+      "POSTGRES",
+      "Một transaction ghi giao dịch, bút toán, số dư ví và iap_receipts; unique (provider, provider_transaction_id) chặn credit đôi."
+    ]
+  ],
+  "tables": [
+    [
+      "iap_products",
+      "catalog: productId của store và provider ứng với bao nhiêu Diamond (chỉ đọc)."
+    ],
+    [
+      "iap_receipts",
+      "1 dòng cho mỗi receipt đã credit, trỏ tới transaction; unique (provider, provider_transaction_id)."
+    ],
+    [
+      "transactions",
+      "1 giao dịch iap_purchase, key idempotency do server sinh từ id giao dịch của store."
+    ],
+    [
+      "ledger_entries",
+      "bút toán sổ kép: Nợ system_iap, Có user_wallet."
+    ],
+    [
+      "wallets",
+      "số dư Diamond tăng thêm; nếu đang âm (nợ do hoàn tiền trước đó) thì khoản nạp tự bù nợ."
+    ],
+    [
+      "outbox_events",
+      "event economy.diamond.credited ghi cùng transaction."
+    ]
+  ],
+  "redis": [],
+  "related": [
+    [
+      "Economy (LedgerService)",
+      "record: idempotency theo key, khóa ví FOR UPDATE, sổ kép, outbox; phần lõi này có trong luồng Mua VIP."
+    ],
+    [
+      "Hoàn tiền từ Apple",
+      "luồng ngược: khi Apple báo REFUND, receipt này được đảo bút toán và có thể làm số dư âm."
+    ],
+    [
+      "Job đối soát",
+      "coi receipt đã credit mà không có transaction là lệch, nên transactionId của receipt là bắt buộc."
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "text": "Nhận receipt từ app (user từ JWT; tối đa 10 lần/phút)",
+      "line": 27,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html#L27",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts#L27"
+    },
+    {
+      "number": 2,
+      "text": "Tra catalog để ra số Diamond (client không gửi số lượng)",
+      "line": 45,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html#L45",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts#L45"
+    },
+    {
+      "number": 3,
+      "text": "Hỏi Apple hoặc Google xác thực receipt ở server",
+      "line": 60,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html#L60",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts#L60"
+    },
+    {
+      "number": 4,
+      "text": "Apple: gọi production trước, receipt sandbox thì gọi lại sandbox",
+      "line": 75,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html#L75",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts#L75"
+    },
+    {
+      "number": 5,
+      "text": "Apple: khớp productId và transactionId trong receipt",
+      "line": 143,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html#L143",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts#L143"
+    },
+    {
+      "number": 6,
+      "text": "Google: hỏi Publisher API, chỉ nhận purchaseState = purchased",
+      "line": 170,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html#L170",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts#L170"
+    },
+    {
+      "number": 7,
+      "text": "Ghi sổ Nợ system_iap / Có ví user, key theo id giao dịch store",
+      "line": 241,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html#L241",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts#L241"
+    },
+    {
+      "number": 8,
+      "text": "Lưu iap_receipts cùng transaction (unique chặn credit đôi)",
+      "line": 271,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html#L271",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts#L271"
+    },
+    {
+      "number": 9,
+      "text": "Trả transactionId, số Diamond và cờ replayed",
+      "line": 289,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html#L289",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts#L289"
+    }
+  ],
+  "declaredSteps": [
+    {
+      "at": "@Post('iap/verify')",
+      "text": "Nhận receipt từ app (user từ JWT; tối đa 10 lần/phút)"
+    },
+    {
+      "at": "const product = await this.productRepo.findOneBy({",
+      "text": "Tra catalog để ra số Diamond (client không gửi số lượng)"
+    },
+    {
+      "at": "const verified = await this.iapVerifier.verify(",
+      "text": "Hỏi Apple hoặc Google xác thực receipt ở server"
+    },
+    {
+      "at": "let body = await this.postVerify(",
+      "text": "Apple: gọi production trước, receipt sandbox thì gọi lại sandbox"
+    },
+    {
+      "at": "const match = input.transactionId",
+      "text": "Apple: khớp productId và transactionId trong receipt"
+    },
+    {
+      "at": "let response: Response;",
+      "in": "GooglePlayReceiptApiAdapter.verify",
+      "text": "Google: hỏi Publisher API, chỉ nhận purchaseState = purchased"
+    },
+    {
+      "at": "const result = await this.ledger.record({",
+      "text": "Ghi sổ Nợ system_iap / Có ví user, key theo id giao dịch store"
+    },
+    {
+      "at": "withinTransaction: async (manager, txn) => {",
+      "text": "Lưu iap_receipts cùng transaction (unique chặn credit đôi)"
+    },
+    {
+      "at": "return {",
+      "in": "EconomyService.creditFromIap",
+      "text": "Trả transactionId, số Diamond và cờ replayed"
+    }
+  ],
+  "whyComments": [
+    {
+      "at": "const product = await this.productRepo.findOneBy({",
+      "text": [
+        "Số Diamond lấy từ catalog server theo productId và provider; client không gửi số lượng."
+      ],
+      "src": "docs/services/economy-service.md mục 2 (tra iap_products để ra số diamond)",
+      "file": "apps/core-api/src/modules/economy/economy.service.ts"
+    },
+    {
+      "at": "const verified = await this.iapVerifier.verify(",
+      "text": [
+        "[EXTERNAL] Hỏi store ở SERVER trước mọi ghi sổ. Bản verifier chọn theo env: production thiếu credential dùng bản \"disabled\", từ chối ngay khi chưa đụng ledger."
+      ],
+      "src": "docs/services/economy-service.md mục 2 (DisabledIapVerifier trả ECONOMY_IAP_DISABLED trước transaction/ledger) + ports/iap-verifier.ts L19-22 và L31",
+      "file": "apps/core-api/src/modules/economy/economy.service.ts"
+    },
+    {
+      "at": "idempotencyKey: `iap:${provider}:${verified.providerTransactionId}`,",
+      "text": [
+        "Key do server sinh từ id giao dịch của store, không lấy từ header client: gửi lại receipt bao nhiêu lần cũng chỉ credit một lần. Key không chứa userId, nên user khác gửi lại receipt này sẽ lệch request_hash và bị 409."
+      ],
+      "src": "doc gốc economy.service.ts L290-293 + suy ra từ code: ledger.service.ts hashRequest gồm actorUserId và userId của bút toán, assertSameRequest ném 409",
+      "file": "apps/core-api/src/modules/economy/economy.service.ts"
+    },
+    {
+      "at": "withinTransaction: async (manager, txn) => {",
+      "text": [
+        "[POSTGRES] Lưu iap_receipts CÙNG transaction với bút toán; unique (provider, provider_transaction_id) chặn credit đôi ở DB. transactionId bắt buộc vì job đối soát coi receipt thiếu transaction là lệch."
+      ],
+      "src": "comment gốc economy.service.ts L352 + iap.entities.ts doc IapReceipt (unique chặn double-credit ở DB)",
+      "file": "apps/core-api/src/modules/economy/economy.service.ts"
+    },
+    {
+      "at": "if (body.status === APPLE_STATUS_SANDBOX_RECEIPT) {",
+      "text": [
+        "Quy tắc của Apple: gọi production trước; receipt sandbox (status 21007) thì gọi lại endpoint sandbox."
+      ],
+      "src": "economy.constants.ts L40 (doc APPLE_VERIFY_RECEIPT_URL) và L46",
+      "file": "apps/core-api/src/modules/economy/clients/apple-receipt-api.adapter.ts"
+    },
+    {
+      "at": "const match = input.transactionId",
+      "text": [
+        "Khớp cả productId lẫn transactionId. Receipt có nhiều giao dịch cùng product mà thiếu transactionId thì từ chối, để không credit nhầm."
+      ],
+      "src": "docs/services/economy-service.md mục 7 (Apple consumable: client gửi thêm transactionId cụ thể)",
+      "file": "apps/core-api/src/modules/economy/clients/apple-receipt-api.adapter.ts"
+    },
+    {
+      "at": "if (isAbortError(error))",
+      "text": [
+        "Timeout hay lỗi mạng của store là lỗi dependency (503), không được đổi thành \"receipt sai\" của client."
+      ],
+      "src": "docs/services/economy-service.md mục 7 (timeout là lỗi dependency, không diễn giải thành receipt sai) + clients/store-api-http.ts (ServiceUnavailableException)",
+      "file": "apps/core-api/src/modules/economy/clients/apple-receipt-api.adapter.ts"
+    },
+    {
+      "at": "if (response.status >= 400 && response.status < 500) {",
+      "text": [
+        "Store trả 4xx nghĩa là purchase token bị từ chối (lỗi của client); mọi lỗi khác là lỗi dependency (503)."
+      ],
+      "src": "suy ra từ code: 4xx ném IAP_RECEIPT_INVALID (400), còn lại storeProviderUnavailable",
+      "file": "apps/core-api/src/modules/economy/clients/google-play-receipt-api.adapter.ts"
+    },
+    {
+      "at": "let body: { purchaseState?: number; orderId?: string };",
+      "text": [
+        "Chỉ chấp nhận purchaseState = purchased (0); giao dịch đang chờ hay đã hủy chưa được cộng Diamond. orderId của Google làm providerTransactionId."
+      ],
+      "src": "economy.constants.ts L35 (purchaseState: 0 = purchased, 1 = canceled, 2 = pending) + suy ra từ code: return providerTransactionId: body.orderId",
+      "file": "apps/core-api/src/modules/economy/clients/google-play-receipt-api.adapter.ts"
+    }
+  ],
+  "sources": [
+    "apps/core-api/src/database/migrations/1752000000000-economy-ledger.ts",
+    "apps/core-api/src/modules/economy/clients/apple-receipt-api.adapter.ts",
+    "apps/core-api/src/modules/economy/clients/google-play-receipt-api.adapter.ts",
+    "apps/core-api/src/modules/economy/economy.controller.ts",
+    "apps/core-api/src/modules/economy/economy.service.ts"
+  ],
+  "sourceContext": {
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/economy/economy.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('iap/verify')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/economy/economy.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async creditFromIap(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const product = await this.productRepo.findOneBy({",
+            "text": [
+              "Số Diamond lấy từ catalog server theo productId và provider; client không gửi số lượng."
+            ],
+            "src": "docs/services/economy-service.md mục 2 (tra iap_products để ra số diamond)"
+          },
+          {
+            "at": "const verified = await this.iapVerifier.verify(",
+            "text": [
+              "[EXTERNAL] Hỏi store ở SERVER trước mọi ghi sổ. Bản verifier chọn theo env: production thiếu credential dùng bản \"disabled\", từ chối ngay khi chưa đụng ledger."
+            ],
+            "src": "docs/services/economy-service.md mục 2 (DisabledIapVerifier trả ECONOMY_IAP_DISABLED trước transaction/ledger) + ports/iap-verifier.ts L19-22 và L31"
+          },
+          {
+            "at": "idempotencyKey: `iap:${provider}:${verified.providerTransactionId}`,",
+            "text": [
+              "Key do server sinh từ id giao dịch của store, không lấy từ header client: gửi lại receipt bao nhiêu lần cũng chỉ credit một lần. Key không chứa userId, nên user khác gửi lại receipt này sẽ lệch request_hash và bị 409."
+            ],
+            "src": "doc gốc economy.service.ts L290-293 + suy ra từ code: ledger.service.ts hashRequest gồm actorUserId và userId của bút toán, assertSameRequest ném 409"
+          },
+          {
+            "at": "withinTransaction: async (manager, txn) => {",
+            "text": [
+              "[POSTGRES] Lưu iap_receipts CÙNG transaction với bút toán; unique (provider, provider_transaction_id) chặn credit đôi ở DB. transactionId bắt buộc vì job đối soát coi receipt thiếu transaction là lệch."
+            ],
+            "src": "comment gốc economy.service.ts L352 + iap.entities.ts doc IapReceipt (unique chặn double-credit ở DB)"
+          }
+        ]
+      },
+      {
+        "tag": "EXTERNAL",
+        "file": "apps/core-api/src/modules/economy/clients/apple-receipt-api.adapter.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async verify(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async postVerify(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "if (body.status === APPLE_STATUS_SANDBOX_RECEIPT) {",
+            "text": [
+              "Quy tắc của Apple: gọi production trước; receipt sandbox (status 21007) thì gọi lại endpoint sandbox."
+            ],
+            "src": "economy.constants.ts L40 (doc APPLE_VERIFY_RECEIPT_URL) và L46"
+          },
+          {
+            "at": "const match = input.transactionId",
+            "text": [
+              "Khớp cả productId lẫn transactionId. Receipt có nhiều giao dịch cùng product mà thiếu transactionId thì từ chối, để không credit nhầm."
+            ],
+            "src": "docs/services/economy-service.md mục 7 (Apple consumable: client gửi thêm transactionId cụ thể)"
+          },
+          {
+            "at": "if (isAbortError(error))",
+            "text": [
+              "Timeout hay lỗi mạng của store là lỗi dependency (503), không được đổi thành \"receipt sai\" của client."
+            ],
+            "src": "docs/services/economy-service.md mục 7 (timeout là lỗi dependency, không diễn giải thành receipt sai) + clients/store-api-http.ts (ServiceUnavailableException)"
+          }
+        ]
+      },
+      {
+        "tag": "EXTERNAL",
+        "file": "apps/core-api/src/modules/economy/clients/google-play-receipt-api.adapter.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async verify(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "if (response.status >= 400 && response.status < 500) {",
+            "text": [
+              "Store trả 4xx nghĩa là purchase token bị từ chối (lỗi của client); mọi lỗi khác là lỗi dependency (503)."
+            ],
+            "src": "suy ra từ code: 4xx ném IAP_RECEIPT_INVALID (400), còn lại storeProviderUnavailable"
+          },
+          {
+            "at": "let body: { purchaseState?: number; orderId?: string };",
+            "text": [
+              "Chỉ chấp nhận purchaseState = purchased (0); giao dịch đang chờ hay đã hủy chưa được cộng Diamond. orderId của Google làm providerTransactionId."
+            ],
+            "src": "economy.constants.ts L35 (purchaseState: 0 = purchased, 1 = canceled, 2 = pending) + suy ra từ code: return providerTransactionId: body.orderId"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752000000000-economy-ledger.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE iap_receipts (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      }
+    ],
+    "ranges": [
+      {
+        "file": "apps/core-api/src/modules/economy/economy.controller.ts",
+        "range": {
+          "at": "@Post('iap/verify')",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/economy.service.ts",
+        "range": {
+          "at": "async creditFromIap(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/clients/apple-receipt-api.adapter.ts",
+        "range": {
+          "at": "async verify(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/clients/apple-receipt-api.adapter.ts",
+        "range": {
+          "at": "private async postVerify(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/clients/google-play-receipt-api.adapter.ts",
+        "range": {
+          "at": "async verify(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/database/migrations/1752000000000-economy-ledger.ts",
+        "range": {
+          "at": "CREATE TABLE iap_receipts (",
+          "to": "^    `\\);$",
+          "pad": [
+            1,
+            0
+          ]
+        }
+      }
+    ],
+    "helpers": [],
+    "skip": [],
+    "attach": {
+      "GooglePlayReceiptApiAdapter.verify": {
+        "sameCallAs": "AppleReceiptApiAdapter.verify"
+      }
+    },
+    "nested": true
+  },
+  "omittedContext": {
+    "note": "Curated source selection; unlisted call bodies, shared request infrastructure, DTOs and other context may be omitted. skip names stay unexpanded; helpers may be substituted; attach controls placement. Flattened scopes are not executable code.",
+    "skip": [],
+    "attach": {
+      "GooglePlayReceiptApiAdapter.verify": {
+        "sameCallAs": "AppleReceiptApiAdapter.verify"
+      }
+    },
+    "helpers": []
+  },
+  "featureMetadata": {
+    "id": "09-diamond-top-up-va-vip",
+    "short": "Diamond, Top-up và VIP",
+    "title": "Diamond, Top-up và VIP",
+    "summary": "Nạp Diamond qua store hoặc payOS, mua VIP bằng Diamond, hoàn tiền từ store; mọi thay đổi số dư đi qua một sổ kép duy nhất.",
+    "diagramAnchor": "09-diamond-top-up-va-vip"
+  },
+  "endpointCatalog": {
+    "n": "02",
+    "slug": "post-iap-verify",
+    "attach": {
+      "GooglePlayReceiptApiAdapter.verify": {
+        "sameCallAs": "AppleReceiptApiAdapter.verify"
+      }
+    },
+    "method": "POST",
+    "short": "/economy/iap/verify",
+    "route": "/api/v1/economy/iap/verify",
+    "name": "Nạp Diamond bằng receipt của store",
+    "title": "Xác thực receipt với Apple hoặc Google ở server, rồi cộng Diamond đúng một lần theo id giao dịch của store.",
+    "flow": "[CONTROLLER] → [SERVICE] → [EXTERNAL] → [SERVICE] → [POSTGRES]",
+    "roles": [
+      [
+        "CONTROLLER",
+        "Nhận receipt hoặc purchase token từ app (giới hạn 10 lần/phút); user lấy từ JWT, provider, payload và productId từ body."
+      ],
+      [
+        "SERVICE",
+        "Tra catalog, nhờ verifier hỏi store để xác thực, rồi ghi sổ idempotent theo id giao dịch của store."
+      ],
+      [
+        "EXTERNAL",
+        "Apple verifyReceipt (production rồi sandbox) hoặc Google Play Developer API xác nhận giao dịch thật và trả providerTransactionId."
+      ],
+      [
+        "POSTGRES",
+        "Một transaction ghi giao dịch, bút toán, số dư ví và iap_receipts; unique (provider, provider_transaction_id) chặn credit đôi."
+      ]
+    ],
+    "tables": [
+      [
+        "iap_products",
+        "catalog: productId của store và provider ứng với bao nhiêu Diamond (chỉ đọc)."
+      ],
+      [
+        "iap_receipts",
+        "1 dòng cho mỗi receipt đã credit, trỏ tới transaction; unique (provider, provider_transaction_id)."
+      ],
+      [
+        "transactions",
+        "1 giao dịch iap_purchase, key idempotency do server sinh từ id giao dịch của store."
+      ],
+      [
+        "ledger_entries",
+        "bút toán sổ kép: Nợ system_iap, Có user_wallet."
+      ],
+      [
+        "wallets",
+        "số dư Diamond tăng thêm; nếu đang âm (nợ do hoàn tiền trước đó) thì khoản nạp tự bù nợ."
+      ],
+      [
+        "outbox_events",
+        "event economy.diamond.credited ghi cùng transaction."
+      ]
+    ],
+    "related": [
+      [
+        "Economy (LedgerService)",
+        "record: idempotency theo key, khóa ví FOR UPDATE, sổ kép, outbox; phần lõi này có trong luồng Mua VIP."
+      ],
+      [
+        "Hoàn tiền từ Apple",
+        "luồng ngược: khi Apple báo REFUND, receipt này được đảo bút toán và có thể làm số dư âm."
+      ],
+      [
+        "Job đối soát",
+        "coi receipt đã credit mà không có transaction là lệch, nên transactionId của receipt là bắt buộc."
+      ]
+    ],
+    "nested": true,
+    "skip": [],
+    "steps": [
+      {
+        "at": "@Post('iap/verify')",
+        "text": "Nhận receipt từ app (user từ JWT; tối đa 10 lần/phút)"
+      },
+      {
+        "at": "const product = await this.productRepo.findOneBy({",
+        "text": "Tra catalog để ra số Diamond (client không gửi số lượng)"
+      },
+      {
+        "at": "const verified = await this.iapVerifier.verify(",
+        "text": "Hỏi Apple hoặc Google xác thực receipt ở server"
+      },
+      {
+        "at": "let body = await this.postVerify(",
+        "text": "Apple: gọi production trước, receipt sandbox thì gọi lại sandbox"
+      },
+      {
+        "at": "const match = input.transactionId",
+        "text": "Apple: khớp productId và transactionId trong receipt"
+      },
+      {
+        "at": "let response: Response;",
+        "in": "GooglePlayReceiptApiAdapter.verify",
+        "text": "Google: hỏi Publisher API, chỉ nhận purchaseState = purchased"
+      },
+      {
+        "at": "const result = await this.ledger.record({",
+        "text": "Ghi sổ Nợ system_iap / Có ví user, key theo id giao dịch store"
+      },
+      {
+        "at": "withinTransaction: async (manager, txn) => {",
+        "text": "Lưu iap_receipts cùng transaction (unique chặn credit đôi)"
+      },
+      {
+        "at": "return {",
+        "in": "EconomyService.creditFromIap",
+        "text": "Trả transactionId, số Diamond và cờ replayed"
+      }
+    ],
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/economy/economy.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('iap/verify')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/economy/economy.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async creditFromIap(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const product = await this.productRepo.findOneBy({",
+            "text": [
+              "Số Diamond lấy từ catalog server theo productId và provider; client không gửi số lượng."
+            ],
+            "src": "docs/services/economy-service.md mục 2 (tra iap_products để ra số diamond)"
+          },
+          {
+            "at": "const verified = await this.iapVerifier.verify(",
+            "text": [
+              "[EXTERNAL] Hỏi store ở SERVER trước mọi ghi sổ. Bản verifier chọn theo env: production thiếu credential dùng bản \"disabled\", từ chối ngay khi chưa đụng ledger."
+            ],
+            "src": "docs/services/economy-service.md mục 2 (DisabledIapVerifier trả ECONOMY_IAP_DISABLED trước transaction/ledger) + ports/iap-verifier.ts L19-22 và L31"
+          },
+          {
+            "at": "idempotencyKey: `iap:${provider}:${verified.providerTransactionId}`,",
+            "text": [
+              "Key do server sinh từ id giao dịch của store, không lấy từ header client: gửi lại receipt bao nhiêu lần cũng chỉ credit một lần. Key không chứa userId, nên user khác gửi lại receipt này sẽ lệch request_hash và bị 409."
+            ],
+            "src": "doc gốc economy.service.ts L290-293 + suy ra từ code: ledger.service.ts hashRequest gồm actorUserId và userId của bút toán, assertSameRequest ném 409"
+          },
+          {
+            "at": "withinTransaction: async (manager, txn) => {",
+            "text": [
+              "[POSTGRES] Lưu iap_receipts CÙNG transaction với bút toán; unique (provider, provider_transaction_id) chặn credit đôi ở DB. transactionId bắt buộc vì job đối soát coi receipt thiếu transaction là lệch."
+            ],
+            "src": "comment gốc economy.service.ts L352 + iap.entities.ts doc IapReceipt (unique chặn double-credit ở DB)"
+          }
+        ]
+      },
+      {
+        "tag": "EXTERNAL",
+        "file": "apps/core-api/src/modules/economy/clients/apple-receipt-api.adapter.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async verify(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async postVerify(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "if (body.status === APPLE_STATUS_SANDBOX_RECEIPT) {",
+            "text": [
+              "Quy tắc của Apple: gọi production trước; receipt sandbox (status 21007) thì gọi lại endpoint sandbox."
+            ],
+            "src": "economy.constants.ts L40 (doc APPLE_VERIFY_RECEIPT_URL) và L46"
+          },
+          {
+            "at": "const match = input.transactionId",
+            "text": [
+              "Khớp cả productId lẫn transactionId. Receipt có nhiều giao dịch cùng product mà thiếu transactionId thì từ chối, để không credit nhầm."
+            ],
+            "src": "docs/services/economy-service.md mục 7 (Apple consumable: client gửi thêm transactionId cụ thể)"
+          },
+          {
+            "at": "if (isAbortError(error))",
+            "text": [
+              "Timeout hay lỗi mạng của store là lỗi dependency (503), không được đổi thành \"receipt sai\" của client."
+            ],
+            "src": "docs/services/economy-service.md mục 7 (timeout là lỗi dependency, không diễn giải thành receipt sai) + clients/store-api-http.ts (ServiceUnavailableException)"
+          }
+        ]
+      },
+      {
+        "tag": "EXTERNAL",
+        "file": "apps/core-api/src/modules/economy/clients/google-play-receipt-api.adapter.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async verify(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "if (response.status >= 400 && response.status < 500) {",
+            "text": [
+              "Store trả 4xx nghĩa là purchase token bị từ chối (lỗi của client); mọi lỗi khác là lỗi dependency (503)."
+            ],
+            "src": "suy ra từ code: 4xx ném IAP_RECEIPT_INVALID (400), còn lại storeProviderUnavailable"
+          },
+          {
+            "at": "let body: { purchaseState?: number; orderId?: string };",
+            "text": [
+              "Chỉ chấp nhận purchaseState = purchased (0); giao dịch đang chờ hay đã hủy chưa được cộng Diamond. orderId của Google làm providerTransactionId."
+            ],
+            "src": "economy.constants.ts L35 (purchaseState: 0 = purchased, 1 = canceled, 2 = pending) + suy ra từ code: return providerTransactionId: body.orderId"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752000000000-economy-ledger.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE iap_receipts (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "sourceManifest": {
+    "verifiedCodeSha256": true,
+    "mode": "published-presentation",
+    "baselineCommit": "cb30743143bd8f6576b154db4b606380c365c674",
+    "sourceCommit": "d3cb28c",
+    "sources": [
+      "apps/core-api/src/database/migrations/1752000000000-economy-ledger.ts",
+      "apps/core-api/src/modules/economy/clients/apple-receipt-api.adapter.ts",
+      "apps/core-api/src/modules/economy/clients/google-play-receipt-api.adapter.ts",
+      "apps/core-api/src/modules/economy/economy.controller.ts",
+      "apps/core-api/src/modules/economy/economy.service.ts"
+    ],
+    "steps": [
+      "Step 1: Nhận receipt từ app (user từ JWT; tối đa 10 lần/phút)",
+      "Step 2: Tra catalog để ra số Diamond (client không gửi số lượng)",
+      "Step 3: Hỏi Apple hoặc Google xác thực receipt ở server",
+      "Step 4: Apple: gọi production trước, receipt sandbox thì gọi lại sandbox",
+      "Step 5: Apple: khớp productId và transactionId trong receipt",
+      "Step 6: Google: hỏi Publisher API, chỉ nhận purchaseState = purchased",
+      "Step 7: Ghi sổ Nợ system_iap / Có ví user, key theo id giao dịch store",
+      "Step 8: Lưu iap_receipts cùng transaction (unique chặn credit đôi)",
+      "Step 9: Trả transactionId, số Diamond và cờ replayed"
+    ],
+    "removedOverview": "// ════════════════════════════════════════════════════════════════════════════\n//  POST /api/v1/economy/iap/verify\n//  Xác thực receipt với Apple hoặc Google ở server, rồi cộng Diamond đúng một lần theo id giao dịch của store.\n// ════════════════════════════════════════════════════════════════════════════\n//  Luồng      [CONTROLLER] → [SERVICE] → [EXTERNAL] → [SERVICE] → [POSTGRES]\n//\n//  Vai trò từng tầng\n//    [CONTROLLER] Nhận receipt hoặc purchase token từ app (giới hạn 10 lần/phút); user\n//                 lấy từ JWT, provider, payload và productId từ body.\n//    [SERVICE]    Tra catalog, nhờ verifier hỏi store để xác thực, rồi ghi sổ\n//                 idempotent theo id giao dịch của store.\n//    [EXTERNAL]   Apple verifyReceipt (production rồi sandbox) hoặc Google Play\n//                 Developer API xác nhận giao dịch thật và trả providerTransactionId.\n//    [POSTGRES]   Một transaction ghi giao dịch, bút toán, số dư ví và iap_receipts;\n//                 unique (provider, provider_transaction_id) chặn credit đôi.\n//\n//  Bảng       iap_products — catalog: productId của store và provider ứng với bao nhiêu\n//               Diamond (chỉ đọc).\n//             iap_receipts — 1 dòng cho mỗi receipt đã credit, trỏ tới transaction;\n//               unique (provider, provider_transaction_id).\n//             transactions — 1 giao dịch iap_purchase, key idempotency do server sinh\n//               từ id giao dịch của store.\n//             ledger_entries — bút toán sổ kép: Nợ system_iap, Có user_wallet.\n//             wallets — số dư Diamond tăng thêm; nếu đang âm (nợ do hoàn tiền trước đó)\n//               thì khoản nạp tự bù nợ.\n//             outbox_events — event economy.diamond.credited ghi cùng transaction.\n//  Liên quan  Economy (LedgerService) — record: idempotency theo key, khóa ví FOR\n//               UPDATE, sổ kép, outbox; phần lõi này có trong luồng Mua VIP.\n//             Hoàn tiền từ Apple — luồng ngược: khi Apple báo REFUND, receipt này được\n//               đảo bút toán và có thể làm số dư âm.\n//             Job đối soát — coi receipt đã credit mà không có transaction là lệch, nên\n//               transactionId của receipt là bắt buộc.\n//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi\n//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới\n//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //\n//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các\n//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số\n//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức\n//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong\n//             repo.\n",
+    "baselineBodySha256": "bba20664f699dc661b9dfeadc4789f6f34c282edc27a700482de546242f845b5",
+    "bodySha256": "bba20664f699dc661b9dfeadc4789f6f34c282edc27a700482de546242f845b5",
+    "rawSha256": "51b5c4a85e6c91260fff193f51cd9fa55bc197175e6e41e55c5c26ff72b7013a",
+    "codeSha256": "51b5c4a85e6c91260fff193f51cd9fa55bc197175e6e41e55c5c26ff72b7013a"
+  },
+  "code": {
+    "path": "code/09-diamond-top-up-va-vip/02-post-iap-verify.ts",
+    "sha256": "51b5c4a85e6c91260fff193f51cd9fa55bc197175e6e41e55c5c26ff72b7013a",
+    "hashAlgorithm": "sha256",
+    "content": "//  POST /api/v1/economy/iap/verify\n//  Xác thực receipt với Apple hoặc Google ở server, rồi cộng Diamond đúng một lần theo id giao dịch của store.\n//  Step 1: Nhận receipt từ app (user từ JWT; tối đa 10 lần/phút)\n//  Step 2: Tra catalog để ra số Diamond (client không gửi số lượng)\n//  Step 3: Hỏi Apple hoặc Google xác thực receipt ở server\n//  Step 4: Apple: gọi production trước, receipt sandbox thì gọi lại sandbox\n//  Step 5: Apple: khớp productId và transactionId trong receipt\n//  Step 6: Google: hỏi Publisher API, chỉ nhận purchaseState = purchased\n//  Step 7: Ghi sổ Nợ system_iap / Có ví user, key theo id giao dịch store\n//  Step 8: Lưu iap_receipts cùng transaction (unique chặn credit đôi)\n//  Step 9: Trả transactionId, số Diamond và cờ replayed\n\n// [CONTROLLER] EconomyController.verifyIap  ·  economy.controller.ts L48–49, L118–132\n@Controller('economy')\nexport class EconomyController {\n  constructor(\n    private readonly economyService: EconomyService,\n    // EconomyService\n    @InjectRepository(IapProduct)\n    private readonly productRepo: Repository<IapProduct>,\n    private readonly ledger: LedgerPersistencePort,\n    private readonly iapVerifier: IapVerifier,\n    // AppleReceiptApiAdapter\n    private readonly config: ConfigService<CoreApiEnv, true>,\n  ) {}\n\n  // Step 1: Nhận receipt từ app (user từ JWT; tối đa 10 lần/phút)\n  @Post('iap/verify')\n  @HttpCode(HttpStatus.OK)\n  @Throttle({ default: { limit: 10, ttl: minutes(1) } })\n  verifyIap(@CurrentUser() user: AuthenticatedUser, @Body() dto: VerifyIapDto) {\n    return this.economyService.creditFromIap(\n      user.userId,\n      dto.provider,\n      dto.payload,\n      dto.productId,\n    );\n\n    // [SERVICE] EconomyService.creditFromIap  ·  economy.service.ts L294–364\n    const userId = user.userId;\n    const provider = dto.provider;\n    const payload = dto.payload;\n    const productId = dto.productId;\n\n    // Step 2: Tra catalog để ra số Diamond (client không gửi số lượng)\n    // Số Diamond lấy từ catalog server theo productId và provider; client không gửi số lượng.\n    const product = await this.productRepo.findOneBy({\n      productId,\n      provider,\n      active: true,\n    });\n    if (!product) {\n      throw new DomainException(\n        EconomyErrors.IAP_PRODUCT_UNKNOWN,\n        `Product ${productId} không tồn tại`,\n        HttpStatus.BAD_REQUEST,\n      );\n    }\n\n    // Step 3: Hỏi Apple hoặc Google xác thực receipt ở server\n    // [EXTERNAL] Hỏi store ở SERVER trước mọi ghi sổ. Bản verifier chọn theo env: production\n    // thiếu credential dùng bản \"disabled\", từ chối ngay khi chưa đụng ledger.\n    const verified = await this.iapVerifier.verify(\n      provider,\n      payload,\n      productId,\n    );\n\n    // [EXTERNAL] AppleReceiptApiAdapter.verify  ·  apple-receipt-api.adapter.ts L39–91\n    const input = provider;\n    const sharedSecret = this.config.getOrThrow('ECONOMY_APPLE_SHARED_SECRET', {\n      infer: true,\n    });\n\n    // Step 4: Apple: gọi production trước, receipt sandbox thì gọi lại sandbox\n    let body = await this.postVerify(\n      APPLE_VERIFY_RECEIPT_URL,\n      input.receiptData,\n      sharedSecret,\n    );\n\n    // [EXTERNAL] AppleReceiptApiAdapter.postVerify  ·  apple-receipt-api.adapter.ts L93–128\n    const url = APPLE_VERIFY_RECEIPT_URL;\n    const receiptData = input.receiptData;\n    let response: Response;\n    try {\n      response = await fetch(url, {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n        body: JSON.stringify({\n          'receipt-data': receiptData,\n          password: sharedSecret,\n        }),\n        signal: storeApiAbortSignal(this.config),\n      });\n    } catch (error) {\n      // Timeout hay lỗi mạng của store là lỗi dependency (503), không được đổi thành \"receipt\n      // sai\" của client.\n      if (isAbortError(error))\n        throw storeProviderUnavailable('Apple Store', 'timeout');\n      throw storeProviderUnavailable('Apple Store', 'không kết nối được');\n    }\n    if (!response.ok) {\n      throw storeProviderUnavailable(\n        'Apple Store',\n        `trả HTTP ${response.status}`,\n      );\n    }\n    try {\n      return (await response.json()) as AppleReceiptResponse;\n    } catch {\n      throw storeProviderUnavailable(\n        'Apple Store',\n        'trả response không hợp lệ',\n      );\n    }\n\n    // Quy tắc của Apple: gọi production trước; receipt sandbox (status 21007) thì gọi lại\n    // endpoint sandbox.\n    if (body.status === APPLE_STATUS_SANDBOX_RECEIPT) {\n      body = await this.postVerify(\n        APPLE_VERIFY_RECEIPT_SANDBOX_URL,\n        input.receiptData,\n        sharedSecret,\n      );\n    }\n    if (body.status !== APPLE_STATUS_OK) {\n      throw new DomainException(\n        EconomyErrors.IAP_RECEIPT_INVALID,\n        `Apple từ chối receipt (status ${body.status ?? 'unknown'})`,\n        HttpStatus.BAD_REQUEST,\n      );\n    }\n\n    const purchases = (body.receipt?.in_app ?? []) as ApplePurchase[];\n    const matching = purchases.filter(\n      (purchase) =>\n        purchase.product_id === input.productId &&\n        typeof purchase.transaction_id === 'string' &&\n        purchase.transaction_id.length > 0,\n    );\n\n    // Step 5: Apple: khớp productId và transactionId trong receipt\n    // Khớp cả productId lẫn transactionId. Receipt có nhiều giao dịch cùng product mà thiếu\n    // transactionId thì từ chối, để không credit nhầm.\n    const match = input.transactionId\n      ? matching.find(\n          (purchase) => purchase.transaction_id === input.transactionId,\n        )\n      : matching.length === 1\n        ? matching[0]\n        : undefined;\n    if (!match || typeof match.transaction_id !== 'string') {\n      throw new DomainException(\n        EconomyErrors.IAP_RECEIPT_INVALID,\n        input.transactionId\n          ? 'Receipt không chứa transactionId/product này'\n          : matching.length > 1\n            ? 'Receipt consumable chứa nhiều giao dịch; cần transactionId cụ thể'\n            : 'Receipt không chứa product này',\n        HttpStatus.BAD_REQUEST,\n      );\n    }\n    return { providerTransactionId: match.transaction_id };\n\n    // [EXTERNAL] GooglePlayReceiptApiAdapter.verify  ·  google-play-receipt-api.adapter.ts L28–95\n    // productId = provider\n    const purchaseToken = payload;\n\n    // Step 6: Google: hỏi Publisher API, chỉ nhận purchaseState = purchased\n    let response: Response;\n    try {\n      const packageName = this.config.getOrThrow(\n        'ECONOMY_GOOGLE_PACKAGE_NAME',\n        {\n          infer: true,\n        },\n      );\n      const accessToken = await getGoogleServiceAccountAccessToken(\n        this.config,\n        ANDROID_PUBLISHER_SCOPE,\n      );\n      response = await fetch(\n        `${ANDROID_PUBLISHER_API_BASE}/applications/${encodeURIComponent(packageName)}/purchases/products/${encodeURIComponent(productId)}/tokens/${encodeURIComponent(purchaseToken)}`,\n        {\n          headers: { Authorization: `Bearer ${accessToken}` },\n          signal: storeApiAbortSignal(this.config),\n        },\n      );\n    } catch (error) {\n      if (error instanceof DomainException) throw error;\n      if (isAbortError(error))\n        throw storeProviderUnavailable('Google Play', 'timeout');\n      throw storeProviderUnavailable('Google Play', 'không kết nối được');\n    }\n\n    if (!response.ok) {\n      // Store trả 4xx nghĩa là purchase token bị từ chối (lỗi của client); mọi lỗi khác là lỗi\n      // dependency (503).\n      if (response.status >= 400 && response.status < 500) {\n        throw new DomainException(\n          EconomyErrors.IAP_RECEIPT_INVALID,\n          `Google từ chối purchase token (${response.status})`,\n          HttpStatus.BAD_REQUEST,\n        );\n      }\n      throw storeProviderUnavailable(\n        'Google Play',\n        `trả HTTP ${response.status}`,\n      );\n    }\n\n    // Chỉ chấp nhận purchaseState = purchased (0); giao dịch đang chờ hay đã hủy chưa được cộng\n    // Diamond. orderId của Google làm providerTransactionId.\n    let body: { purchaseState?: number; orderId?: string };\n    try {\n      body = (await response.json()) as {\n        purchaseState?: number;\n        orderId?: string;\n      };\n    } catch {\n      throw storeProviderUnavailable(\n        'Google Play',\n        'trả response không hợp lệ',\n      );\n    }\n    if (\n      body.purchaseState !== GOOGLE_PURCHASE_STATE_PURCHASED ||\n      !body.orderId\n    ) {\n      throw new DomainException(\n        EconomyErrors.IAP_RECEIPT_INVALID,\n        'Purchase chưa ở trạng thái purchased',\n        HttpStatus.BAD_REQUEST,\n      );\n    }\n    return { providerTransactionId: body.orderId };\n\n    const diamonds = BigInt(product.diamonds);\n\n    // Step 7: Ghi sổ Nợ system_iap / Có ví user, key theo id giao dịch store\n    const result = await this.ledger.record({\n      type: TransactionType.IapPurchase,\n      // Key do server sinh từ id giao dịch của store, không lấy từ header client: gửi lại receipt\n      // bao nhiêu lần cũng chỉ credit một lần. Key không chứa userId, nên user khác gửi lại\n      // receipt này sẽ lệch request_hash và bị 409.\n      idempotencyKey: `iap:${provider}:${verified.providerTransactionId}`,\n      actorUserId: userId,\n      metadata: {\n        provider,\n        productId,\n        providerTransactionId: verified.providerTransactionId,\n        diamonds: product.diamonds,\n      },\n      entries: [\n        {\n          accountKind: LedgerAccountKind.SystemIap,\n          direction: LedgerDirection.Debit,\n          amount: diamonds,\n          currency: LedgerCurrency.Diamond,\n        },\n        {\n          accountKind: LedgerAccountKind.UserWallet,\n          userId,\n          direction: LedgerDirection.Credit,\n          amount: diamonds,\n          currency: LedgerCurrency.Diamond,\n        },\n      ],\n\n      // Step 8: Lưu iap_receipts cùng transaction (unique chặn credit đôi)\n      // [POSTGRES] Lưu iap_receipts CÙNG transaction với bút toán; unique (provider,\n      // provider_transaction_id) chặn credit đôi ở DB. transactionId bắt buộc vì job đối soát coi\n      // receipt thiếu transaction là lệch.\n      withinTransaction: async (manager, txn) => {\n        await manager.save(\n          manager.create(IapReceipt, {\n            provider,\n            providerTransactionId: verified.providerTransactionId,\n            userId,\n            productId,\n            transactionId: txn.id,\n            rawPayload: payload,\n          }),\n        );\n      },\n    });\n\n    // Step 9: Trả transactionId, số Diamond và cờ replayed\n    return {\n      transactionId: result.transaction.id,\n      diamonds: diamonds.toString(),\n      replayed: result.replayed,\n    };\n  }\n}\n\n// [POSTGRES] CREATE TABLE iap_receipts  ·  1752000000000-economy-ledger.ts L116–129\nawait queryRunner.query(`\n  CREATE TABLE iap_receipts (\n    id                       uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n    provider                 varchar(16)  NOT NULL,\n    provider_transaction_id  varchar(255) NOT NULL,\n    user_id                  uuid         NOT NULL REFERENCES users(id),\n    product_id               varchar(128) NOT NULL,\n    status                   varchar(16)  NOT NULL DEFAULT 'credited',\n    transaction_id           uuid         NULL REFERENCES transactions(id),\n    raw_payload              jsonb        NOT NULL DEFAULT '{}',\n    created_at               timestamptz  NOT NULL DEFAULT now(),\n    CONSTRAINT uq_iap_receipts_provider_txn UNIQUE (provider, provider_transaction_id)\n  )\n`);\n"
+  },
+  "provenance": {
+    "catalog": {
+      "path": "annotated-09-diamond-top-up-va-vip.mjs",
+      "sha256": "14613674bf4168e304a64d5de42eee89ecb4d66bbe207a648ba14d3482fae5dd"
+    },
+    "displayedCodeSha256": "51b5c4a85e6c91260fff193f51cd9fa55bc197175e6e41e55c5c26ff72b7013a"
+  }
+}

@@ -1,0 +1,455 @@
+{
+  "id": "19-mood-va-conversation-streak",
+  "title": "Mood và Conversation Streak",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#19-mood-va-conversation-streak",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/19-mood-va-conversation-streak.json",
+  "feature": {
+    "id": "19-mood-va-conversation-streak",
+    "title": "Mood và Conversation Streak",
+    "sources": [
+      "docs/services/mood-service.md",
+      "docs/services/streak-service.md"
+    ],
+    "core": [
+      "Mood: preset + set/clear events",
+      "Friend.Streak: activity UTC",
+      "Warning job + Notification"
+    ],
+    "rest": "REST: preset, mood, streak",
+    "dataLabel": "Mood events, Streak state",
+    "redisLabel": "Pub/Sub: friend.streak.*",
+    "realtime": true,
+    "external": null,
+    "archNotes": {
+      "important": "Mood là module riêng trong core-api; StreakService nằm trong Friend. PostgreSQL giữ mood events append-only và streak state; realtime thuộc nhánh streak, không phải một mood event bus riêng.",
+      "caution": "Mood active được xác định bằng event mới nhất và expiresAt. Streak cập nhật trong transaction riêng sau message; Redis không giữ ngày hoạt động hay bộ đếm nguồn sự thật."
+    },
+    "flow": [
+      {
+        "text": "Hai nhánh nghiệp vụ độc lập"
+      },
+      {
+        "branch": "Cập nhật Mood hay chat activity?",
+        "options": [
+          {
+            "label": "MOOD",
+            "text": "Chọn preset active / clear\nAppend event idempotent\nSet snapshot expiresAt",
+            "continues": true
+          },
+          {
+            "label": "STREAK",
+            "text": "Lưu Friend Message trước\nGhi activity sau đó\nLock streak row trong transaction riêng",
+            "continues": true
+          }
+        ]
+      },
+      {
+        "branch": "Nhánh nào cần đọc / tính tiếp?",
+        "options": [
+          {
+            "label": "MOOD READ",
+            "text": "Event mới nhất + TTL server\nẨn nếu clear / expired / block\nKhông cần job hết hạn",
+            "continues": false
+          },
+          {
+            "label": "STREAK ACTIVITY",
+            "text": "Ghi ngày UTC bên gửi\nĐợi đủ hai chiều trong cùng ngày",
+            "continues": true
+          }
+        ]
+      },
+      {
+        "text": "Đủ hai chiều và chưa confirm hôm nay\nGap 1: tăng; gap 2: grace cứu\nGap ≥3: reset current về 1"
+      },
+      {
+        "text": "Lưu current / longest / confirmedDate\nMỗi ngày chỉ tăng một lần"
+      },
+      {
+        "text": "Milestone: realtime + notification\nWarning job chỉ đánh dấu cảnh báo"
+      },
+      {
+        "text": "REST xác định display streak theo gap\nQuá grace: hiển thị current = 0"
+      }
+    ],
+    "flowNotes": {
+      "important": "Mood set lại cùng preset refresh TTL bằng event mới. Streak chỉ tăng khi cả hai đã nhắn trong ngày UTC; lỡ đúng một ngày được grace cứu, longest không giảm.",
+      "caution": "Streak lỗi không rollback message đã lưu; warning job không tăng/reset streak. Mood không được đưa vào card ẩn danh trước mutual-like; không có free-text mood hay thưởng Diamond trong flow này."
+    }
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Hai entry point độc lập: Mood hoặc chat activity",
+        "edge": ""
+      },
+      {
+        "actor": "Frontend",
+        "branch": "Mood hay Streak?",
+        "options": [
+          {
+            "label": "MOOD",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Set preset active hoặc clear",
+                "edge": "REST · Mood set/clear + key"
+              },
+              {
+                "actor": "core-api · Mood",
+                "text": "Validate preset; expiresAt snapshot; idempotency key",
+                "edge": "SQL · append MoodStatusEvent"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit set/clear event, không sửa log cũ",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · Mood → Safety",
+                "text": "Read latest event + TTL; block-filter lúc public read",
+                "edge": "REST result · active mood hoặc null"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Hiển thị mood được phép; không anonymous pre-match card",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          },
+          {
+            "label": "STREAK",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Gửi Friend message",
+                "edge": "REST · POST message"
+              },
+              {
+                "actor": "core-api · Friend",
+                "text": "Membership/block/idempotency; lưu message trước",
+                "edge": "SQL · Message commit"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Message durable; streak fail không rollback message",
+                "edge": "SQL result · trả core-api"
+              }
+            ],
+            "continues": true
+          }
+        ]
+      },
+      {
+        "actor": "core-api · Friend.Streak",
+        "text": "Transaction riêng lock row; ghi sender UTC date",
+        "edge": "SQL · ConversationStreak read/write"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Trả activity dates và lastConfirmedDate trong transaction",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Friend.Streak",
+        "text": "Hai chiều cùng ngày: gap1 tăng, gap2 grace, gap≥3 reset1; không tăng đôi",
+        "edge": "SQL · COMMIT current/longest/dates"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lưu streak counters; longest không giảm",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Friend",
+        "text": "Milestone publish increased nếu hit; WarningJob phát at_risk + Notification",
+        "edge": "Redis · Pub/Sub; optional push sau warning"
+      },
+      {
+        "actor": "Redis · Pub/Sub",
+        "text": "Chuyển streak envelope tới Gateway",
+        "edge": "Pub/Sub · PSUBSCRIBE"
+      },
+      {
+        "actor": "signaling-gateway",
+        "text": "Fanout event cho hai conversation members",
+        "edge": "WebSocket · streak event"
+      },
+      {
+        "actor": "Frontend",
+        "text": "REST đọc display streak; quá grace hiển thị current0",
+        "edge": ""
+      }
+    ],
+    "caution": "Milestone code hiện chỉ realtime, warning mới có in-app/push. Warning không tăng/reset streak; Mood preset-only không free-text hay AI, streak chưa thưởng Diamond.",
+    "sources": [
+      "docs/services/mood-service.md",
+      "apps/core-api/src/modules/friend/friend.service.ts",
+      "apps/core-api/src/modules/friend/jobs/streak-warning.job.ts"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "Mood",
+        "uses": "Preset-only status events",
+        "entities": [
+          "MoodPreset",
+          "MoodStatusEvent"
+        ],
+        "actions": [
+          "Append set/clear idempotent",
+          "Latest event + TTL quyết định active"
+        ]
+      },
+      {
+        "name": "Safety",
+        "uses": "Chặn block/report tại hành động",
+        "entities": [
+          "Block",
+          "Report"
+        ],
+        "actions": [
+          "canPair / isBlocked / hidden-set",
+          "Đọc log PostgreSQL hiện tại"
+        ]
+      },
+      {
+        "name": "Friend.Streak",
+        "uses": "Streak là sub-service Friend",
+        "entities": [
+          "Conversation",
+          "Message",
+          "ConversationStreak"
+        ],
+        "actions": [
+          "Activity UTC sau message trong transaction riêng",
+          "Hai chiều/ngày; gap grace; milestone realtime"
+        ]
+      },
+      {
+        "name": "Notification",
+        "uses": "In-app trước push; gọi qua DI",
+        "entities": [
+          "Notification",
+          "WebPushSubscription"
+        ],
+        "actions": [
+          "createWithManager hoặc create sau persist",
+          "sendPush best-effort sau commit"
+        ]
+      }
+    ],
+    "entities": [
+      "MoodPreset",
+      "MoodStatusEvent",
+      "ConversationStreak"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "rate limit",
+          "label": "HTTP throttle nếu THROTTLE_STORAGE=redis",
+          "direction": "both"
+        },
+        {
+          "role": "Pub/Sub",
+          "label": "friend.streak.increased / at_risk",
+          "direction": "write"
+        }
+      ],
+      "signaling": true,
+      "mediaCluster": false
+    },
+    "externals": [
+      {
+        "id": "push",
+        "lines": [
+          "FCM / APNs / Web Push",
+          "Notification push adapters"
+        ],
+        "request": "Push sau Notification commit",
+        "callback": "",
+        "direct": "Provider → device / Service Worker",
+        "direction": "to-client",
+        "redis": "",
+        "condition": "Provider + credentials; native token cần caller; Web Push opt-in"
+      }
+    ],
+    "operations": [
+      "StreakWarningJob: advisory singleton job + warning Notification/push",
+      "Warning chỉ ghi lastWarningSentAt, không tăng/reset streak",
+      "Mood và displayed streak hết hạn xác định khi đọc; không mood cron"
+    ],
+    "notes": "Mood không realtime/push riêng; các nhánh transport thuộc streak. Milestone hiện có realtime, code không tạo milestone Notification; warning có in-app/push. PostgreSQL giữ dates/counters; Redis không lưu streak nguồn sự thật.",
+    "sources": [
+      "apps/core-api/src/modules/mood/mood.module.ts",
+      "apps/core-api/src/modules/mood/mood.service.ts",
+      "apps/core-api/src/modules/friend/services/streak.service.ts",
+      "apps/core-api/src/modules/friend/friend.service.ts",
+      "apps/core-api/src/modules/friend/jobs/streak-warning.job.ts",
+      "apps/core-api/src/app/app.module.ts"
+    ],
+    "links": [
+      {
+        "from": "Mood",
+        "to": "Safety",
+        "label": "Block-filter mood khi đọc",
+        "condition": ""
+      },
+      {
+        "from": "Friend.Streak",
+        "to": "Notification",
+        "label": "Warning job → streak_at_risk",
+        "condition": "Không milestone notification hiện tại"
+      }
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "redis",
+        "label": "Redis"
+      },
+      {
+        "id": "gateway",
+        "label": "signaling-gateway"
+      },
+      {
+        "id": "push",
+        "label": "FCM / APNs / Web Push"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      },
+      {
+        "id": "core-redis",
+        "from": "core",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "Pub/Sub"
+      },
+      {
+        "id": "core-push",
+        "from": "core",
+        "to": "push",
+        "bidirectional": false,
+        "protocol": "push"
+      },
+      {
+        "id": "redis-gateway",
+        "from": "redis",
+        "to": "gateway",
+        "bidirectional": false,
+        "protocol": "realtime Pub/Sub"
+      },
+      {
+        "id": "gateway-redis",
+        "from": "gateway",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "presence · quota"
+      },
+      {
+        "id": "client-push",
+        "from": "push",
+        "to": "client",
+        "bidirectional": false,
+        "protocol": "push"
+      },
+      {
+        "id": "gateway-client",
+        "from": "gateway",
+        "to": "client",
+        "bidirectional": true,
+        "protocol": "Socket: realtime"
+      }
+    ]
+  },
+  "featureSequence": [
+    "1. Hai nhánh nghiệp vụ độc lập",
+    "2. Cập nhật Mood hay chat activity?",
+    "2.1. MOOD: Chọn preset active / clear\nAppend event idempotent\nSet snapshot expiresAt",
+    "2.2. STREAK: Lưu Friend Message trước\nGhi activity sau đó\nLock streak row trong transaction riêng",
+    "3. Nhánh nào cần đọc / tính tiếp?",
+    "3.1. MOOD READ [continues=false]: Event mới nhất + TTL server\nẨn nếu clear / expired / block\nKhông cần job hết hạn",
+    "3.2. STREAK ACTIVITY: Ghi ngày UTC bên gửi\nĐợi đủ hai chiều trong cùng ngày",
+    "4. Đủ hai chiều và chưa confirm hôm nay\nGap 1: tăng; gap 2: grace cứu\nGap ≥3: reset current về 1",
+    "5. Lưu current / longest / confirmedDate\nMỗi ngày chỉ tăng một lần",
+    "6. Milestone: realtime + notification\nWarning job chỉ đánh dấu cảnh báo",
+    "7. REST xác định display streak theo gap\nQuá grace: hiển thị current = 0"
+  ],
+  "layerSequence": [
+    "1. Frontend: Hai entry point độc lập: Mood hoặc chat activity",
+    "2. Frontend: Mood hay Streak?",
+    "2.1. MOOD [continues=false]",
+    "2.1.1. Frontend: Set preset active hoặc clear [REST · Mood set/clear + key]",
+    "2.1.2. core-api · Mood: Validate preset; expiresAt snapshot; idempotency key [SQL · append MoodStatusEvent]",
+    "2.1.3. PostgreSQL: Commit set/clear event, không sửa log cũ [SQL result · trả core-api]",
+    "2.1.4. core-api · Mood → Safety: Read latest event + TTL; block-filter lúc public read [REST result · active mood hoặc null]",
+    "2.1.5. Frontend: Hiển thị mood được phép; không anonymous pre-match card",
+    "2.2. STREAK",
+    "2.2.1. Frontend: Gửi Friend message [REST · POST message]",
+    "2.2.2. core-api · Friend: Membership/block/idempotency; lưu message trước [SQL · Message commit]",
+    "2.2.3. PostgreSQL: Message durable; streak fail không rollback message [SQL result · trả core-api]",
+    "3. core-api · Friend.Streak: Transaction riêng lock row; ghi sender UTC date [SQL · ConversationStreak read/write]",
+    "4. PostgreSQL: Trả activity dates và lastConfirmedDate trong transaction [SQL result · trả core-api]",
+    "5. core-api · Friend.Streak: Hai chiều cùng ngày: gap1 tăng, gap2 grace, gap≥3 reset1; không tăng đôi [SQL · COMMIT current/longest/dates]",
+    "6. PostgreSQL: Lưu streak counters; longest không giảm [SQL result · trả core-api]",
+    "7. core-api · Friend: Milestone publish increased nếu hit; WarningJob phát at_risk + Notification [Redis · Pub/Sub; optional push sau warning]",
+    "8. Redis · Pub/Sub: Chuyển streak envelope tới Gateway [Pub/Sub · PSUBSCRIBE]",
+    "9. signaling-gateway: Fanout event cho hai conversation members [WebSocket · streak event]",
+    "10. Frontend: REST đọc display streak; quá grace hiển thị current0"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

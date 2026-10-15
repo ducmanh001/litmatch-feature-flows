@@ -1,0 +1,219 @@
+{
+  "id": "24-analytics-consent",
+  "title": "Analytics và thông báo privacy",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#24-analytics-consent",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/24-analytics-consent.json",
+  "feature": {
+    "id": "24-analytics-consent",
+    "title": "Analytics và thông báo privacy",
+    "sources": [
+      "apps/web/src/instrumentation-client.ts",
+      "apps/web/src/shared/analytics/product-analytics.ts",
+      "apps/web/src/shared/analytics/product-analytics-components.tsx",
+      "apps/web/src/shared/analytics/web-vitals.tsx"
+    ],
+    "core": [],
+    "rest": "",
+    "dataLabel": "",
+    "redisLabel": "",
+    "realtime": false,
+    "external": {
+      "lines": [
+        "PostHog",
+        "Frontend telemetry"
+      ],
+      "control": "",
+      "direct": "Frontend → PostHog",
+      "kind": "provider"
+    },
+    "archNotes": {
+      "important": "Telemetry hiện được khởi tạo trực tiếp trong browser khi có PostHog config. Frontend gửi pageview/autocapture, identity và Core Web Vitals sample; flow này không đi qua core-api, PostgreSQL hoặc Redis.",
+      "caution": "Mục privacy hiện hiển thị switch luôn bật khi configured và không có handler đổi consent. Consent cookie/helper tồn tại nhưng startup không kiểm cookie đó; server AnalyticsPort không có domain call site hiện hành."
+    },
+    "flowNotes": {
+      "important": "instrumentation-client gọi initializeProductAnalytics; SDK opt_in_capturing sau init. Identity chỉ gửi userId/account_type, Web Vitals chỉ LCP/INP/CLS trong bucket sample 10%.",
+      "caution": "Không mô tả active consent gate: UI switch hiện static, helper accepted/declined chưa được wire vào UI/startup. Recording config maskAllInputs=false, sample 20%, minimum 3000ms; không claim privacy masking/production consent đã được xác minh."
+    },
+    "flow": []
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Browser khởi động instrumentation-client",
+        "edge": "in-browser · initializeProductAnalytics"
+      },
+      {
+        "actor": "Frontend",
+        "branch": "Có PostHog project token và host?",
+        "options": [
+          {
+            "label": "THIẾU CONFIG",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Không khởi tạo SDK và không gửi telemetry",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          },
+          {
+            "label": "ĐÃ CONFIG",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "posthog.init: autocapture/pageview bật; opt_in_capturing",
+                "edge": "SDK · HTTPS telemetry"
+              },
+              {
+                "actor": "PostHog",
+                "text": "Nhận telemetry browser qua host đã cấu hình",
+                "edge": "HTTP result · SDK"
+              }
+            ],
+            "continues": true
+          }
+        ]
+      },
+      {
+        "actor": "Frontend",
+        "text": "Providers có current user thì identify id + account_type",
+        "edge": "SDK · identify → PostHog"
+      },
+      {
+        "actor": "PostHog",
+        "text": "Nhận identified user events; không qua core-api",
+        "edge": "HTTP result · SDK"
+      },
+      {
+        "actor": "Frontend",
+        "text": "WebVitals nhận LCP / INP / CLS; hash metric id chọn bucket <10%",
+        "edge": "SDK · capture web_vital nếu được sample"
+      },
+      {
+        "actor": "PostHog",
+        "text": "Nhận web_vital sampled; ingestion production chưa được chứng minh",
+        "edge": "HTTP result · SDK"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Privacy UI hiển thị switch luôn enabled khi có config; không handler toggle",
+        "edge": "in-browser · static presentation"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Logout: Providers gọi posthog.reset nếu SDK loaded",
+        "edge": "SDK · reset identity"
+      }
+    ],
+    "caution": "Consent helper/cookie accepted/declined là code chưa wire vào active startup/UI; không có bước user accept trước init. Session recording: maskAllInputs=false, sample20%, min3000ms. Server AnalyticsPort chưa có domain call site.",
+    "sources": [
+      "apps/web/src/instrumentation-client.ts",
+      "apps/web/src/shared/analytics/product-analytics.ts",
+      "apps/web/src/shared/analytics/product-analytics-components.tsx",
+      "apps/web/src/app/providers.tsx"
+    ]
+  },
+  "dependencies": {
+    "frontendOnly": true,
+    "modules": [],
+    "entities": [],
+    "redis": {
+      "business": [],
+      "signaling": false,
+      "mediaCluster": false
+    },
+    "externals": [
+      {
+        "id": "analytics",
+        "lines": [
+          "PostHog",
+          "Browser product telemetry"
+        ],
+        "request": "",
+        "callback": "",
+        "direct": "Frontend → PostHog: pageview/autocapture/identity/RUM",
+        "direction": "to-provider",
+        "condition": "NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN + HOST; configured startup auto-opt-in",
+        "redis": ""
+      }
+    ],
+    "operations": [
+      "instrumentation-client khởi tạo SDK",
+      "Providers identify/reset current user; WebVitals sample 10%",
+      "Consent helper có code nhưng không UI/startup call site"
+    ],
+    "notes": "Configured frontend telemetry hoạt động độc lập core-api; PostHog server AnalyticsPort không có domain caller. UI privacy switch luôn bật, không chứng minh user đã consent.",
+    "sources": [
+      "apps/web/src/instrumentation-client.ts",
+      "apps/web/src/shared/analytics/product-analytics.ts",
+      "apps/web/src/shared/analytics/product-analytics-components.tsx",
+      "apps/web/src/shared/analytics/web-vitals.tsx",
+      "apps/web/src/app/providers.tsx",
+      "apps/core-api/src/modules/notification/notification.service.ts"
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Frontend · Web"
+      },
+      {
+        "id": "analytics",
+        "label": "PostHog"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-provider",
+        "from": "client",
+        "to": "analytics",
+        "bidirectional": false,
+        "protocol": "HTTPS · analytics"
+      }
+    ]
+  },
+  "featureSequence": [],
+  "layerSequence": [
+    "1. Frontend: Browser khởi động instrumentation-client [in-browser · initializeProductAnalytics]",
+    "2. Frontend: Có PostHog project token và host?",
+    "2.1. THIẾU CONFIG [continues=false]",
+    "2.1.1. Frontend: Không khởi tạo SDK và không gửi telemetry",
+    "2.2. ĐÃ CONFIG",
+    "2.2.1. Frontend: posthog.init: autocapture/pageview bật; opt_in_capturing [SDK · HTTPS telemetry]",
+    "2.2.2. PostHog: Nhận telemetry browser qua host đã cấu hình [HTTP result · SDK]",
+    "3. Frontend: Providers có current user thì identify id + account_type [SDK · identify → PostHog]",
+    "4. PostHog: Nhận identified user events; không qua core-api [HTTP result · SDK]",
+    "5. Frontend: WebVitals nhận LCP / INP / CLS; hash metric id chọn bucket <10% [SDK · capture web_vital nếu được sample]",
+    "6. PostHog: Nhận web_vital sampled; ingestion production chưa được chứng minh [HTTP result · SDK]",
+    "7. Frontend: Privacy UI hiển thị switch luôn enabled khi có config; không handler toggle [in-browser · static presentation]",
+    "8. Frontend: Logout: Providers gọi posthog.reset nếu SDK loaded [SDK · reset identity]"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

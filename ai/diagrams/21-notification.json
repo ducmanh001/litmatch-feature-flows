@@ -1,0 +1,420 @@
+{
+  "id": "21-notification",
+  "title": "Notification",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#21-notification",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/21-notification.json",
+  "feature": {
+    "id": "21-notification",
+    "title": "Notification",
+    "sources": [
+      "docs/services/notification-service.md",
+      "docs/services/friend-service.md"
+    ],
+    "core": [
+      "Notification: in-app rows",
+      "WebPushSubscription + push port",
+      "Modules gọi trực tiếp qua DI"
+    ],
+    "rest": "REST: list, unread, read, subscribe",
+    "dataLabel": "Notification, subscription",
+    "redisLabel": "",
+    "realtime": false,
+    "external": {
+      "lines": [
+        "FCM / APNs / Web Push",
+        "Tùy adapter + credential"
+      ],
+      "control": "Best-effort push sau commit",
+      "direct": "Provider → device / browser",
+      "direction": "to-client",
+      "kind": "provider"
+    },
+    "archNotes": {
+      "important": "Notification là module core-api, nhận trigger qua DI và lưu row in-app trong PostgreSQL. Khi có shared transaction, notification atomic cùng hành động gốc; Friend message dùng transaction riêng best-effort sau persist.",
+      "caution": "Flow này không dùng Outbox/Kafka hay Redis queue để tạo notification. Push provider là side effect sau commit; disabled adapter vẫn giữ in-app rows, lỗi push không rollback nghiệp vụ."
+    },
+    "flow": [
+      {
+        "text": "Module phát trigger hợp lệ\nMatch / message / gift / interaction"
+      },
+      {
+        "text": "Lọc recipient + policy\nSelf-interaction bỏ qua\nMute chặn friend_message notification"
+      },
+      {
+        "text": "Lưu Notification in-app\nDùng chung manager khi có transaction\nFriend message: transaction riêng"
+      },
+      {
+        "text": "Commit durable notification\nPayload tối thiểu theo loại event"
+      },
+      {
+        "branch": "Push adapter + endpoint sẵn sàng?",
+        "options": [
+          {
+            "label": "CÓ",
+            "text": "Gửi push best-effort sau commit\nProvider lỗi: log + bỏ qua",
+            "continues": true
+          },
+          {
+            "label": "DISABLED / THIẾU",
+            "text": "Bỏ external push\nIn-app row vẫn còn",
+            "continues": true
+          }
+        ]
+      },
+      {
+        "text": "Client GET list + unread-count\nREST phục hồi khi push không đến"
+      },
+      {
+        "text": "Owner đánh dấu read idempotent\nLưu readAt vào PostgreSQL"
+      }
+    ],
+    "flowNotes": {
+      "important": "In-app Notification được lưu trước push. Web Push subscription thuộc user; endpoint 404/410 được dọn, còn native token registration/rotation chưa có contract đầy đủ trong slice này.",
+      "caution": "match_confirmed không chứa partner identity; Soul messages không tạo notification. Push thất bại không chứng minh hành động gốc thất bại và không được làm rollback nó."
+    }
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "core-api · Domain producer",
+        "text": "Trigger hợp lệ: match/invite/message/gift/interaction/broadcast",
+        "edge": "in-process DI · NotificationService"
+      },
+      {
+        "actor": "core-api · Notification",
+        "text": "Recipient/payload; self-interaction bỏ qua; mute chặn friend_message",
+        "edge": "SQL · INSERT Notification"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Commit Notification in-app; shared manager atomic khi có transaction gốc",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Notification",
+        "text": "Sau commit: chọn adapter và kiểm tra điều kiện push",
+        "edge": "in-process · provider readiness"
+      },
+      {
+        "actor": "core-api · Notification",
+        "branch": "Provider/endpoint push có sẵn?",
+        "options": [
+          {
+            "label": "CONFIGURED",
+            "steps": [
+              {
+                "actor": "core-api · Notification",
+                "text": "Gọi adapter push với endpoint/token theo contract",
+                "edge": "HTTPS · push provider"
+              },
+              {
+                "actor": "FCM / APNs / Web Push",
+                "text": "Nhận send request; giao push nếu thành công",
+                "edge": "Provider result · core-api"
+              },
+              {
+                "actor": "core-api · Notification",
+                "text": "Push fail log/bỏ qua; Web Push 404/410 xoá subscription invalid",
+                "edge": "in-process · best-effort result"
+              }
+            ],
+            "continues": true
+          },
+          {
+            "label": "DISABLED / THIẾU",
+            "steps": [
+              {
+                "actor": "core-api · Notification",
+                "text": "Bỏ external push; giữ Notification in-app",
+                "edge": "in-process · continue"
+              }
+            ],
+            "continues": true
+          }
+        ]
+      },
+      {
+        "actor": "Frontend",
+        "text": "Mở in-app list hoặc badge",
+        "edge": "REST · notifications/unread-count"
+      },
+      {
+        "actor": "core-api · Notification",
+        "text": "Đọc rows của caller, cursor/unread",
+        "edge": "SQL · SELECT Notification"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Trả danh sách/count durable",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Notification",
+        "text": "Trả notification DTO",
+        "edge": "REST result"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Owner đánh dấu đã đọc",
+        "edge": "REST · notification read"
+      },
+      {
+        "actor": "core-api · Notification",
+        "text": "Owner guard; update readAt idempotent",
+        "edge": "SQL · UPDATE readAt"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lưu trạng thái read",
+        "edge": "SQL result · trả core-api"
+      }
+    ],
+    "caution": "Flow dùng DI, không Kafka consumer/Redis queue. Friend message notification tự transaction riêng best-effort sau message; match_confirmed không lộ partner identity. Native token registration chưa có full contract.",
+    "sources": [
+      "docs/services/notification-service.md",
+      "apps/core-api/src/modules/notification/notification.service.ts"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "Notification",
+        "uses": "In-app durable + push side effect",
+        "entities": [
+          "Notification",
+          "WebPushSubscription"
+        ],
+        "actions": [
+          "createWithManager / create qua DI",
+          "List/unread/read owner; push sau commit"
+        ]
+      },
+      {
+        "name": "Matching / Invite",
+        "uses": "Producer gọi Notification qua DI",
+        "entities": [
+          "MatchSession",
+          "MatchInvite"
+        ],
+        "actions": [
+          "Match confirmation / direct invite trigger"
+        ]
+      },
+      {
+        "name": "Friend",
+        "uses": "Producer message và streak warning",
+        "entities": [
+          "Message",
+          "ConversationMemberState",
+          "ConversationStreak"
+        ],
+        "actions": [
+          "FriendMessage sau persist, trừ người đang mute",
+          "StreakWarningJob tạo warning"
+        ]
+      },
+      {
+        "name": "Gift / Feed / Admin",
+        "uses": "Các producer có transaction",
+        "entities": [
+          "GiftEvent",
+          "Reaction",
+          "Comment",
+          "AdminAuditLog"
+        ],
+        "actions": [
+          "Gift/like/comment atomic với notification",
+          "Admin broadcast rows + audit"
+        ]
+      },
+      {
+        "name": "Platform",
+        "uses": "Global push/analytics ports",
+        "entities": [],
+        "actions": [
+          "FCM/APNs/WebPush adapters theo config",
+          "AnalyticsPort có sẵn; chưa có trigger gọi trackAnalytics"
+        ]
+      }
+    ],
+    "entities": [
+      "Notification",
+      "WebPushSubscription"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "rate limit",
+          "label": "HTTP throttle nếu THROTTLE_STORAGE=redis",
+          "direction": "both"
+        }
+      ],
+      "signaling": false,
+      "mediaCluster": false
+    },
+    "externals": [
+      {
+        "id": "push",
+        "lines": [
+          "FCM / APNs / Web Push",
+          "Notification push adapters"
+        ],
+        "request": "Push sau Notification commit",
+        "callback": "",
+        "direct": "Provider → device / Service Worker",
+        "direction": "to-client",
+        "redis": "",
+        "condition": "Provider + credentials; native token cần caller; Web Push opt-in"
+      }
+    ],
+    "operations": [
+      "Sau commit gửi native/web push best-effort",
+      "Web Push 404/410: xoá subscription invalid",
+      "Không Notification outbox/Kafka consumer/Redis queue",
+      "PostHog port có cấu hình nhưng chưa có domain call site"
+    ],
+    "notes": "Arrows producer → Notification là internal DI calls, không Notification gọi ngược producer. PostgreSQL giữ in-app rows/subscriptions; push tùy provider, native token phải được caller truyền. Không vẽ PostHog network trigger chưa có call site trong source.",
+    "sources": [
+      "apps/core-api/src/modules/notification/notification.module.ts",
+      "apps/core-api/src/modules/notification/notification.service.ts",
+      "apps/core-api/src/modules/notification/services/web-push-subscription.service.ts",
+      "apps/core-api/src/common/platform/platform.module.ts",
+      "apps/core-api/src/common/platform/web-push-notification.adapter.ts",
+      "apps/core-api/src/modules/matching/services/invite.service.ts",
+      "apps/core-api/src/modules/admin/admin.service.ts",
+      "apps/core-api/src/app/app.module.ts"
+    ],
+    "links": [
+      {
+        "from": "Matching / Invite",
+        "to": "Notification",
+        "label": "Match confirmation / direct invite",
+        "condition": ""
+      },
+      {
+        "from": "Friend",
+        "to": "Notification",
+        "label": "Unmuted message / streak warning",
+        "condition": ""
+      },
+      {
+        "from": "Gift / Feed / Admin",
+        "to": "Notification",
+        "label": "Gift/interaction/broadcast",
+        "condition": ""
+      },
+      {
+        "from": "Notification",
+        "to": "Platform",
+        "label": "sendPush sau commit; adapters theo config",
+        "condition": ""
+      }
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "push",
+        "label": "FCM / APNs / Web Push"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      },
+      {
+        "id": "core-push",
+        "from": "core",
+        "to": "push",
+        "bidirectional": false,
+        "protocol": "push"
+      },
+      {
+        "id": "client-push",
+        "from": "push",
+        "to": "client",
+        "bidirectional": false,
+        "protocol": "push"
+      }
+    ]
+  },
+  "featureSequence": [
+    "1. Module phát trigger hợp lệ\nMatch / message / gift / interaction",
+    "2. Lọc recipient + policy\nSelf-interaction bỏ qua\nMute chặn friend_message notification",
+    "3. Lưu Notification in-app\nDùng chung manager khi có transaction\nFriend message: transaction riêng",
+    "4. Commit durable notification\nPayload tối thiểu theo loại event",
+    "5. Push adapter + endpoint sẵn sàng?",
+    "5.1. CÓ: Gửi push best-effort sau commit\nProvider lỗi: log + bỏ qua",
+    "5.2. DISABLED / THIẾU: Bỏ external push\nIn-app row vẫn còn",
+    "6. Client GET list + unread-count\nREST phục hồi khi push không đến",
+    "7. Owner đánh dấu read idempotent\nLưu readAt vào PostgreSQL"
+  ],
+  "layerSequence": [
+    "1. core-api · Domain producer: Trigger hợp lệ: match/invite/message/gift/interaction/broadcast [in-process DI · NotificationService]",
+    "2. core-api · Notification: Recipient/payload; self-interaction bỏ qua; mute chặn friend_message [SQL · INSERT Notification]",
+    "3. PostgreSQL: Commit Notification in-app; shared manager atomic khi có transaction gốc [SQL result · trả core-api]",
+    "4. core-api · Notification: Sau commit: chọn adapter và kiểm tra điều kiện push [in-process · provider readiness]",
+    "5. core-api · Notification: Provider/endpoint push có sẵn?",
+    "5.1. CONFIGURED",
+    "5.1.1. core-api · Notification: Gọi adapter push với endpoint/token theo contract [HTTPS · push provider]",
+    "5.1.2. FCM / APNs / Web Push: Nhận send request; giao push nếu thành công [Provider result · core-api]",
+    "5.1.3. core-api · Notification: Push fail log/bỏ qua; Web Push 404/410 xoá subscription invalid [in-process · best-effort result]",
+    "5.2. DISABLED / THIẾU",
+    "5.2.1. core-api · Notification: Bỏ external push; giữ Notification in-app [in-process · continue]",
+    "6. Frontend: Mở in-app list hoặc badge [REST · notifications/unread-count]",
+    "7. core-api · Notification: Đọc rows của caller, cursor/unread [SQL · SELECT Notification]",
+    "8. PostgreSQL: Trả danh sách/count durable [SQL result · trả core-api]",
+    "9. core-api · Notification: Trả notification DTO [REST result]",
+    "10. Frontend: Owner đánh dấu đã đọc [REST · notification read]",
+    "11. core-api · Notification: Owner guard; update readAt idempotent [SQL · UPDATE readAt]",
+    "12. PostgreSQL: Lưu trạng thái read [SQL result · trả core-api]"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

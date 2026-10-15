@@ -1,0 +1,493 @@
+{
+  "id": "17-dang-ky-onboarding-va-guest",
+  "title": "Đăng ký, Onboarding và Guest",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#17-dang-ky-onboarding-va-guest",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/17-dang-ky-onboarding-va-guest.json",
+  "feature": {
+    "id": "17-dang-ky-onboarding-va-guest",
+    "title": "Đăng ký, Onboarding và Guest",
+    "sources": [
+      "apps/core-api/src/modules/auth/auth.controller.ts",
+      "apps/core-api/src/modules/auth/auth.service.ts",
+      "apps/core-api/src/modules/auth/controllers/auth-upgrade.controller.ts",
+      "apps/core-api/src/modules/user/user.controller.ts"
+    ],
+    "core": [
+      "Auth: OTP + social + guest",
+      "Refresh rotation + identity link",
+      "User: profile + privacy"
+    ],
+    "rest": "REST: login, refresh, upgrade, me",
+    "dataLabel": "User, Identity, RefreshToken",
+    "redisLabel": "",
+    "realtime": false,
+    "external": {
+      "lines": [
+        "OTP / identity providers",
+        "Google / Apple / Facebook"
+      ],
+      "control": "Server verify OTP / identity",
+      "direct": "Client → provider: sign-in",
+      "kind": "provider"
+    },
+    "archNotes": {
+      "important": "Auth/User là module core-api, lưu identity, profile và refresh session vào PostgreSQL. Provider identity phải verify server-side; guest cũng có User để các dữ liệu sau nâng cấp giữ nguyên userId.",
+      "caution": "Refresh token nằm trong cookie httpOnly; refresh/logout có CSRF guard và rotation phát hiện reuse. Provider availability theo runtime config, không tự suy từ nút login ở frontend."
+    },
+    "flow": [
+      {
+        "text": "Client đọc auth capabilities\nChọn phương thức đăng nhập"
+      },
+      {
+        "branch": "Phương thức nào?",
+        "options": [
+          {
+            "label": "GUEST",
+            "text": "Tìm / tạo guest bằng deviceId\nGiữ isGuest để hạn chế tính năng",
+            "continues": true
+          },
+          {
+            "label": "PHONE OTP",
+            "text": "Request OTP theo rate limit\nServer verify OTP\nTìm / tạo User + phone identity",
+            "continues": true
+          },
+          {
+            "label": "SOCIAL",
+            "text": "Provider sign-in ở client\nServer verify token Google/Apple/FB\nTìm / tạo User + identity",
+            "continues": true
+          }
+        ]
+      },
+      {
+        "text": "Cấp access token + refresh session\nĐặt cookie httpOnly + CSRF token"
+      },
+      {
+        "text": "Onboarding cập nhật GET/PATCH me\nServer validate profile + privacy"
+      },
+      {
+        "text": "Refresh rotate session\nReuse bị phát hiện; logout thu hồi"
+      },
+      {
+        "branch": "Guest yêu cầu upgrade?",
+        "options": [
+          {
+            "label": "IDENTITY CÒN TRỐNG",
+            "text": "Xác minh OTP / social identity\nGắn vào cùng User\nĐổi trạng thái guest; cấp session",
+            "continues": true
+          },
+          {
+            "label": "IDENTITY XUNG ĐỘT",
+            "text": "Từ chối identity conflict\nKhông auto-merge account\nGiữ dữ liệu user hiện tại",
+            "continues": false
+          },
+          {
+            "label": "KHÔNG UPGRADE",
+            "text": "Tiếp tục session hiện tại\nGiữ guest restrictions nếu còn guest",
+            "continues": true
+          }
+        ]
+      },
+      {
+        "text": "User tiếp tục bằng cùng userId\nBackend áp quyền theo account hiện tại"
+      }
+    ],
+    "flowNotes": {
+      "important": "Nâng cấp guest gắn identity vào chính User hiện tại, giữ quan hệ và dữ liệu. Identity unique ngăn cùng tài khoản provider được gắn cho hai User.",
+      "caution": "Token provider phải được xác minh tại server; không tin profile tự gửi ở client. Identity đã thuộc tài khoản khác không được auto-merge; giới hạn guest vẫn áp dụng ở endpoint nghiệp vụ."
+    }
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Đọc auth capabilities; chọn guest, OTP hoặc social",
+        "edge": ""
+      },
+      {
+        "actor": "Frontend",
+        "branch": "Phương thức đăng nhập?",
+        "options": [
+          {
+            "label": "GUEST",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Gửi deviceId cho guest login",
+                "edge": "REST · POST auth/guest"
+              },
+              {
+                "actor": "core-api · Auth → User",
+                "text": "Tìm/tạo guest và identity trong transaction",
+                "edge": "SQL · User + AuthIdentity"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit user/guest identity",
+                "edge": "SQL result · trả core-api"
+              }
+            ],
+            "continues": true
+          },
+          {
+            "label": "OTP",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Request OTP rồi submit mã trả về UI",
+                "edge": "REST · OTP request/verify"
+              },
+              {
+                "actor": "core-api · Auth.OTP",
+                "text": "DB count phone quota; hash/expiry; verify và consume conditional",
+                "edge": "SQL · PhoneOtp + identity/User"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit OTP consumed; tạo/tìm User identity",
+                "edge": "SQL result · trả core-api"
+              }
+            ],
+            "continues": true
+          },
+          {
+            "label": "SOCIAL",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Đăng nhập provider, gửi token cho Auth",
+                "edge": "Provider sign-in; REST · social token"
+              },
+              {
+                "actor": "core-api · Auth.SocialVerifier",
+                "text": "Google/Apple JWKS hoặc Facebook debug_token; verify issuer/audience",
+                "edge": "HTTP · identity verification"
+              },
+              {
+                "actor": "Google / Apple / Facebook",
+                "text": "Trả JWKS/verification HTTP result",
+                "edge": "HTTP result · core-api"
+              },
+              {
+                "actor": "core-api · Auth → User",
+                "text": "Tìm/tạo User cho verified provider uid",
+                "edge": "SQL · User/AuthIdentity"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit identity unique và User",
+                "edge": "SQL result · trả core-api"
+              }
+            ],
+            "continues": true
+          }
+        ]
+      },
+      {
+        "actor": "core-api · Auth",
+        "text": "Issue access JWT, rotating refresh session và CSRF token",
+        "edge": "SQL · persist RefreshToken"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lưu refresh session; guest còn có signed device proof",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Auth",
+        "text": "Đặt httpOnly refresh cookie; trả public access/session DTO",
+        "edge": "REST result"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Onboarding cập nhật profile chính mình",
+        "edge": "REST · PATCH /users/me"
+      },
+      {
+        "actor": "core-api · User",
+        "text": "Validate profile và ghi fields được phép",
+        "edge": "SQL · UPDATE User"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lưu profile gắn cùng userId",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · User",
+        "text": "Trả MyProfileDto sau cập nhật; Auth session/cookie đã cấp ở bước login",
+        "edge": "REST result · profile updated"
+      },
+      {
+        "actor": "Frontend",
+        "branch": "Guest muốn upgrade?",
+        "options": [
+          {
+            "label": "UPGRADE",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Verify OTP/social mới cho identity muốn gắn",
+                "edge": "REST · auth/upgrade"
+              },
+              {
+                "actor": "core-api · Auth",
+                "text": "Identity không thuộc user khác; link vào chính guest, revoke sessions cũ",
+                "edge": "SQL · upgrade transaction"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit cùng userId; isGuest=false, old guest identity/sessions revoked",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · Auth",
+                "text": "Cấp session mới; conflict thì không auto-merge",
+                "edge": "REST result"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Tiếp tục dữ liệu/wallet cùng userId",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          },
+          {
+            "label": "KHÔNG",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Tiếp tục session hiện tại; guest restrictions áp ở backend",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          }
+        ]
+      }
+    ],
+    "caution": "OTP hiện không gửi SMS, code được trả cho client. Refresh/logout có CSRF + rotation/reuse detection; identity thuộc account khác không auto-merge.",
+    "sources": [
+      "apps/core-api/src/modules/auth/auth.service.ts",
+      "apps/core-api/src/modules/auth/services/otp.service.ts",
+      "apps/core-api/src/modules/user/user.controller.ts"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "Auth",
+        "uses": "Guest, OTP, social, upgrade",
+        "entities": [
+          "AuthIdentity",
+          "PhoneOtp",
+          "RefreshToken"
+        ],
+        "actions": [
+          "Verify provider identity; DB unique identity",
+          "Refresh rotation/reuse; upgrade revoke old sessions"
+        ]
+      },
+      {
+        "name": "User",
+        "uses": "User/profile/privacy giữ userId",
+        "entities": [
+          "User",
+          "PrivacySetting"
+        ],
+        "actions": [
+          "Tìm/tạo User; PATCH me onboarding",
+          "Profile privacy trong PostgreSQL"
+        ]
+      }
+    ],
+    "entities": [
+      "User",
+      "PrivacySetting",
+      "AuthIdentity",
+      "PhoneOtp",
+      "RefreshToken"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "rate limit",
+          "label": "HTTP throttle nếu THROTTLE_STORAGE=redis",
+          "direction": "both"
+        }
+      ],
+      "signaling": false,
+      "mediaCluster": false
+    },
+    "externals": [
+      {
+        "id": "identity",
+        "lines": [
+          "Google / Apple / Facebook",
+          "OIDC JWT / opaque token"
+        ],
+        "request": "JWKS verify issuer/audience; Facebook debug_token",
+        "callback": "JWKS/Graph HTTP response; không backend OAuth webhook",
+        "direct": "Client ↔ identity provider: sign-in",
+        "direction": "both",
+        "redis": "",
+        "condition": "AUTH provider client/app credentials; guest/OTP không dùng provider này"
+      }
+    ],
+    "operations": [
+      "PhoneOtp quota theo DB count; attempts/consume conditional update",
+      "OTP hiện trả code cho client, không có SMS send",
+      "Guest upgrade giữ userId; identity conflict không merge",
+      "Refresh/logout dùng httpOnly cookie + CSRF guard"
+    ],
+    "notes": "Auth sessions/OTP/identity ở PostgreSQL; Redis chỉ HTTP/IP throttle chung nếu bật. OTP không có SMS provider trong implementation hiện tại; identity network branch chỉ social login/upgrade. Provider verification nhận token do client gửi qua REST.",
+    "sources": [
+      "apps/core-api/src/modules/auth/auth.module.ts",
+      "apps/core-api/src/modules/auth/auth.service.ts",
+      "apps/core-api/src/modules/auth/services/otp.service.ts",
+      "apps/core-api/src/modules/auth/services/social-verifier.ts",
+      "apps/core-api/src/modules/auth/repositories/typeorm-refresh-session.adapter.ts",
+      "apps/core-api/src/modules/user/user.controller.ts",
+      "apps/core-api/src/app/app.module.ts"
+    ],
+    "links": [
+      {
+        "from": "Auth",
+        "to": "User",
+        "label": "Tìm/tạo User và guest upgrade",
+        "condition": ""
+      }
+    ],
+    "entityRelations": [
+      {
+        "from": "AuthIdentity",
+        "to": "User",
+        "label": "userId; provider + providerUid unique"
+      }
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "identity",
+        "label": "Google / Apple / Facebook"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      },
+      {
+        "id": "core-identity",
+        "from": "core",
+        "to": "identity",
+        "bidirectional": true,
+        "protocol": "verify token (HTTP)"
+      },
+      {
+        "id": "client-identity",
+        "from": "client",
+        "to": "identity",
+        "bidirectional": true,
+        "protocol": "social sign-in"
+      }
+    ]
+  },
+  "featureSequence": [
+    "1. Client đọc auth capabilities\nChọn phương thức đăng nhập",
+    "2. Phương thức nào?",
+    "2.1. GUEST: Tìm / tạo guest bằng deviceId\nGiữ isGuest để hạn chế tính năng",
+    "2.2. PHONE OTP: Request OTP theo rate limit\nServer verify OTP\nTìm / tạo User + phone identity",
+    "2.3. SOCIAL: Provider sign-in ở client\nServer verify token Google/Apple/FB\nTìm / tạo User + identity",
+    "3. Cấp access token + refresh session\nĐặt cookie httpOnly + CSRF token",
+    "4. Onboarding cập nhật GET/PATCH me\nServer validate profile + privacy",
+    "5. Refresh rotate session\nReuse bị phát hiện; logout thu hồi",
+    "6. Guest yêu cầu upgrade?",
+    "6.1. IDENTITY CÒN TRỐNG: Xác minh OTP / social identity\nGắn vào cùng User\nĐổi trạng thái guest; cấp session",
+    "6.2. IDENTITY XUNG ĐỘT [continues=false]: Từ chối identity conflict\nKhông auto-merge account\nGiữ dữ liệu user hiện tại",
+    "6.3. KHÔNG UPGRADE: Tiếp tục session hiện tại\nGiữ guest restrictions nếu còn guest",
+    "7. User tiếp tục bằng cùng userId\nBackend áp quyền theo account hiện tại"
+  ],
+  "layerSequence": [
+    "1. Frontend: Đọc auth capabilities; chọn guest, OTP hoặc social",
+    "2. Frontend: Phương thức đăng nhập?",
+    "2.1. GUEST",
+    "2.1.1. Frontend: Gửi deviceId cho guest login [REST · POST auth/guest]",
+    "2.1.2. core-api · Auth → User: Tìm/tạo guest và identity trong transaction [SQL · User + AuthIdentity]",
+    "2.1.3. PostgreSQL: Commit user/guest identity [SQL result · trả core-api]",
+    "2.2. OTP",
+    "2.2.1. Frontend: Request OTP rồi submit mã trả về UI [REST · OTP request/verify]",
+    "2.2.2. core-api · Auth.OTP: DB count phone quota; hash/expiry; verify và consume conditional [SQL · PhoneOtp + identity/User]",
+    "2.2.3. PostgreSQL: Commit OTP consumed; tạo/tìm User identity [SQL result · trả core-api]",
+    "2.3. SOCIAL",
+    "2.3.1. Frontend: Đăng nhập provider, gửi token cho Auth [Provider sign-in; REST · social token]",
+    "2.3.2. core-api · Auth.SocialVerifier: Google/Apple JWKS hoặc Facebook debug_token; verify issuer/audience [HTTP · identity verification]",
+    "2.3.3. Google / Apple / Facebook: Trả JWKS/verification HTTP result [HTTP result · core-api]",
+    "2.3.4. core-api · Auth → User: Tìm/tạo User cho verified provider uid [SQL · User/AuthIdentity]",
+    "2.3.5. PostgreSQL: Commit identity unique và User [SQL result · trả core-api]",
+    "3. core-api · Auth: Issue access JWT, rotating refresh session và CSRF token [SQL · persist RefreshToken]",
+    "4. PostgreSQL: Lưu refresh session; guest còn có signed device proof [SQL result · trả core-api]",
+    "5. core-api · Auth: Đặt httpOnly refresh cookie; trả public access/session DTO [REST result]",
+    "6. Frontend: Onboarding cập nhật profile chính mình [REST · PATCH /users/me]",
+    "7. core-api · User: Validate profile và ghi fields được phép [SQL · UPDATE User]",
+    "8. PostgreSQL: Lưu profile gắn cùng userId [SQL result · trả core-api]",
+    "9. core-api · User: Trả MyProfileDto sau cập nhật; Auth session/cookie đã cấp ở bước login [REST result · profile updated]",
+    "10. Frontend: Guest muốn upgrade?",
+    "10.1. UPGRADE [continues=false]",
+    "10.1.1. Frontend: Verify OTP/social mới cho identity muốn gắn [REST · auth/upgrade]",
+    "10.1.2. core-api · Auth: Identity không thuộc user khác; link vào chính guest, revoke sessions cũ [SQL · upgrade transaction]",
+    "10.1.3. PostgreSQL: Commit cùng userId; isGuest=false, old guest identity/sessions revoked [SQL result · trả core-api]",
+    "10.1.4. core-api · Auth: Cấp session mới; conflict thì không auto-merge [REST result]",
+    "10.1.5. Frontend: Tiếp tục dữ liệu/wallet cùng userId",
+    "10.2. KHÔNG [continues=false]",
+    "10.2.1. Frontend: Tiếp tục session hiện tại; guest restrictions áp ở backend"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

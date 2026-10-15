@@ -1,0 +1,353 @@
+{
+  "id": "08-avatar-tuy-chinh",
+  "title": "Avatar tùy chỉnh",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#08-avatar-tuy-chinh",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/08-avatar-tuy-chinh.json",
+  "feature": {
+    "id": "08-avatar-tuy-chinh",
+    "title": "Avatar tùy chỉnh",
+    "sources": [
+      "docs/services/avatar-service.md",
+      "docs/services/economy-service.md"
+    ],
+    "core": [
+      "Avatar: catalog + ownership",
+      "Equip: config theo slot",
+      "Economy: spendDiamond"
+    ],
+    "rest": "REST: catalog, claim, buy, equip",
+    "dataLabel": "Asset, ownership, config",
+    "redisLabel": "",
+    "realtime": false,
+    "external": null,
+    "archNotes": {
+      "important": "Avatar module sở hữu catalog, UserAvatarItem và config năm slots trong PostgreSQL. Item trả phí gọi Economy qua DI; client chỉ ghép layer theo zIndex và không quyết định giá hay ownership.",
+      "caution": "Ledger append-only là nguồn sự thật của debit, Wallet là snapshot. Mua rồi ghi ownership là hai bước idempotent; trang bị phải kiểm tra asset active, đúng slot và thuộc user."
+    },
+    "flow": [
+      {
+        "text": "GET catalog active\nChọn layer theo slot"
+      },
+      {
+        "text": "Server đọc lại giá asset\nKhông nhận giá từ client"
+      },
+      {
+        "branch": "Giá Diamond bằng 0?",
+        "options": [
+          {
+            "label": "FREE CLAIM",
+            "text": "Ghi ownership idempotent\nKhông gọi Economy",
+            "continues": true
+          },
+          {
+            "label": "PAID BUY",
+            "text": "Economy spendDiamond theo key\nLock wallet + kiểm tra số dư\nGhi ledger double-entry",
+            "continues": true
+          }
+        ]
+      },
+      {
+        "text": "Ghi UserAvatarItem idempotent\nRetry sau crash không debit lần hai"
+      },
+      {
+        "text": "User yêu cầu equip slot\nCheck active + đúng slot + ownership"
+      },
+      {
+        "text": "Upsert UserAvatarConfig\nMỗi slot tối đa một asset"
+      },
+      {
+        "text": "REST trả layers theo zIndex\nClient dựng avatar để hiển thị"
+      }
+    ],
+    "flowNotes": {
+      "important": "Item free claim không chạm tiền; paid buy debit trước rồi ghi ownership. Retry cùng key hoàn tất bước còn thiếu mà không trừ lần hai nhờ Economy và unique ownership.",
+      "caution": "Không được equip item chưa sở hữu hoặc sai slot. User.avatarId cũ và config multi-layer là hai dữ liệu riêng; không có refund mua nhầm hay limited inventory trong slice này."
+    }
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Mở catalog active, chọn avatar layer",
+        "edge": "REST · catalog / claim / buy"
+      },
+      {
+        "actor": "core-api · Avatar",
+        "text": "Đọc giá active asset từ server",
+        "edge": ""
+      },
+      {
+        "actor": "core-api · Avatar",
+        "branch": "Item free hay paid?",
+        "options": [
+          {
+            "label": "FREE",
+            "steps": [
+              {
+                "actor": "core-api · Avatar",
+                "text": "Claim không gọi Economy",
+                "edge": "in-process · ghi ownership"
+              }
+            ],
+            "continues": true
+          },
+          {
+            "label": "PAID",
+            "steps": [
+              {
+                "actor": "core-api · Avatar → Economy",
+                "text": "spendDiamond theo client key và giá server",
+                "edge": "SQL · ledger debit + Wallet"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit double-entry, LedgerTransaction unique key và Wallet snapshot",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · Avatar",
+                "text": "Debit mới/replay thành công; tiếp tục ownership",
+                "edge": "in-process · ghi ownership"
+              }
+            ],
+            "continues": true
+          }
+        ]
+      },
+      {
+        "actor": "core-api · Avatar",
+        "text": "Insert ownership idempotent theo user + asset",
+        "edge": "SQL · INSERT UserAvatarItem ON CONFLICT"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lưu UserAvatarItem; retry không tạo ownership đôi",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Avatar",
+        "text": "Trả item thuộc sở hữu",
+        "edge": "REST result"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Chọn equip vào slot",
+        "edge": "REST · equip"
+      },
+      {
+        "actor": "core-api · Avatar",
+        "text": "Check active, đúng slot và ownership user",
+        "edge": "SQL · UPSERT UserAvatarConfig"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lưu một asset mỗi slot",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Avatar",
+        "text": "Resolve layers theo zIndex",
+        "edge": "REST result"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Ghép hình avatar theo config server",
+        "edge": ""
+      }
+    ],
+    "caution": "Paid debit và ownership là hai bước idempotent, không một transaction chung. Không equip asset chưa sở hữu; User.avatarId cũ vẫn riêng với multi-layer config.",
+    "sources": [
+      "docs/services/avatar-service.md",
+      "docs/services/economy-service.md"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "Avatar",
+        "uses": "Layer catalog + inventory + equip",
+        "entities": [
+          "AvatarAsset",
+          "UserAvatarItem",
+          "UserAvatarConfig"
+        ],
+        "actions": [
+          "Free claim / paid buy",
+          "Equip check active + slot + ownership"
+        ]
+      },
+      {
+        "name": "Economy",
+        "uses": "Diamond / PTS qua ledger writer",
+        "entities": [
+          "LedgerAccount",
+          "LedgerTransaction",
+          "LedgerEntry",
+          "Wallet",
+          "OutboxEvent"
+        ],
+        "actions": [
+          "Lock Wallet; DB-unique idempotencyKey",
+          "Double-entry append-only; snapshot + outbox"
+        ]
+      }
+    ],
+    "entities": [
+      "AvatarAsset",
+      "UserAvatarItem",
+      "UserAvatarConfig"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "rate limit",
+          "label": "HTTP throttle nếu THROTTLE_STORAGE=redis",
+          "direction": "both"
+        }
+      ],
+      "signaling": false,
+      "mediaCluster": false
+    },
+    "externals": [
+      {
+        "id": "broker",
+        "lines": [
+          "Kafka",
+          "Economy events + dead letter"
+        ],
+        "request": "OutboxRelay → litmatch.economy.events / DLQ",
+        "callback": "",
+        "direct": "",
+        "direction": "to-provider",
+        "redis": "",
+        "condition": "ECONOMY_OUTBOX_RELAY_ENABLED; chưa có domain consumer đăng ký"
+      }
+    ],
+    "operations": [
+      "Paid: Economy.spendDiamond idempotent → ownership idempotent",
+      "Economy outbox relay/reconciliation theo cấu hình",
+      "Không avatar job, không realtime producer"
+    ],
+    "notes": "Layer imageUrl là catalog data, không có upload provider call trong Avatar flow. PostgreSQL giữ ownership/config; Wallet là ledger snapshot. Kafka chỉ nhánh outbox Economy nếu relay bật, không phải Avatar event bus.",
+    "sources": [
+      "apps/core-api/src/modules/avatar/avatar.module.ts",
+      "apps/core-api/src/modules/avatar/avatar.service.ts",
+      "apps/core-api/src/modules/economy/services/ledger.service.ts",
+      "apps/core-api/src/modules/economy/jobs/outbox-relay.service.ts",
+      "apps/core-api/src/app/app.module.ts"
+    ],
+    "links": [
+      {
+        "from": "Avatar",
+        "to": "Economy",
+        "label": "spendDiamond theo idempotencyKey",
+        "condition": "Paid item"
+      }
+    ],
+    "entityRelations": [
+      {
+        "from": "UserAvatarItem",
+        "to": "AvatarAsset",
+        "label": "userId + avatarAssetId unique"
+      }
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "broker",
+        "label": "Kafka"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      },
+      {
+        "id": "core-broker",
+        "from": "core",
+        "to": "broker",
+        "bidirectional": false,
+        "protocol": "stream (tuỳ cấu hình)"
+      }
+    ]
+  },
+  "featureSequence": [
+    "1. GET catalog active\nChọn layer theo slot",
+    "2. Server đọc lại giá asset\nKhông nhận giá từ client",
+    "3. Giá Diamond bằng 0?",
+    "3.1. FREE CLAIM: Ghi ownership idempotent\nKhông gọi Economy",
+    "3.2. PAID BUY: Economy spendDiamond theo key\nLock wallet + kiểm tra số dư\nGhi ledger double-entry",
+    "4. Ghi UserAvatarItem idempotent\nRetry sau crash không debit lần hai",
+    "5. User yêu cầu equip slot\nCheck active + đúng slot + ownership",
+    "6. Upsert UserAvatarConfig\nMỗi slot tối đa một asset",
+    "7. REST trả layers theo zIndex\nClient dựng avatar để hiển thị"
+  ],
+  "layerSequence": [
+    "1. Frontend: Mở catalog active, chọn avatar layer [REST · catalog / claim / buy]",
+    "2. core-api · Avatar: Đọc giá active asset từ server",
+    "3. core-api · Avatar: Item free hay paid?",
+    "3.1. FREE",
+    "3.1.1. core-api · Avatar: Claim không gọi Economy [in-process · ghi ownership]",
+    "3.2. PAID",
+    "3.2.1. core-api · Avatar → Economy: spendDiamond theo client key và giá server [SQL · ledger debit + Wallet]",
+    "3.2.2. PostgreSQL: Commit double-entry, LedgerTransaction unique key và Wallet snapshot [SQL result · trả core-api]",
+    "3.2.3. core-api · Avatar: Debit mới/replay thành công; tiếp tục ownership [in-process · ghi ownership]",
+    "4. core-api · Avatar: Insert ownership idempotent theo user + asset [SQL · INSERT UserAvatarItem ON CONFLICT]",
+    "5. PostgreSQL: Lưu UserAvatarItem; retry không tạo ownership đôi [SQL result · trả core-api]",
+    "6. core-api · Avatar: Trả item thuộc sở hữu [REST result]",
+    "7. Frontend: Chọn equip vào slot [REST · equip]",
+    "8. core-api · Avatar: Check active, đúng slot và ownership user [SQL · UPSERT UserAvatarConfig]",
+    "9. PostgreSQL: Lưu một asset mỗi slot [SQL result · trả core-api]",
+    "10. core-api · Avatar: Resolve layers theo zIndex [REST result]",
+    "11. Frontend: Ghép hình avatar theo config server"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

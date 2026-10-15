@@ -1,0 +1,637 @@
+{
+  "id": "12-mini-game/01-post-submit-move",
+  "featureId": "12-mini-game",
+  "feature": "Mini Game",
+  "summary": "Hai người bạn chơi oẳn tù tì với nhau: tạo ván, mỗi bên nộp một nước đi, đủ hai nước thì có kết quả.",
+  "name": "Nộp nước đi oẳn tù tì",
+  "title": "Mỗi bên nộp đúng 1 nước đi; khi đủ 2 nước thì tính thắng/thua và báo kết quả cho cả hai.",
+  "method": "POST",
+  "route": "/api/v1/mini-game/sessions/:id/moves",
+  "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.ts",
+  "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/12-mini-game/01-post-submit-move.json",
+  "diagramUrl": "https://ducmanh001.github.io/litmatch-feature-flows/#12-mini-game",
+  "catalog": "annotated-12-mini-game.mjs",
+  "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]",
+  "roles": [
+    [
+      "CONTROLLER",
+      "Nhận nước đi của user, giao cho service, trả trạng thái ván theo góc nhìn của người nộp (chưa resolved thì không lộ move đối phương)."
+    ],
+    [
+      "SERVICE",
+      "Kiểm user thuộc ván, xác định cột move của người nộp, nộp bằng UPDATE có điều kiện, đủ 2 move thì tính người thắng; chỉ publish sau commit."
+    ],
+    [
+      "POSTGRES",
+      "UPDATE có điều kiện là chốt chặn duy nhất (move chưa nộp và ván còn chờ), đồng thời khóa dòng ván giữa 2 bên nộp cùng lúc; xóa dòng participant khi ván kết thúc."
+    ],
+    [
+      "REDIS",
+      "Pub/sub báo kết quả (kèm cả 2 move) cho 2 người; không có event trung gian khi mới 1 bên nộp."
+    ]
+  ],
+  "tables": [
+    [
+      "mini_game_sessions",
+      "ván của cặp user (low/high theo thứ tự canonical): low_move, high_move, status waiting_moves hoặc resolved, winner_user_id (null nếu hòa)."
+    ],
+    [
+      "mini_game_active_participants",
+      "bảng phụ chặn mỗi user chỉ có 1 ván đang chờ move; luồng này xóa 2 dòng khi ván resolved."
+    ]
+  ],
+  "redis": [
+    [
+      "realtime:user:{userId}",
+      "publish minigame.session.resolved (kèm lowMove, highMove, winnerUserId) cho từng người trong ván."
+    ]
+  ],
+  "related": [
+    [
+      "signaling-gateway",
+      "subscribe pub/sub và đẩy minigame.session.resolved xuống socket của 2 người."
+    ],
+    [
+      "MiniGameSessionDto",
+      "chỉ trả opponentMove khi ván đã resolved; trước đó chỉ có cờ opponentHasMoved (không chép DTO)."
+    ],
+    [
+      "GET /mini-game/sessions/:id",
+      "poll dự phòng khi realtime rớt (chưa chép)."
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "text": "Nhận request (user từ JWT, id ván từ URL, nước đi trong body)",
+      "line": 25,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html#L25",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/12-mini-game/01-post-submit-move.ts#L25"
+    },
+    {
+      "number": 2,
+      "text": "Kiểm tra user thuộc ván (không thì 404)",
+      "line": 44,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html#L44",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/12-mini-game/01-post-submit-move.ts#L44"
+    },
+    {
+      "number": 3,
+      "text": "Xác định cột move của người nộp (low hay high)",
+      "line": 48,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html#L48",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/12-mini-game/01-post-submit-move.ts#L48"
+    },
+    {
+      "number": 4,
+      "text": "Nộp move bằng UPDATE có điều kiện trong transaction (0 dòng: 409)",
+      "line": 56,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html#L56",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/12-mini-game/01-post-submit-move.ts#L56"
+    },
+    {
+      "number": 5,
+      "text": "Đọc lại ván: mới 1 bên nộp thì trả về, chưa resolve",
+      "line": 80,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html#L80",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/12-mini-game/01-post-submit-move.ts#L80"
+    },
+    {
+      "number": 6,
+      "text": "Đủ 2 move: tính người thắng",
+      "line": 91,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html#L91",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/12-mini-game/01-post-submit-move.ts#L91"
+    },
+    {
+      "number": 7,
+      "text": "Ghi kết quả ván và nhả slot participant của cả 2 người",
+      "line": 116,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html#L116",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/12-mini-game/01-post-submit-move.ts#L116"
+    },
+    {
+      "number": 8,
+      "text": "Sau commit, báo minigame.session.resolved qua Redis cho cả 2",
+      "line": 148,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html#L148",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/12-mini-game/01-post-submit-move.ts#L148"
+    },
+    {
+      "number": 9,
+      "text": "Controller trả ván theo góc nhìn của người nộp",
+      "line": 171,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html#L171",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/12-mini-game/01-post-submit-move.ts#L171"
+    }
+  ],
+  "declaredSteps": [
+    {
+      "at": "@Post('sessions/:id/moves')",
+      "text": "Nhận request (user từ JWT, id ván từ URL, nước đi trong body)"
+    },
+    {
+      "at": "const session = await this.getSessionForParticipant(userId, sessionId);",
+      "text": "Kiểm tra user thuộc ván (không thì 404)"
+    },
+    {
+      "at": "const moveColumn: MoveColumn =",
+      "text": "Xác định cột move của người nộp (low hay high)"
+    },
+    {
+      "at": "const updateResult = await manager",
+      "text": "Nộp move bằng UPDATE có điều kiện trong transaction (0 dòng: 409)"
+    },
+    {
+      "at": "const reloaded = await manager",
+      "text": "Đọc lại ván: mới 1 bên nộp thì trả về, chưa resolve"
+    },
+    {
+      "at": "const outcome = resolveWinner(reloaded.lowMove, reloaded.highMove);",
+      "text": "Đủ 2 move: tính người thắng"
+    },
+    {
+      "at": "await manager.update(",
+      "text": "Ghi kết quả ván và nhả slot participant của cả 2 người"
+    },
+    {
+      "at": "if (resolved) {",
+      "text": "Sau commit, báo minigame.session.resolved qua Redis cho cả 2"
+    },
+    {
+      "at": "return MiniGameSessionDto.from(",
+      "text": "Controller trả ván theo góc nhìn của người nộp"
+    }
+  ],
+  "whyComments": [
+    {
+      "at": "const session = await this.getSessionForParticipant(userId, sessionId);",
+      "text": [
+        "Gộp 404 cho \"không tồn tại\" và \"không phải thành viên ván\": không lộ ván của người khác."
+      ],
+      "src": "doc getSessionForParticipant mini-game.service.ts L308 + docs/services/mini-game-service.md mục 4 (IDOR)",
+      "file": "apps/core-api/src/modules/mini-game/mini-game.service.ts"
+    },
+    {
+      "at": "const updateResult = await manager",
+      "text": [
+        "[POSTGRES] Chốt chặn DUY NHẤT là UPDATE có điều kiện (move chưa nộp VÀ ván còn waiting_moves), không phải check-rồi-ghi. UPDATE cũng khóa dòng ván: 2 bên nộp cùng lúc bị xếp hàng, bên sau thấy đủ 2 move nên chỉ 1 bên resolve."
+      ],
+      "src": "doc submitMove mini-game.service.ts L136-139 + docs/services/mini-game-service.md mục 3; phần khóa dòng suy ra từ code (UPDATE + đọc lại trong cùng transaction)",
+      "file": "apps/core-api/src/modules/mini-game/mini-game.service.ts"
+    },
+    {
+      "at": "if (!updateResult.affected) {",
+      "text": [
+        "0 dòng bị ảnh hưởng = đã nộp rồi hoặc ván không còn chờ: trả 409, move đã nộp không đổi lại được."
+      ],
+      "src": "doc submitMove mini-game.service.ts L137-140",
+      "file": "apps/core-api/src/modules/mini-game/mini-game.service.ts"
+    },
+    {
+      "at": "if (!reloaded.lowMove || !reloaded.highMove) {",
+      "text": [
+        "Mới 1 bên nộp: KHÔNG resolve, KHÔNG publish gì, để không lộ trạng thái đối phương cho ai, kể cả người vừa nộp."
+      ],
+      "src": "doc submitMove mini-game.service.ts L140-142 + comment gốc L179",
+      "file": "apps/core-api/src/modules/mini-game/mini-game.service.ts"
+    },
+    {
+      "at": "const outcome = resolveWinner(reloaded.lowMove, reloaded.highMove);",
+      "text": [
+        "Luật thắng thua là hàm thuần tách riêng khỏi service, để thêm game thứ 2 không phải nhét if/else theo gameType vào service chung."
+      ],
+      "src": "doc resolveWinner mini-game.constants.ts L19-21",
+      "file": "apps/core-api/src/modules/mini-game/mini-game.service.ts"
+    },
+    {
+      "at": "await manager.update(",
+      "text": [
+        "Update theo id, không cần điều kiện status: dòng đã bị khóa từ câu UPDATE đầu transaction nên không ai chen vào được."
+      ],
+      "src": "suy ra từ code (UPDATE có điều kiện ở đầu cùng transaction giữ khóa dòng tới commit)",
+      "file": "apps/core-api/src/modules/mini-game/mini-game.service.ts"
+    },
+    {
+      "at": "await manager.delete(MiniGameActiveParticipant, { sessionId });",
+      "text": [
+        "Nhả slot \"mỗi user 1 ván đang chờ\" của cả 2 người, cùng transaction với việc đổi status."
+      ],
+      "src": "doc entity mini-game-active-participant.entity.ts L15-17",
+      "file": "apps/core-api/src/modules/mini-game/mini-game.service.ts"
+    },
+    {
+      "at": "if (resolved) {",
+      "text": [
+        "[REDIS] Chỉ publish khi đã resolve, SAU commit, kèm cả 2 move cho cả 2 người. Không có event \"1 bên đã nộp\" để bên kia không suy ra ai nộp trước."
+      ],
+      "src": "docs/services/mini-game-service.md mục 5 + doc submitMove mini-game.service.ts L140-142",
+      "file": "apps/core-api/src/modules/mini-game/mini-game.service.ts"
+    }
+  ],
+  "sources": [
+    "apps/core-api/src/modules/mini-game/mini-game.constants.ts",
+    "apps/core-api/src/modules/mini-game/mini-game.controller.ts",
+    "apps/core-api/src/modules/mini-game/mini-game.service.ts"
+  ],
+  "sourceContext": {
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/mini-game/mini-game.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('sessions/:id/moves')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/mini-game/mini-game.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async submitMove(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const session = await this.getSessionForParticipant(userId, sessionId);",
+            "text": [
+              "Gộp 404 cho \"không tồn tại\" và \"không phải thành viên ván\": không lộ ván của người khác."
+            ],
+            "src": "doc getSessionForParticipant mini-game.service.ts L308 + docs/services/mini-game-service.md mục 4 (IDOR)"
+          },
+          {
+            "at": "const updateResult = await manager",
+            "text": [
+              "[POSTGRES] Chốt chặn DUY NHẤT là UPDATE có điều kiện (move chưa nộp VÀ ván còn waiting_moves), không phải check-rồi-ghi. UPDATE cũng khóa dòng ván: 2 bên nộp cùng lúc bị xếp hàng, bên sau thấy đủ 2 move nên chỉ 1 bên resolve."
+            ],
+            "src": "doc submitMove mini-game.service.ts L136-139 + docs/services/mini-game-service.md mục 3; phần khóa dòng suy ra từ code (UPDATE + đọc lại trong cùng transaction)"
+          },
+          {
+            "at": "if (!updateResult.affected) {",
+            "text": [
+              "0 dòng bị ảnh hưởng = đã nộp rồi hoặc ván không còn chờ: trả 409, move đã nộp không đổi lại được."
+            ],
+            "src": "doc submitMove mini-game.service.ts L137-140"
+          },
+          {
+            "at": "if (!reloaded.lowMove || !reloaded.highMove) {",
+            "text": [
+              "Mới 1 bên nộp: KHÔNG resolve, KHÔNG publish gì, để không lộ trạng thái đối phương cho ai, kể cả người vừa nộp."
+            ],
+            "src": "doc submitMove mini-game.service.ts L140-142 + comment gốc L179"
+          },
+          {
+            "at": "const outcome = resolveWinner(reloaded.lowMove, reloaded.highMove);",
+            "text": [
+              "Luật thắng thua là hàm thuần tách riêng khỏi service, để thêm game thứ 2 không phải nhét if/else theo gameType vào service chung."
+            ],
+            "src": "doc resolveWinner mini-game.constants.ts L19-21"
+          },
+          {
+            "at": "await manager.update(",
+            "text": [
+              "Update theo id, không cần điều kiện status: dòng đã bị khóa từ câu UPDATE đầu transaction nên không ai chen vào được."
+            ],
+            "src": "suy ra từ code (UPDATE có điều kiện ở đầu cùng transaction giữ khóa dòng tới commit)"
+          },
+          {
+            "at": "await manager.delete(MiniGameActiveParticipant, { sessionId });",
+            "text": [
+              "Nhả slot \"mỗi user 1 ván đang chờ\" của cả 2 người, cùng transaction với việc đổi status."
+            ],
+            "src": "doc entity mini-game-active-participant.entity.ts L15-17"
+          },
+          {
+            "at": "if (resolved) {",
+            "text": [
+              "[REDIS] Chỉ publish khi đã resolve, SAU commit, kèm cả 2 move cho cả 2 người. Không có event \"1 bên đã nộp\" để bên kia không suy ra ai nộp trước."
+            ],
+            "src": "docs/services/mini-game-service.md mục 5 + doc submitMove mini-game.service.ts L140-142"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/mini-game/mini-game.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async getSessionForParticipant(",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/mini-game/mini-game.constants.ts",
+        "ranges": [
+          {
+            "at": "export function resolveWinner(",
+            "to": "^}"
+          }
+        ]
+      }
+    ],
+    "ranges": [
+      {
+        "file": "apps/core-api/src/modules/mini-game/mini-game.controller.ts",
+        "range": {
+          "at": "@Post('sessions/:id/moves')",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/mini-game/mini-game.service.ts",
+        "range": {
+          "at": "async submitMove(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/mini-game/mini-game.service.ts",
+        "range": {
+          "at": "private async getSessionForParticipant(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/mini-game/mini-game.constants.ts",
+        "range": {
+          "at": "export function resolveWinner(",
+          "to": "^}"
+        }
+      }
+    ],
+    "helpers": [],
+    "skip": [
+      "getSessionForParticipant"
+    ],
+    "attach": {},
+    "nested": true
+  },
+  "omittedContext": {
+    "note": "Curated source selection; unlisted call bodies, shared request infrastructure, DTOs and other context may be omitted. skip names stay unexpanded; helpers may be substituted; attach controls placement. Flattened scopes are not executable code.",
+    "skip": [
+      "getSessionForParticipant"
+    ],
+    "attach": {},
+    "helpers": []
+  },
+  "featureMetadata": {
+    "id": "12-mini-game",
+    "short": "Mini Game",
+    "title": "Mini Game",
+    "summary": "Hai người bạn chơi oẳn tù tì với nhau: tạo ván, mỗi bên nộp một nước đi, đủ hai nước thì có kết quả.",
+    "diagramAnchor": "12-mini-game"
+  },
+  "endpointCatalog": {
+    "n": "01",
+    "slug": "post-submit-move",
+    "method": "POST",
+    "short": "/mini-game/sessions/:id/moves",
+    "route": "/api/v1/mini-game/sessions/:id/moves",
+    "name": "Nộp nước đi oẳn tù tì",
+    "title": "Mỗi bên nộp đúng 1 nước đi; khi đủ 2 nước thì tính thắng/thua và báo kết quả cho cả hai.",
+    "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]",
+    "roles": [
+      [
+        "CONTROLLER",
+        "Nhận nước đi của user, giao cho service, trả trạng thái ván theo góc nhìn của người nộp (chưa resolved thì không lộ move đối phương)."
+      ],
+      [
+        "SERVICE",
+        "Kiểm user thuộc ván, xác định cột move của người nộp, nộp bằng UPDATE có điều kiện, đủ 2 move thì tính người thắng; chỉ publish sau commit."
+      ],
+      [
+        "POSTGRES",
+        "UPDATE có điều kiện là chốt chặn duy nhất (move chưa nộp và ván còn chờ), đồng thời khóa dòng ván giữa 2 bên nộp cùng lúc; xóa dòng participant khi ván kết thúc."
+      ],
+      [
+        "REDIS",
+        "Pub/sub báo kết quả (kèm cả 2 move) cho 2 người; không có event trung gian khi mới 1 bên nộp."
+      ]
+    ],
+    "tables": [
+      [
+        "mini_game_sessions",
+        "ván của cặp user (low/high theo thứ tự canonical): low_move, high_move, status waiting_moves hoặc resolved, winner_user_id (null nếu hòa)."
+      ],
+      [
+        "mini_game_active_participants",
+        "bảng phụ chặn mỗi user chỉ có 1 ván đang chờ move; luồng này xóa 2 dòng khi ván resolved."
+      ]
+    ],
+    "redis": [
+      [
+        "realtime:user:{userId}",
+        "publish minigame.session.resolved (kèm lowMove, highMove, winnerUserId) cho từng người trong ván."
+      ]
+    ],
+    "related": [
+      [
+        "signaling-gateway",
+        "subscribe pub/sub và đẩy minigame.session.resolved xuống socket của 2 người."
+      ],
+      [
+        "MiniGameSessionDto",
+        "chỉ trả opponentMove khi ván đã resolved; trước đó chỉ có cờ opponentHasMoved (không chép DTO)."
+      ],
+      [
+        "GET /mini-game/sessions/:id",
+        "poll dự phòng khi realtime rớt (chưa chép)."
+      ]
+    ],
+    "nested": true,
+    "skip": [
+      "getSessionForParticipant"
+    ],
+    "steps": [
+      {
+        "at": "@Post('sessions/:id/moves')",
+        "text": "Nhận request (user từ JWT, id ván từ URL, nước đi trong body)"
+      },
+      {
+        "at": "const session = await this.getSessionForParticipant(userId, sessionId);",
+        "text": "Kiểm tra user thuộc ván (không thì 404)"
+      },
+      {
+        "at": "const moveColumn: MoveColumn =",
+        "text": "Xác định cột move của người nộp (low hay high)"
+      },
+      {
+        "at": "const updateResult = await manager",
+        "text": "Nộp move bằng UPDATE có điều kiện trong transaction (0 dòng: 409)"
+      },
+      {
+        "at": "const reloaded = await manager",
+        "text": "Đọc lại ván: mới 1 bên nộp thì trả về, chưa resolve"
+      },
+      {
+        "at": "const outcome = resolveWinner(reloaded.lowMove, reloaded.highMove);",
+        "text": "Đủ 2 move: tính người thắng"
+      },
+      {
+        "at": "await manager.update(",
+        "text": "Ghi kết quả ván và nhả slot participant của cả 2 người"
+      },
+      {
+        "at": "if (resolved) {",
+        "text": "Sau commit, báo minigame.session.resolved qua Redis cho cả 2"
+      },
+      {
+        "at": "return MiniGameSessionDto.from(",
+        "text": "Controller trả ván theo góc nhìn của người nộp"
+      }
+    ],
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/mini-game/mini-game.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('sessions/:id/moves')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/mini-game/mini-game.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async submitMove(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const session = await this.getSessionForParticipant(userId, sessionId);",
+            "text": [
+              "Gộp 404 cho \"không tồn tại\" và \"không phải thành viên ván\": không lộ ván của người khác."
+            ],
+            "src": "doc getSessionForParticipant mini-game.service.ts L308 + docs/services/mini-game-service.md mục 4 (IDOR)"
+          },
+          {
+            "at": "const updateResult = await manager",
+            "text": [
+              "[POSTGRES] Chốt chặn DUY NHẤT là UPDATE có điều kiện (move chưa nộp VÀ ván còn waiting_moves), không phải check-rồi-ghi. UPDATE cũng khóa dòng ván: 2 bên nộp cùng lúc bị xếp hàng, bên sau thấy đủ 2 move nên chỉ 1 bên resolve."
+            ],
+            "src": "doc submitMove mini-game.service.ts L136-139 + docs/services/mini-game-service.md mục 3; phần khóa dòng suy ra từ code (UPDATE + đọc lại trong cùng transaction)"
+          },
+          {
+            "at": "if (!updateResult.affected) {",
+            "text": [
+              "0 dòng bị ảnh hưởng = đã nộp rồi hoặc ván không còn chờ: trả 409, move đã nộp không đổi lại được."
+            ],
+            "src": "doc submitMove mini-game.service.ts L137-140"
+          },
+          {
+            "at": "if (!reloaded.lowMove || !reloaded.highMove) {",
+            "text": [
+              "Mới 1 bên nộp: KHÔNG resolve, KHÔNG publish gì, để không lộ trạng thái đối phương cho ai, kể cả người vừa nộp."
+            ],
+            "src": "doc submitMove mini-game.service.ts L140-142 + comment gốc L179"
+          },
+          {
+            "at": "const outcome = resolveWinner(reloaded.lowMove, reloaded.highMove);",
+            "text": [
+              "Luật thắng thua là hàm thuần tách riêng khỏi service, để thêm game thứ 2 không phải nhét if/else theo gameType vào service chung."
+            ],
+            "src": "doc resolveWinner mini-game.constants.ts L19-21"
+          },
+          {
+            "at": "await manager.update(",
+            "text": [
+              "Update theo id, không cần điều kiện status: dòng đã bị khóa từ câu UPDATE đầu transaction nên không ai chen vào được."
+            ],
+            "src": "suy ra từ code (UPDATE có điều kiện ở đầu cùng transaction giữ khóa dòng tới commit)"
+          },
+          {
+            "at": "await manager.delete(MiniGameActiveParticipant, { sessionId });",
+            "text": [
+              "Nhả slot \"mỗi user 1 ván đang chờ\" của cả 2 người, cùng transaction với việc đổi status."
+            ],
+            "src": "doc entity mini-game-active-participant.entity.ts L15-17"
+          },
+          {
+            "at": "if (resolved) {",
+            "text": [
+              "[REDIS] Chỉ publish khi đã resolve, SAU commit, kèm cả 2 move cho cả 2 người. Không có event \"1 bên đã nộp\" để bên kia không suy ra ai nộp trước."
+            ],
+            "src": "docs/services/mini-game-service.md mục 5 + doc submitMove mini-game.service.ts L140-142"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/mini-game/mini-game.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async getSessionForParticipant(",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/mini-game/mini-game.constants.ts",
+        "ranges": [
+          {
+            "at": "export function resolveWinner(",
+            "to": "^}"
+          }
+        ]
+      }
+    ]
+  },
+  "sourceManifest": {
+    "verifiedCodeSha256": true,
+    "mode": "published-presentation",
+    "baselineCommit": "cb30743143bd8f6576b154db4b606380c365c674",
+    "sourceCommit": "d3cb28c",
+    "sources": [
+      "apps/core-api/src/modules/mini-game/mini-game.constants.ts",
+      "apps/core-api/src/modules/mini-game/mini-game.controller.ts",
+      "apps/core-api/src/modules/mini-game/mini-game.service.ts"
+    ],
+    "steps": [
+      "Step 1: Nhận request (user từ JWT, id ván từ URL, nước đi trong body)",
+      "Step 2: Kiểm tra user thuộc ván (không thì 404)",
+      "Step 3: Xác định cột move của người nộp (low hay high)",
+      "Step 4: Nộp move bằng UPDATE có điều kiện trong transaction (0 dòng: 409)",
+      "Step 5: Đọc lại ván: mới 1 bên nộp thì trả về, chưa resolve",
+      "Step 6: Đủ 2 move: tính người thắng",
+      "Step 7: Ghi kết quả ván và nhả slot participant của cả 2 người",
+      "Step 8: Sau commit, báo minigame.session.resolved qua Redis cho cả 2",
+      "Step 9: Controller trả ván theo góc nhìn của người nộp"
+    ],
+    "removedOverview": "// ════════════════════════════════════════════════════════════════════════════\n//  POST /api/v1/mini-game/sessions/:id/moves\n//  Mỗi bên nộp đúng 1 nước đi; khi đủ 2 nước thì tính thắng/thua và báo kết quả cho cả hai.\n// ════════════════════════════════════════════════════════════════════════════\n//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]\n//\n//  Vai trò từng tầng\n//    [CONTROLLER] Nhận nước đi của user, giao cho service, trả trạng thái ván theo góc\n//                 nhìn của người nộp (chưa resolved thì không lộ move đối phương).\n//    [SERVICE]    Kiểm user thuộc ván, xác định cột move của người nộp, nộp bằng UPDATE\n//                 có điều kiện, đủ 2 move thì tính người thắng; chỉ publish sau commit.\n//    [POSTGRES]   UPDATE có điều kiện là chốt chặn duy nhất (move chưa nộp và ván còn\n//                 chờ), đồng thời khóa dòng ván giữa 2 bên nộp cùng lúc; xóa dòng\n//                 participant khi ván kết thúc.\n//    [REDIS]      Pub/sub báo kết quả (kèm cả 2 move) cho 2 người; không có event trung\n//                 gian khi mới 1 bên nộp.\n//\n//  Bảng       mini_game_sessions — ván của cặp user (low/high theo thứ tự canonical):\n//               low_move, high_move, status waiting_moves hoặc resolved, winner_user_id\n//               (null nếu hòa).\n//             mini_game_active_participants — bảng phụ chặn mỗi user chỉ có 1 ván đang\n//               chờ move; luồng này xóa 2 dòng khi ván resolved.\n//  Redis      realtime:user:{userId} — publish minigame.session.resolved (kèm lowMove,\n//               highMove, winnerUserId) cho từng người trong ván.\n//  Liên quan  signaling-gateway — subscribe pub/sub và đẩy minigame.session.resolved\n//               xuống socket của 2 người.\n//             MiniGameSessionDto — chỉ trả opponentMove khi ván đã resolved; trước đó\n//               chỉ có cờ opponentHasMoved (không chép DTO).\n//             GET /mini-game/sessions/:id — poll dự phòng khi realtime rớt (chưa chép).\n//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi\n//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới\n//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //\n//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các\n//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số\n//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức\n//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong\n//             repo.\n",
+    "baselineBodySha256": "ec60f18db2962811b1faf39630ab2148ae4bdf4354a0e9c64327f6fa1b6d0f68",
+    "bodySha256": "ec60f18db2962811b1faf39630ab2148ae4bdf4354a0e9c64327f6fa1b6d0f68",
+    "rawSha256": "f7363d2ee809139527159f5512ac44953c75997f744a459261e0f3b08313550e",
+    "codeSha256": "f7363d2ee809139527159f5512ac44953c75997f744a459261e0f3b08313550e"
+  },
+  "code": {
+    "path": "code/12-mini-game/01-post-submit-move.ts",
+    "sha256": "f7363d2ee809139527159f5512ac44953c75997f744a459261e0f3b08313550e",
+    "hashAlgorithm": "sha256",
+    "content": "//  POST /api/v1/mini-game/sessions/:id/moves\n//  Mỗi bên nộp đúng 1 nước đi; khi đủ 2 nước thì tính thắng/thua và báo kết quả cho cả hai.\n//  Step 1: Nhận request (user từ JWT, id ván từ URL, nước đi trong body)\n//  Step 2: Kiểm tra user thuộc ván (không thì 404)\n//  Step 3: Xác định cột move của người nộp (low hay high)\n//  Step 4: Nộp move bằng UPDATE có điều kiện trong transaction (0 dòng: 409)\n//  Step 5: Đọc lại ván: mới 1 bên nộp thì trả về, chưa resolve\n//  Step 6: Đủ 2 move: tính người thắng\n//  Step 7: Ghi kết quả ván và nhả slot participant của cả 2 người\n//  Step 8: Sau commit, báo minigame.session.resolved qua Redis cho cả 2\n//  Step 9: Controller trả ván theo góc nhìn của người nộp\n\n// [CONTROLLER] MiniGameController.submitMove  ·  mini-game.controller.ts L30–31, L53–71\n@Controller('mini-game')\nexport class MiniGameController {\n  // MiniGameService\n  private readonly logger = new Logger(MiniGameService.name);\n  constructor(\n    private readonly miniGameService: MiniGameService,\n    // MiniGameService\n    @InjectDataSource() private readonly dataSource: DataSource,\n    @Inject(MINI_GAME_REDIS) private readonly redis: Redis,\n  ) {}\n\n  // Step 1: Nhận request (user từ JWT, id ván từ URL, nước đi trong body)\n  @Post('sessions/:id/moves')\n  @HttpCode(HttpStatus.OK)\n  async submitMove(\n    @CurrentUser() user: AuthenticatedUser,\n    @Param('id', ParseUUIDPipe) id: string,\n    @Body() dto: SubmitMiniGameMoveDto,\n  ): Promise<MiniGameSessionDto> {\n    const session = await this.miniGameService.submitMove(\n      user.userId,\n      id,\n      dto.move,\n    );\n\n    // [SERVICE] MiniGameService.submitMove  ·  mini-game.service.ts L144–238\n    const userId = user.userId;\n    const sessionId = id;\n    const move = dto.move;\n\n    // Step 2: Kiểm tra user thuộc ván (không thì 404)\n    // Gộp 404 cho \"không tồn tại\" và \"không phải thành viên ván\": không lộ ván của người khác.\n    const session = await this.getSessionForParticipant(userId, sessionId);\n\n    // Step 3: Xác định cột move của người nộp (low hay high)\n    const moveColumn: MoveColumn =\n      session.userLowId === userId ? 'lowMove' : 'highMove';\n    const moveColumnSql = moveColumn === 'lowMove' ? 'low_move' : 'high_move';\n\n    const { session: updatedSession, resolved } =\n      await this.dataSource.transaction(async (manager) => {\n\n        // Step 4: Nộp move bằng UPDATE có điều kiện trong transaction (0 dòng: 409)\n        // [POSTGRES] Chốt chặn DUY NHẤT là UPDATE có điều kiện (move chưa nộp VÀ ván còn\n        // waiting_moves), không phải check-rồi-ghi. UPDATE cũng khóa dòng ván: 2 bên nộp cùng lúc\n        // bị xếp hàng, bên sau thấy đủ 2 move nên chỉ 1 bên resolve.\n        const updateResult = await manager\n          .createQueryBuilder()\n          .update(MiniGameSession)\n          .set({ [moveColumn]: move } as Partial<MiniGameSession>)\n          .where(`id = :id AND ${moveColumnSql} IS NULL AND status = :status`, {\n            id: sessionId,\n            status: MiniGameSessionStatus.WaitingMoves,\n          })\n          .execute();\n\n        // 0 dòng bị ảnh hưởng = đã nộp rồi hoặc ván không còn chờ: trả 409, move đã nộp không đổi\n        // lại được.\n        if (!updateResult.affected) {\n          throw new DomainException(\n            MiniGameErrors.MOVE_ALREADY_SUBMITTED,\n            'Move đã được nộp hoặc ván không còn chờ move',\n            HttpStatus.CONFLICT,\n          );\n        }\n\n        // Step 5: Đọc lại ván: mới 1 bên nộp thì trả về, chưa resolve\n        const reloaded = await manager\n          .getRepository(MiniGameSession)\n          .findOneByOrFail({ id: sessionId });\n\n        // Mới 1 bên nộp: KHÔNG resolve, KHÔNG publish gì, để không lộ trạng thái đối phương cho\n        // ai, kể cả người vừa nộp.\n        if (!reloaded.lowMove || !reloaded.highMove) {\n          return { session: reloaded, resolved: null };\n        }\n\n        // Step 6: Đủ 2 move: tính người thắng\n        // Luật thắng thua là hàm thuần tách riêng khỏi service, để thêm game thứ 2 không phải\n        // nhét if/else theo gameType vào service chung.\n        const outcome = resolveWinner(reloaded.lowMove, reloaded.highMove);\n\n        // [SERVICE] resolveWinner  ·  mini-game.constants.ts L23–35\n        const lowMove = reloaded.lowMove;\n        const highMove = reloaded.highMove;\n        if (lowMove === highMove) return 'draw';\n\n        const beats: Record<RockPaperScissorsMove, RockPaperScissorsMove> = {\n          [RockPaperScissorsMove.Rock]: RockPaperScissorsMove.Scissors,\n          [RockPaperScissorsMove.Scissors]: RockPaperScissorsMove.Paper,\n          [RockPaperScissorsMove.Paper]: RockPaperScissorsMove.Rock,\n        };\n        return beats[lowMove] === highMove ? 'low' : 'high';\n\n        const winnerUserId =\n          outcome === 'draw'\n            ? null\n            : outcome === 'low'\n              ? reloaded.userLowId\n              : reloaded.userHighId;\n        const resolvedAt = new Date();\n\n        // Step 7: Ghi kết quả ván và nhả slot participant của cả 2 người\n        // Update theo id, không cần điều kiện status: dòng đã bị khóa từ câu UPDATE đầu\n        // transaction nên không ai chen vào được.\n        await manager.update(\n          MiniGameSession,\n          { id: sessionId },\n          {\n            status: MiniGameSessionStatus.Resolved,\n            winnerUserId,\n            resolvedAt,\n          },\n        );\n        // Nhả slot \"mỗi user 1 ván đang chờ\" của cả 2 người, cùng transaction với việc đổi\n        // status.\n        await manager.delete(MiniGameActiveParticipant, { sessionId });\n\n        const resolvedSession: MiniGameSession = {\n          ...reloaded,\n          status: MiniGameSessionStatus.Resolved,\n          winnerUserId,\n          resolvedAt,\n        };\n        return {\n          session: resolvedSession,\n          resolved: {\n            lowMove: reloaded.lowMove,\n            highMove: reloaded.highMove,\n            winnerUserId,\n          },\n        };\n      });\n\n    // Step 8: Sau commit, báo minigame.session.resolved qua Redis cho cả 2\n    // [REDIS] Chỉ publish khi đã resolve, SAU commit, kèm cả 2 move cho cả 2 người. Không có\n    // event \"1 bên đã nộp\" để bên kia không suy ra ai nộp trước.\n    if (resolved) {\n      const publishData: MiniGameSessionResolvedEventData = {\n        sessionId,\n        lowMove: resolved.lowMove,\n        highMove: resolved.highMove,\n        winnerUserId: resolved.winnerUserId,\n      };\n      const envelope: RealtimeEnvelope<MiniGameSessionResolvedEventData> = {\n        event: RealtimeEvents.MiniGameSessionResolved,\n        data: publishData,\n      };\n      await Promise.all(\n        [session.userLowId, session.userHighId].map((uid) =>\n          publishRealtimeEvent(this.redis, this.logger, uid, envelope),\n        ),\n      );\n    }\n\n    return updatedSession;\n\n    // Step 9: Controller trả ván theo góc nhìn của người nộp\n    return MiniGameSessionDto.from(session, user.userId);\n  }\n}\n"
+  },
+  "provenance": {
+    "catalog": {
+      "path": "annotated-12-mini-game.mjs",
+      "sha256": "9bae4bc58792dee90e5cb246339e91caa9a0e1eecf2a4c3de603c77d39c897cb"
+    },
+    "displayedCodeSha256": "f7363d2ee809139527159f5512ac44953c75997f744a459261e0f3b08313550e"
+  }
+}

@@ -1,0 +1,437 @@
+{
+  "id": "01-matching-engine",
+  "title": "Matching Engine",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#01-matching-engine",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/01-matching-engine.json",
+  "feature": {
+    "id": "01-matching-engine",
+    "title": "Matching Engine",
+    "sources": [
+      "docs/services/matching-service.md",
+      "docs/services/realtime-gateway.md"
+    ],
+    "core": [
+      "Matching: ticket + matcher",
+      "User / Safety / Economy",
+      "Notification qua DI"
+    ],
+    "rest": "REST: tickets, current, cancel",
+    "dataLabel": "MatchTicket, MatchSession",
+    "redisLabel": "Sorted Set + shard index + bus",
+    "realtime": true,
+    "external": null,
+    "archNotes": {
+      "important": "Matching là module trong core-api. PostgreSQL giữ ticket, quota và session; Redis Sorted Set giữ hàng đợi cùng shard index, Pub/Sub vận chuyển event sau commit.",
+      "caution": "Matcher phải kiểm tra lại ticket, user status, gender preference hai chiều và Safety trong transaction. Một user không được có nhiều ticket active; Redis không thay PostgreSQL làm nguồn state."
+    },
+    "flowNotes": {
+      "important": "Flow mới tạo hai tickets confirmed và MatchSession confirmed atomically; không yêu cầu bước confirm client mới. Notification in-app được ghi cùng transaction, push best-effort sau commit.",
+      "caution": "Quota guest dùng HMAC user/device/IP và quota registered theo ngày UTC ở PostgreSQL. Cancel/expire không hoàn lượt; Pub/Sub mất event thì client đọc lại qua REST."
+    },
+    "flow": []
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Người dùng chọn Soul / Voice và nhấn Match",
+        "edge": "REST · POST /matching/tickets"
+      },
+      {
+        "actor": "core-api · Matching",
+        "text": "Kiểm tra quyền, quota, active ticket, idempotency và preference",
+        "edge": "SQL · INSERT ticket + quota"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lưu MatchTicket queued và quota atomically; paid extra có ledger cùng transaction",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Matching",
+        "text": "Chọn shard từ matchType, region, ageBand và ticket score",
+        "edge": "Redis · ZADD + SADD"
+      },
+      {
+        "actor": "Redis · Sorted Set",
+        "text": "Enqueue ticket; active shard index được cập nhật",
+        "edge": "Redis result · enqueue xong"
+      },
+      {
+        "actor": "core-api · Matching",
+        "text": "Đánh thức MatcherWorker sau enqueue",
+        "edge": "in-process · wakeup"
+      },
+      {
+        "actor": "core-api · MatcherWorker",
+        "text": "Quét active shards và lấy hai ticket ưu tiên",
+        "edge": "Redis · ZPOPMIN key 2"
+      },
+      {
+        "actor": "Redis · Sorted Set",
+        "text": "Pop hai ticketId có score thấp nhất atomically",
+        "edge": "Redis result · ticketId"
+      },
+      {
+        "actor": "core-api · Matching",
+        "text": "Mở transaction để verify hai tickets",
+        "edge": "SQL · SELECT FOR UPDATE"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lock tickets theo thứ tự ổn định; trả ticket và user state hiện tại",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Matching",
+        "branch": "Hai ticket hợp lệ và có thể ghép?",
+        "options": [
+          {
+            "label": "CÓ",
+            "steps": [
+              {
+                "actor": "core-api · Matching",
+                "text": "Re-check preference hai chiều + Safety; yêu cầu ghi confirmed",
+                "edge": "SQL · session/tickets/notification + COMMIT"
+              }
+            ],
+            "continues": true
+          },
+          {
+            "label": "KHÔNG",
+            "steps": [
+              {
+                "actor": "core-api · Matching",
+                "text": "Expire ticket stale; giữ ticket hợp lệ để requeue",
+                "edge": "SQL · transition + COMMIT"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit ticket transitions, không tạo session",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · Matching",
+                "text": "Enqueue lại candidate hợp lệ bằng score gốc",
+                "edge": "Redis · ZADD"
+              },
+              {
+                "actor": "Redis · Sorted Set",
+                "text": "Ticket hợp lệ tiếp tục chờ, không mất lượt chờ",
+                "edge": "Redis result · requeue"
+              }
+            ],
+            "continues": false
+          }
+        ]
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Commit MatchSession + hai tickets confirmed + Notification trong cùng transaction",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Matching",
+        "text": "Sau commit: publish match.confirmed; push tùy adapter",
+        "edge": "Redis · PUBLISH"
+      },
+      {
+        "actor": "Redis · Pub/Sub",
+        "text": "Chuyển match.confirmed trên per-user channels",
+        "edge": "Pub/Sub · PSUBSCRIBE"
+      },
+      {
+        "actor": "signaling-gateway",
+        "text": "Fanout envelope tới room user của hai clients",
+        "edge": "WebSocket · match.confirmed"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Nhận event; REST refetch rồi mở Soul / Calling",
+        "edge": ""
+      }
+    ],
+    "sources": [
+      "docs/services/matching-service.md",
+      "docs/services/realtime-gateway.md"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "Matching",
+        "uses": "Ticket/queue/matcher",
+        "entities": [
+          "MatchTicket",
+          "MatchSession",
+          "MatchDailyQuota",
+          "GuestMatchQuota"
+        ],
+        "actions": [
+          "Join/cancel; lock ticket; tryPair"
+        ]
+      },
+      {
+        "name": "User",
+        "uses": "Profile/status mới nhất",
+        "entities": [
+          "User"
+        ],
+        "actions": [
+          "Read current user gender/status"
+        ]
+      },
+      {
+        "name": "Safety",
+        "uses": "Pair guard",
+        "entities": [
+          "Block",
+          "Report"
+        ],
+        "actions": [
+          "canPair lúc ghép"
+        ]
+      },
+      {
+        "name": "Economy",
+        "uses": "Paid extra match khi hết quota",
+        "entities": [
+          "LedgerAccount",
+          "LedgerTransaction",
+          "LedgerEntry",
+          "Wallet",
+          "OutboxEvent"
+        ],
+        "actions": [
+          "Debit trong ticket transaction khi useDiamond"
+        ]
+      },
+      {
+        "name": "Notification",
+        "uses": "Match notification",
+        "entities": [
+          "Notification",
+          "WebPushSubscription"
+        ],
+        "actions": [
+          "createWithManager + push sau commit"
+        ]
+      }
+    ],
+    "entities": [
+      "MatchTicket",
+      "MatchSession",
+      "MatchDailyQuota",
+      "GuestMatchQuota"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "queue",
+          "label": "Sorted Set matching:queue shards",
+          "direction": "both"
+        },
+        {
+          "role": "index",
+          "label": "matching:shards:active",
+          "direction": "both"
+        },
+        {
+          "role": "Pub/Sub",
+          "label": "match.confirmed",
+          "direction": "write"
+        }
+      ],
+      "signaling": true,
+      "mediaCluster": false
+    },
+    "externals": [
+      {
+        "id": "push",
+        "lines": [
+          "FCM / APNs / Web Push",
+          "Notification sau commit"
+        ],
+        "request": "Gửi push best-effort sau commit",
+        "callback": "",
+        "direct": "Provider → device/browser",
+        "direction": "to-client",
+        "condition": "Provider credentials + endpoint/token theo contract",
+        "redis": ""
+      },
+      {
+        "id": "broker",
+        "lines": [
+          "Kafka",
+          "Economy outbox"
+        ],
+        "request": "Outbox relay publish economy events",
+        "callback": "",
+        "direct": "",
+        "direction": "to-provider",
+        "condition": "ECONOMY_OUTBOX_RELAY_ENABLED; chưa có domain consumer đăng ký",
+        "redis": ""
+      }
+    ],
+    "operations": [
+      "MatcherWorker wakeup + backstop interval",
+      "TicketSweeper queued expiry + legacy pending cleanup",
+      "Economy outbox/reconciliation chỉ nhánh paid extra match"
+    ],
+    "notes": "Matching chính dùng Redis queue; quota là PostgreSQL. Push là notification sau commit; Kafka chỉ Economy outbox nhánh mua thêm lượt. Không có fourth backend.",
+    "sources": [
+      "apps/core-api/src/modules/matching/matching.module.ts",
+      "apps/core-api/src/modules/matching/jobs/matcher-worker.service.ts",
+      "apps/core-api/src/modules/matching/jobs/ticket-sweeper.service.ts",
+      "apps/core-api/src/modules/matching/matching.service.ts"
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "redis",
+        "label": "Redis"
+      },
+      {
+        "id": "gateway",
+        "label": "signaling-gateway"
+      },
+      {
+        "id": "push",
+        "label": "FCM / APNs / Web Push"
+      },
+      {
+        "id": "broker",
+        "label": "Kafka"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      },
+      {
+        "id": "core-redis",
+        "from": "core",
+        "to": "redis",
+        "bidirectional": true,
+        "protocol": "queue · index · Pub/Sub"
+      },
+      {
+        "id": "core-push",
+        "from": "core",
+        "to": "push",
+        "bidirectional": false,
+        "protocol": "push"
+      },
+      {
+        "id": "core-broker",
+        "from": "core",
+        "to": "broker",
+        "bidirectional": false,
+        "protocol": "stream (tuỳ cấu hình)"
+      },
+      {
+        "id": "redis-gateway",
+        "from": "redis",
+        "to": "gateway",
+        "bidirectional": false,
+        "protocol": "realtime Pub/Sub"
+      },
+      {
+        "id": "gateway-redis",
+        "from": "gateway",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "presence · quota"
+      },
+      {
+        "id": "client-push",
+        "from": "push",
+        "to": "client",
+        "bidirectional": false,
+        "protocol": "push"
+      },
+      {
+        "id": "gateway-client",
+        "from": "gateway",
+        "to": "client",
+        "bidirectional": true,
+        "protocol": "Socket: realtime"
+      }
+    ]
+  },
+  "featureSequence": [],
+  "layerSequence": [
+    "1. Frontend: Người dùng chọn Soul / Voice và nhấn Match [REST · POST /matching/tickets]",
+    "2. core-api · Matching: Kiểm tra quyền, quota, active ticket, idempotency và preference [SQL · INSERT ticket + quota]",
+    "3. PostgreSQL: Lưu MatchTicket queued và quota atomically; paid extra có ledger cùng transaction [SQL result · trả core-api]",
+    "4. core-api · Matching: Chọn shard từ matchType, region, ageBand và ticket score [Redis · ZADD + SADD]",
+    "5. Redis · Sorted Set: Enqueue ticket; active shard index được cập nhật [Redis result · enqueue xong]",
+    "6. core-api · Matching: Đánh thức MatcherWorker sau enqueue [in-process · wakeup]",
+    "7. core-api · MatcherWorker: Quét active shards và lấy hai ticket ưu tiên [Redis · ZPOPMIN key 2]",
+    "8. Redis · Sorted Set: Pop hai ticketId có score thấp nhất atomically [Redis result · ticketId]",
+    "9. core-api · Matching: Mở transaction để verify hai tickets [SQL · SELECT FOR UPDATE]",
+    "10. PostgreSQL: Lock tickets theo thứ tự ổn định; trả ticket và user state hiện tại [SQL result · trả core-api]",
+    "11. core-api · Matching: Hai ticket hợp lệ và có thể ghép?",
+    "11.1. CÓ",
+    "11.1.1. core-api · Matching: Re-check preference hai chiều + Safety; yêu cầu ghi confirmed [SQL · session/tickets/notification + COMMIT]",
+    "11.2. KHÔNG [continues=false]",
+    "11.2.1. core-api · Matching: Expire ticket stale; giữ ticket hợp lệ để requeue [SQL · transition + COMMIT]",
+    "11.2.2. PostgreSQL: Commit ticket transitions, không tạo session [SQL result · trả core-api]",
+    "11.2.3. core-api · Matching: Enqueue lại candidate hợp lệ bằng score gốc [Redis · ZADD]",
+    "11.2.4. Redis · Sorted Set: Ticket hợp lệ tiếp tục chờ, không mất lượt chờ [Redis result · requeue]",
+    "12. PostgreSQL: Commit MatchSession + hai tickets confirmed + Notification trong cùng transaction [SQL result · trả core-api]",
+    "13. core-api · Matching: Sau commit: publish match.confirmed; push tùy adapter [Redis · PUBLISH]",
+    "14. Redis · Pub/Sub: Chuyển match.confirmed trên per-user channels [Pub/Sub · PSUBSCRIBE]",
+    "15. signaling-gateway: Fanout envelope tới room user của hai clients [WebSocket · match.confirmed]",
+    "16. Frontend: Nhận event; REST refetch rồi mở Soul / Calling"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

@@ -1,0 +1,589 @@
+{
+  "id": "03-voice-match/04-post-like-call",
+  "featureId": "03-voice-match",
+  "feature": "Voice Match",
+  "summary": "Ghép hai người để nói chuyện bằng giọng nói: vào hàng đợi, ghép cặp, rồi vào cuộc gọi LiveKit.",
+  "name": "Thích đối phương sau Voice Match",
+  "title": "Ghi lượt thích bất biến; khi cả 2 cùng thích thì tạo bạn bè và phòng chat trong cùng transaction.",
+  "method": "POST",
+  "route": "/api/v1/calling/calls/:id/like",
+  "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.ts",
+  "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.html",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/03-voice-match/04-post-like-call.json",
+  "diagramUrl": "https://ducmanh001.github.io/litmatch-feature-flows/#03-voice-match",
+  "catalog": "annotated-voice-match.mjs",
+  "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES]",
+  "roles": [
+    [
+      "CONTROLLER",
+      "Nhận yêu cầu thích đối phương; chỉ lấy id call từ URL, người dùng lấy từ JWT."
+    ],
+    [
+      "SERVICE",
+      "Kiểm tra user thuộc call, chỉ cho thích khi call đang active hoặc đã ended, ghi lượt thích bất biến, và khi cả 2 đã thích thì tạo quan hệ bạn."
+    ],
+    [
+      "POSTGRES",
+      "Khóa dòng CallSession để 2 lượt thích chạy tuần tự; unique (call_id, rater_user_id) chống bấm đôi; Friendship và Conversation ghi cùng transaction."
+    ]
+  ],
+  "tables": [
+    [
+      "call_sessions",
+      "dòng bị khóa FOR UPDATE để tuần tự hóa 2 lượt thích; dùng kiểm user thuộc call và trạng thái call."
+    ],
+    [
+      "voice_match_reactions",
+      "1 dòng cho mỗi người đã thích trong mỗi call, không sửa được; unique (call_id, rater_user_id)."
+    ],
+    [
+      "friendships",
+      "quan hệ bạn bè của cặp (1 dòng theo cặp canonical), chỉ tạo khi cả 2 đã thích."
+    ],
+    [
+      "conversations",
+      "phòng chat bền vững của cặp, tạo cùng lúc với Friendship."
+    ]
+  ],
+  "redis": [],
+  "related": [
+    [
+      "Friend",
+      "ensureFriendship: tạo Friendship và Conversation bằng INSERT ... ON CONFLICT DO NOTHING trên cặp canonical, chạy trong transaction của Calling."
+    ],
+    [
+      "Calling (đối soát LiveKit)",
+      "getCall hỏi LiveKit ai đang trong phòng để cập nhật trạng thái call khi webhook bị mất (chưa chép)."
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "text": "Nhận yêu cầu thích (id call từ URL, user từ JWT)",
+      "line": 22,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.html#L22",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/04-post-like-call.ts#L22"
+    },
+    {
+      "number": 2,
+      "text": "Kiểm user thuộc call (không phải thành viên thì 404)",
+      "line": 34,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.html#L34",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/04-post-like-call.ts#L34"
+    },
+    {
+      "number": 3,
+      "text": "Mở transaction DB, khóa dòng CallSession để 2 lượt thích chạy tuần tự",
+      "line": 40,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.html#L40",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/04-post-like-call.ts#L40"
+    },
+    {
+      "number": 4,
+      "text": "Chỉ cho thích khi call đang active hoặc đã ended",
+      "line": 59,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.html#L59",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/04-post-like-call.ts#L59"
+    },
+    {
+      "number": 5,
+      "text": "Ghi lượt thích bất biến của mình (bấm lại không ghi thêm)",
+      "line": 76,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.html#L76",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/04-post-like-call.ts#L76"
+    },
+    {
+      "number": 6,
+      "text": "Cả 2 đã thích thì tạo Friendship và Conversation, cùng transaction",
+      "line": 96,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.html#L96",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/04-post-like-call.ts#L96"
+    },
+    {
+      "number": 7,
+      "text": "Trả { liked, matched, friendUserId } về controller",
+      "line": 112,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.html#L112",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/04-post-like-call.ts#L112"
+    },
+    {
+      "number": 8,
+      "text": "Dính unique: coi như đã thích, đọc lại trạng thái bạn bè",
+      "line": 121,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.html#L121",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/04-post-like-call.ts#L121"
+    }
+  ],
+  "declaredSteps": [
+    {
+      "at": "@Post('calls/:id/like')",
+      "text": "Nhận yêu cầu thích (id call từ URL, user từ JWT)"
+    },
+    {
+      "at": "await this.getCall(user, callId);",
+      "text": "Kiểm user thuộc call (không phải thành viên thì 404)"
+    },
+    {
+      "at": "return await this.dataSource.transaction(async (manager) => {",
+      "text": "Mở transaction DB, khóa dòng CallSession để 2 lượt thích chạy tuần tự"
+    },
+    {
+      "at": "if (",
+      "in": "CallingService.likeCall",
+      "nth": 1,
+      "text": "Chỉ cho thích khi call đang active hoặc đã ended"
+    },
+    {
+      "at": "const existing = await manager.findOneBy(VoiceMatchReaction, {",
+      "text": "Ghi lượt thích bất biến của mình (bấm lại không ghi thêm)"
+    },
+    {
+      "at": "if (partnerLiked) {",
+      "text": "Cả 2 đã thích thì tạo Friendship và Conversation, cùng transaction"
+    },
+    {
+      "at": "return {",
+      "in": "CallingService.likeCall",
+      "text": "Trả { liked, matched, friendUserId } về controller"
+    },
+    {
+      "at": "if (!isUniqueViolation(err)) throw err;",
+      "text": "Dính unique: coi như đã thích, đọc lại trạng thái bạn bè"
+    }
+  ],
+  "whyComments": [
+    {
+      "at": "await this.getCall(user, callId);",
+      "text": [
+        "Không phải thành viên thì trả 404 giống như \"không tồn tại\", để không ai dò được callId của người khác."
+      ],
+      "src": "doc gốc calling.service.ts L264 (getCall: gộp 404, chống oracle; comment gốc của hàm được gọi ở dòng này)",
+      "file": "apps/core-api/src/modules/calling/calling.service.ts"
+    },
+    {
+      "at": "lock: { mode: 'pessimistic_write' },",
+      "text": [
+        "[POSTGRES] Khóa dòng CallSession FOR UPDATE: lượt thích của 2 người chạy tuần tự. Không khóa thì mỗi người đều thấy \"bên kia chưa thích\" và không ai tạo Friendship."
+      ],
+      "src": "doc gốc calling.service.ts L345-349 + lập luận READ COMMITTED cùng cơ chế với soul-match-service.md mục 3",
+      "file": "apps/core-api/src/modules/calling/calling.service.ts"
+    },
+    {
+      "at": "if (",
+      "nth": 1,
+      "text": [
+        "Cho thích cả khi call đang active, không bắt user phải end mới bấm tim được. Call pending chưa có cuộc nói chuyện thật nên bị chặn."
+      ],
+      "src": "comment gốc calling.service.ts L371-373",
+      "file": "apps/core-api/src/modules/calling/calling.service.ts"
+    },
+    {
+      "at": "const existing = await manager.findOneBy(VoiceMatchReaction, {",
+      "text": [
+        "Lượt thích bất biến: bấm lại không ghi thêm dòng. Unique (call_id, rater_user_id) ở DB là chốt chặn cuối cho double tap và retry."
+      ],
+      "src": "comment gốc calling.service.ts L371-373 + voice-match-reaction.entity.ts L9",
+      "file": "apps/core-api/src/modules/calling/calling.service.ts"
+    },
+    {
+      "at": "if (partnerLiked) {",
+      "text": [
+        "[POSTGRES] Chỉ khi cả 2 đã thích mới tạo Friendship và Conversation, ngay trong transaction đã khóa. ensureFriendship dùng ON CONFLICT DO NOTHING nên gọi lại không tạo đôi, và không có Friendship thiếu Conversation."
+      ],
+      "src": "doc gốc calling.service.ts L345-349 + doc friend.service.ts L97-103",
+      "file": "apps/core-api/src/modules/calling/calling.service.ts"
+    },
+    {
+      "at": "if (!isUniqueViolation(err)) throw err;",
+      "text": [
+        "Nếu unique vẫn bị đụng (chốt chặn cuối) thì coi như lượt thích đã được ghi: đọc lại trạng thái bạn bè rồi trả như bình thường, không báo lỗi."
+      ],
+      "src": "suy ra từ code: nhánh catch đọc lại areFriends rồi trả liked: true",
+      "file": "apps/core-api/src/modules/calling/calling.service.ts"
+    }
+  ],
+  "sources": [
+    "apps/core-api/src/database/migrations/1756000000000-voice-match-completion.ts",
+    "apps/core-api/src/modules/calling/calling.controller.ts",
+    "apps/core-api/src/modules/calling/calling.service.ts"
+  ],
+  "sourceContext": {
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/calling/calling.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('calls/:id/like')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/calling/calling.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async getCall(",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/calling/calling.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async likeCall(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "await this.getCall(user, callId);",
+            "text": [
+              "Không phải thành viên thì trả 404 giống như \"không tồn tại\", để không ai dò được callId của người khác."
+            ],
+            "src": "doc gốc calling.service.ts L264 (getCall: gộp 404, chống oracle; comment gốc của hàm được gọi ở dòng này)"
+          },
+          {
+            "at": "lock: { mode: 'pessimistic_write' },",
+            "text": [
+              "[POSTGRES] Khóa dòng CallSession FOR UPDATE: lượt thích của 2 người chạy tuần tự. Không khóa thì mỗi người đều thấy \"bên kia chưa thích\" và không ai tạo Friendship."
+            ],
+            "src": "doc gốc calling.service.ts L345-349 + lập luận READ COMMITTED cùng cơ chế với soul-match-service.md mục 3"
+          },
+          {
+            "at": "if (",
+            "nth": 1,
+            "text": [
+              "Cho thích cả khi call đang active, không bắt user phải end mới bấm tim được. Call pending chưa có cuộc nói chuyện thật nên bị chặn."
+            ],
+            "src": "comment gốc calling.service.ts L371-373"
+          },
+          {
+            "at": "const existing = await manager.findOneBy(VoiceMatchReaction, {",
+            "text": [
+              "Lượt thích bất biến: bấm lại không ghi thêm dòng. Unique (call_id, rater_user_id) ở DB là chốt chặn cuối cho double tap và retry."
+            ],
+            "src": "comment gốc calling.service.ts L371-373 + voice-match-reaction.entity.ts L9"
+          },
+          {
+            "at": "if (partnerLiked) {",
+            "text": [
+              "[POSTGRES] Chỉ khi cả 2 đã thích mới tạo Friendship và Conversation, ngay trong transaction đã khóa. ensureFriendship dùng ON CONFLICT DO NOTHING nên gọi lại không tạo đôi, và không có Friendship thiếu Conversation."
+            ],
+            "src": "doc gốc calling.service.ts L345-349 + doc friend.service.ts L97-103"
+          },
+          {
+            "at": "if (!isUniqueViolation(err)) throw err;",
+            "text": [
+              "Nếu unique vẫn bị đụng (chốt chặn cuối) thì coi như lượt thích đã được ghi: đọc lại trạng thái bạn bè rồi trả như bình thường, không báo lỗi."
+            ],
+            "src": "suy ra từ code: nhánh catch đọc lại areFriends rồi trả liked: true"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1756000000000-voice-match-completion.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE voice_match_reactions (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      }
+    ],
+    "ranges": [
+      {
+        "file": "apps/core-api/src/modules/calling/calling.controller.ts",
+        "range": {
+          "at": "@Post('calls/:id/like')",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/calling/calling.service.ts",
+        "range": {
+          "at": "async getCall(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/calling/calling.service.ts",
+        "range": {
+          "at": "async likeCall(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/database/migrations/1756000000000-voice-match-completion.ts",
+        "range": {
+          "at": "CREATE TABLE voice_match_reactions (",
+          "to": "^    `\\);$",
+          "pad": [
+            1,
+            0
+          ]
+        }
+      }
+    ],
+    "helpers": [],
+    "skip": [
+      "getCall"
+    ],
+    "attach": {},
+    "nested": true
+  },
+  "omittedContext": {
+    "note": "Curated source selection; unlisted call bodies, shared request infrastructure, DTOs and other context may be omitted. skip names stay unexpanded; helpers may be substituted; attach controls placement. Flattened scopes are not executable code.",
+    "skip": [
+      "getCall"
+    ],
+    "attach": {},
+    "helpers": []
+  },
+  "featureMetadata": {
+    "id": "03-voice-match",
+    "short": "Voice Match",
+    "title": "Voice Match",
+    "summary": "Ghép hai người để nói chuyện bằng giọng nói: vào hàng đợi, ghép cặp, rồi vào cuộc gọi LiveKit.",
+    "diagramAnchor": "03-voice-match"
+  },
+  "endpointCatalog": {
+    "n": "04",
+    "slug": "post-like-call",
+    "method": "POST",
+    "short": "/calling/calls/:id/like",
+    "route": "/api/v1/calling/calls/:id/like",
+    "name": "Thích đối phương sau Voice Match",
+    "title": "Ghi lượt thích bất biến; khi cả 2 cùng thích thì tạo bạn bè và phòng chat trong cùng transaction.",
+    "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES]",
+    "roles": [
+      [
+        "CONTROLLER",
+        "Nhận yêu cầu thích đối phương; chỉ lấy id call từ URL, người dùng lấy từ JWT."
+      ],
+      [
+        "SERVICE",
+        "Kiểm tra user thuộc call, chỉ cho thích khi call đang active hoặc đã ended, ghi lượt thích bất biến, và khi cả 2 đã thích thì tạo quan hệ bạn."
+      ],
+      [
+        "POSTGRES",
+        "Khóa dòng CallSession để 2 lượt thích chạy tuần tự; unique (call_id, rater_user_id) chống bấm đôi; Friendship và Conversation ghi cùng transaction."
+      ]
+    ],
+    "tables": [
+      [
+        "call_sessions",
+        "dòng bị khóa FOR UPDATE để tuần tự hóa 2 lượt thích; dùng kiểm user thuộc call và trạng thái call."
+      ],
+      [
+        "voice_match_reactions",
+        "1 dòng cho mỗi người đã thích trong mỗi call, không sửa được; unique (call_id, rater_user_id)."
+      ],
+      [
+        "friendships",
+        "quan hệ bạn bè của cặp (1 dòng theo cặp canonical), chỉ tạo khi cả 2 đã thích."
+      ],
+      [
+        "conversations",
+        "phòng chat bền vững của cặp, tạo cùng lúc với Friendship."
+      ]
+    ],
+    "related": [
+      [
+        "Friend",
+        "ensureFriendship: tạo Friendship và Conversation bằng INSERT ... ON CONFLICT DO NOTHING trên cặp canonical, chạy trong transaction của Calling."
+      ],
+      [
+        "Calling (đối soát LiveKit)",
+        "getCall hỏi LiveKit ai đang trong phòng để cập nhật trạng thái call khi webhook bị mất (chưa chép)."
+      ]
+    ],
+    "nested": true,
+    "skip": [
+      "getCall"
+    ],
+    "steps": [
+      {
+        "at": "@Post('calls/:id/like')",
+        "text": "Nhận yêu cầu thích (id call từ URL, user từ JWT)"
+      },
+      {
+        "at": "await this.getCall(user, callId);",
+        "text": "Kiểm user thuộc call (không phải thành viên thì 404)"
+      },
+      {
+        "at": "return await this.dataSource.transaction(async (manager) => {",
+        "text": "Mở transaction DB, khóa dòng CallSession để 2 lượt thích chạy tuần tự"
+      },
+      {
+        "at": "if (",
+        "in": "CallingService.likeCall",
+        "nth": 1,
+        "text": "Chỉ cho thích khi call đang active hoặc đã ended"
+      },
+      {
+        "at": "const existing = await manager.findOneBy(VoiceMatchReaction, {",
+        "text": "Ghi lượt thích bất biến của mình (bấm lại không ghi thêm)"
+      },
+      {
+        "at": "if (partnerLiked) {",
+        "text": "Cả 2 đã thích thì tạo Friendship và Conversation, cùng transaction"
+      },
+      {
+        "at": "return {",
+        "in": "CallingService.likeCall",
+        "text": "Trả { liked, matched, friendUserId } về controller"
+      },
+      {
+        "at": "if (!isUniqueViolation(err)) throw err;",
+        "text": "Dính unique: coi như đã thích, đọc lại trạng thái bạn bè"
+      }
+    ],
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/calling/calling.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('calls/:id/like')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/calling/calling.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async getCall(",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/calling/calling.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async likeCall(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "await this.getCall(user, callId);",
+            "text": [
+              "Không phải thành viên thì trả 404 giống như \"không tồn tại\", để không ai dò được callId của người khác."
+            ],
+            "src": "doc gốc calling.service.ts L264 (getCall: gộp 404, chống oracle; comment gốc của hàm được gọi ở dòng này)"
+          },
+          {
+            "at": "lock: { mode: 'pessimistic_write' },",
+            "text": [
+              "[POSTGRES] Khóa dòng CallSession FOR UPDATE: lượt thích của 2 người chạy tuần tự. Không khóa thì mỗi người đều thấy \"bên kia chưa thích\" và không ai tạo Friendship."
+            ],
+            "src": "doc gốc calling.service.ts L345-349 + lập luận READ COMMITTED cùng cơ chế với soul-match-service.md mục 3"
+          },
+          {
+            "at": "if (",
+            "nth": 1,
+            "text": [
+              "Cho thích cả khi call đang active, không bắt user phải end mới bấm tim được. Call pending chưa có cuộc nói chuyện thật nên bị chặn."
+            ],
+            "src": "comment gốc calling.service.ts L371-373"
+          },
+          {
+            "at": "const existing = await manager.findOneBy(VoiceMatchReaction, {",
+            "text": [
+              "Lượt thích bất biến: bấm lại không ghi thêm dòng. Unique (call_id, rater_user_id) ở DB là chốt chặn cuối cho double tap và retry."
+            ],
+            "src": "comment gốc calling.service.ts L371-373 + voice-match-reaction.entity.ts L9"
+          },
+          {
+            "at": "if (partnerLiked) {",
+            "text": [
+              "[POSTGRES] Chỉ khi cả 2 đã thích mới tạo Friendship và Conversation, ngay trong transaction đã khóa. ensureFriendship dùng ON CONFLICT DO NOTHING nên gọi lại không tạo đôi, và không có Friendship thiếu Conversation."
+            ],
+            "src": "doc gốc calling.service.ts L345-349 + doc friend.service.ts L97-103"
+          },
+          {
+            "at": "if (!isUniqueViolation(err)) throw err;",
+            "text": [
+              "Nếu unique vẫn bị đụng (chốt chặn cuối) thì coi như lượt thích đã được ghi: đọc lại trạng thái bạn bè rồi trả như bình thường, không báo lỗi."
+            ],
+            "src": "suy ra từ code: nhánh catch đọc lại areFriends rồi trả liked: true"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1756000000000-voice-match-completion.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE voice_match_reactions (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "sourceManifest": {
+    "verifiedCodeSha256": true,
+    "mode": "published-presentation",
+    "baselineCommit": "cb30743143bd8f6576b154db4b606380c365c674",
+    "sourceCommit": "d3cb28c",
+    "sources": [
+      "apps/core-api/src/database/migrations/1756000000000-voice-match-completion.ts",
+      "apps/core-api/src/modules/calling/calling.controller.ts",
+      "apps/core-api/src/modules/calling/calling.service.ts"
+    ],
+    "steps": [
+      "Step 1: Nhận yêu cầu thích (id call từ URL, user từ JWT)",
+      "Step 2: Kiểm user thuộc call (không phải thành viên thì 404)",
+      "Step 3: Mở transaction DB, khóa dòng CallSession để 2 lượt thích chạy tuần tự",
+      "Step 4: Chỉ cho thích khi call đang active hoặc đã ended",
+      "Step 5: Ghi lượt thích bất biến của mình (bấm lại không ghi thêm)",
+      "Step 6: Cả 2 đã thích thì tạo Friendship và Conversation, cùng transaction",
+      "Step 7: Trả { liked, matched, friendUserId } về controller",
+      "Step 8: Dính unique: coi như đã thích, đọc lại trạng thái bạn bè"
+    ],
+    "removedOverview": "// ════════════════════════════════════════════════════════════════════════════\n//  POST /api/v1/calling/calls/:id/like\n//  Ghi lượt thích bất biến; khi cả 2 cùng thích thì tạo bạn bè và phòng chat trong cùng transaction.\n// ════════════════════════════════════════════════════════════════════════════\n//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES]\n//\n//  Vai trò từng tầng\n//    [CONTROLLER] Nhận yêu cầu thích đối phương; chỉ lấy id call từ URL, người dùng lấy\n//                 từ JWT.\n//    [SERVICE]    Kiểm tra user thuộc call, chỉ cho thích khi call đang active hoặc đã\n//                 ended, ghi lượt thích bất biến, và khi cả 2 đã thích thì tạo quan hệ\n//                 bạn.\n//    [POSTGRES]   Khóa dòng CallSession để 2 lượt thích chạy tuần tự; unique (call_id,\n//                 rater_user_id) chống bấm đôi; Friendship và Conversation ghi cùng\n//                 transaction.\n//\n//  Bảng       call_sessions — dòng bị khóa FOR UPDATE để tuần tự hóa 2 lượt thích; dùng\n//               kiểm user thuộc call và trạng thái call.\n//             voice_match_reactions — 1 dòng cho mỗi người đã thích trong mỗi call,\n//               không sửa được; unique (call_id, rater_user_id).\n//             friendships — quan hệ bạn bè của cặp (1 dòng theo cặp canonical), chỉ tạo\n//               khi cả 2 đã thích.\n//             conversations — phòng chat bền vững của cặp, tạo cùng lúc với Friendship.\n//  Liên quan  Friend — ensureFriendship: tạo Friendship và Conversation bằng INSERT ...\n//               ON CONFLICT DO NOTHING trên cặp canonical, chạy trong transaction của\n//               Calling.\n//             Calling (đối soát LiveKit) — getCall hỏi LiveKit ai đang trong phòng để\n//               cập nhật trạng thái call khi webhook bị mất (chưa chép).\n//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi\n//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới\n//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //\n//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các\n//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số\n//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức\n//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong\n//             repo.\n",
+    "baselineBodySha256": "0c8fba75bc12fb8b1b9cf3d6c2a6fbb5e9fc91556b8ca1fdf8184a7cd438a291",
+    "bodySha256": "0c8fba75bc12fb8b1b9cf3d6c2a6fbb5e9fc91556b8ca1fdf8184a7cd438a291",
+    "rawSha256": "3d7dffd3afef36afe051059ed7ccfd5301d5653d447749e3acc4ae94681313b2",
+    "codeSha256": "3d7dffd3afef36afe051059ed7ccfd5301d5653d447749e3acc4ae94681313b2"
+  },
+  "code": {
+    "path": "code/03-voice-match/04-post-like-call.ts",
+    "sha256": "3d7dffd3afef36afe051059ed7ccfd5301d5653d447749e3acc4ae94681313b2",
+    "hashAlgorithm": "sha256",
+    "content": "//  POST /api/v1/calling/calls/:id/like\n//  Ghi lượt thích bất biến; khi cả 2 cùng thích thì tạo bạn bè và phòng chat trong cùng transaction.\n//  Step 1: Nhận yêu cầu thích (id call từ URL, user từ JWT)\n//  Step 2: Kiểm user thuộc call (không phải thành viên thì 404)\n//  Step 3: Mở transaction DB, khóa dòng CallSession để 2 lượt thích chạy tuần tự\n//  Step 4: Chỉ cho thích khi call đang active hoặc đã ended\n//  Step 5: Ghi lượt thích bất biến của mình (bấm lại không ghi thêm)\n//  Step 6: Cả 2 đã thích thì tạo Friendship và Conversation, cùng transaction\n//  Step 7: Trả { liked, matched, friendUserId } về controller\n//  Step 8: Dính unique: coi như đã thích, đọc lại trạng thái bạn bè\n\n// [CONTROLLER] CallingController.likeCall  ·  calling.controller.ts L26–27, L126–138\n@Controller('calling')\nexport class CallingController {\n  constructor(\n    private readonly callingService: CallingService,\n    // CallingService\n    @InjectDataSource() private readonly dataSource: DataSource,\n    private readonly friendService: FriendService,\n  ) {}\n\n  // Step 1: Nhận yêu cầu thích (id call từ URL, user từ JWT)\n  @Post('calls/:id/like')\n  @HttpCode(HttpStatus.OK)\n  async likeCall(\n    @CurrentUser() user: AuthenticatedUser,\n    @Param('id', ParseUUIDPipe) id: string,\n  ): Promise<VoiceMatchLikeDto> {\n    return await this.callingService.likeCall(user, id);\n\n    // [SERVICE] CallingService.likeCall  ·  calling.service.ts L350–435\n    const callId = id;\n\n    // Step 2: Kiểm user thuộc call (không phải thành viên thì 404)\n    // Không phải thành viên thì trả 404 giống như \"không tồn tại\", để không ai dò được callId của\n    // người khác.\n    await this.getCall(user, callId);\n    try {\n\n      // Step 3: Mở transaction DB, khóa dòng CallSession để 2 lượt thích chạy tuần tự\n      return await this.dataSource.transaction(async (manager) => {\n        const call = await manager.findOne(CallSession, {\n          where: { id: callId },\n          // [POSTGRES] Khóa dòng CallSession FOR UPDATE: lượt thích của 2 người chạy tuần tự.\n          // Không khóa thì mỗi người đều thấy \"bên kia chưa thích\" và không ai tạo Friendship.\n          lock: { mode: 'pessimistic_write' },\n        });\n        if (\n          !call ||\n          (call.userAId !== user.userId && call.userBId !== user.userId)\n        ) {\n          throw new DomainException(\n            CallingErrors.CALL_NOT_FOUND,\n            'Không tìm thấy call',\n            HttpStatus.NOT_FOUND,\n          );\n        }\n\n        // Step 4: Chỉ cho thích khi call đang active hoặc đã ended\n        // Cho thích cả khi call đang active, không bắt user phải end mới bấm tim được. Call\n        // pending chưa có cuộc nói chuyện thật nên bị chặn.\n        if (\n          call.callKind === CallKind.Friend ||\n          (call.status !== CallSessionStatus.Active &&\n            call.status !== CallSessionStatus.Ended)\n        ) {\n          throw new DomainException(\n            CallingErrors.CALL_NOT_ENDED,\n            'Chỉ có thể yêu thích khi cuộc gọi đã kết nối hoặc đã kết thúc',\n            HttpStatus.CONFLICT,\n          );\n        }\n        const partnerId =\n          call.userAId === user.userId ? call.userBId : call.userAId;\n\n        // Step 5: Ghi lượt thích bất biến của mình (bấm lại không ghi thêm)\n        // Lượt thích bất biến: bấm lại không ghi thêm dòng. Unique (call_id, rater_user_id) ở DB\n        // là chốt chặn cuối cho double tap và retry.\n        const existing = await manager.findOneBy(VoiceMatchReaction, {\n          callId,\n          raterUserId: user.userId,\n        });\n        if (!existing) {\n          await manager.save(\n            manager.create(VoiceMatchReaction, {\n              callId,\n              raterUserId: user.userId,\n            }),\n          );\n        }\n        const partnerLiked = await manager.existsBy(VoiceMatchReaction, {\n          callId,\n          raterUserId: partnerId,\n        });\n\n        // Step 6: Cả 2 đã thích thì tạo Friendship và Conversation, cùng transaction\n        // [POSTGRES] Chỉ khi cả 2 đã thích mới tạo Friendship và Conversation, ngay trong\n        // transaction đã khóa. ensureFriendship dùng ON CONFLICT DO NOTHING nên gọi lại không tạo\n        // đôi, và không có Friendship thiếu Conversation.\n        if (partnerLiked) {\n          await this.friendService.ensureFriendship(\n            manager,\n            user.userId,\n            partnerId,\n            FriendshipSource.VoiceMatch,\n          );\n        }\n        const matched =\n          partnerLiked ||\n          (await this.friendService.areFriends(user.userId, partnerId));\n\n        // Step 7: Trả { liked, matched, friendUserId } về controller\n        return {\n          liked: true,\n          matched,\n          friendUserId: matched ? partnerId : null,\n        };\n      });\n    } catch (err) {\n\n      // Step 8: Dính unique: coi như đã thích, đọc lại trạng thái bạn bè\n      // Nếu unique vẫn bị đụng (chốt chặn cuối) thì coi như lượt thích đã được ghi: đọc lại trạng\n      // thái bạn bè rồi trả như bình thường, không báo lỗi.\n      if (!isUniqueViolation(err)) throw err;\n      const call = await this.getCall(user, callId);\n      const partnerId =\n        call.userAId === user.userId ? call.userBId : call.userAId;\n      const matched = await this.friendService.areFriends(\n        user.userId,\n        partnerId,\n      );\n      return {\n        liked: true,\n        matched,\n        friendUserId: matched ? partnerId : null,\n      };\n    }\n  }\n}\n\n// [POSTGRES] CREATE TABLE voice_match_reactions  ·  1756000000000-voice-match-completion.ts L16–24\nawait queryRunner.query(`\n  CREATE TABLE voice_match_reactions (\n    id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n    call_id      uuid NOT NULL REFERENCES call_sessions(id),\n    rater_user_id uuid NOT NULL REFERENCES users(id),\n    created_at   timestamptz NOT NULL DEFAULT now(),\n    CONSTRAINT uq_voice_match_reactions_call_rater UNIQUE (call_id, rater_user_id)\n  );\n`);\n"
+  },
+  "provenance": {
+    "catalog": {
+      "path": "annotated-voice-match.mjs",
+      "sha256": "076cc388c892fc0cc28b3bb0eade5744ce0b9ee694a37dba10d45f070575fda3"
+    },
+    "displayedCodeSha256": "3d7dffd3afef36afe051059ed7ccfd5301d5653d447749e3acc4ae94681313b2"
+  }
+}

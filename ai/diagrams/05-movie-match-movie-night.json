@@ -1,0 +1,516 @@
+{
+  "id": "05-movie-match-movie-night",
+  "title": "Movie Match / Movie Night",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#05-movie-match-movie-night",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/05-movie-match-movie-night.json",
+  "feature": {
+    "id": "05-movie-match-movie-night",
+    "title": "Movie Match / Movie Night",
+    "sources": [
+      "docs/services/movie-match-service.md",
+      "docs/services/friend-service.md"
+    ],
+    "core": [
+      "MovieMatch: queue + session",
+      "Playback + anonymous chat",
+      "Friend / Safety qua DI"
+    ],
+    "rest": "REST: session, playback, anon rating",
+    "dataLabel": "Session, queue, messages",
+    "redisLabel": "Pub/Sub: movie.*",
+    "realtime": true,
+    "external": {
+      "lines": [
+        "YouTube video source",
+        "Client tự phát video"
+      ],
+      "control": "Validate URL / chọn video",
+      "direct": "Client → YouTube: playback",
+      "kind": "provider"
+    },
+    "archNotes": {
+      "important": "core-api giữ playback state trong PostgreSQL và fanout qua Gateway. Friend mode dùng Conversation có sẵn; anonymous mode có queue, chat và rating riêng nhưng vẫn là cùng module MovieMatch.",
+      "caution": "Không có LiveKit, proxy hay transcode video trong flow này. Queue anonymous dùng advisory transaction lock PostgreSQL; Redis chỉ vận chuyển event. URL friend mode phải qua hostname allowlist."
+    },
+    "flow": [
+      {
+        "text": "Người dùng chọn mode xem chung"
+      },
+      {
+        "branch": "Friend mode hay anonymous?",
+        "options": [
+          {
+            "label": "FRIEND",
+            "text": "Kiểm tra Friendship\nNhận URL hợp lệ từ user\nTạo / lấy session đúng cặp",
+            "continues": true
+          },
+          {
+            "label": "ANONYMOUS",
+            "text": "Enqueue PostgreSQL\nLock matcher + re-check Safety\nGhép cặp; server chọn video",
+            "continues": true
+          }
+        ]
+      },
+      {
+        "text": "Session giữ slot của hai user\nClient tự phát video từ YouTube"
+      },
+      {
+        "text": "PATCH playback vào core-api\nLưu state + timestamp server\nFanout movie.state.changed"
+      },
+      {
+        "text": "Chat đúng mode\nFriend: Conversation\nAnonymous: session messages ẩn danh"
+      },
+      {
+        "branch": "Kết thúc phần xem?",
+        "options": [
+          {
+            "label": "FRIEND END",
+            "text": "Một member explicit end\nSession ended; nhả hai slot\nKhông có timer tự kết thúc",
+            "continues": false
+          },
+          {
+            "label": "ANON END / TTL",
+            "text": "Ghi watch_ended_at\nMở rating; chưa mặc định matched",
+            "continues": true
+          }
+        ]
+      },
+      {
+        "text": "Anonymous: rating immutable\nNon-like: not_matched ngay\nMutual-like: tạo Friend + Conversation"
+      }
+    ],
+    "flowNotes": {
+      "important": "Bảng active participants chặn một user ở nhiều phiên active. Anonymous giữ danh tính kín tới outcome matched; rating chưa đủ hai likes vẫn là pending, non-like là terminal ngay.",
+      "caution": "Friend mode không có timer; anonymous có deadline và rating chỉ mở sau watch_ended_at. Playback last-write-wins là state UX, REST là fallback khi event mất.",
+      "followup": "Chỉ anonymous mutual-like mới mở Friendship từ flow này; friend mode đã có quan hệ trước khi tạo session."
+    }
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Chọn friend mode hoặc anonymous mode",
+        "edge": ""
+      },
+      {
+        "actor": "Frontend",
+        "branch": "Entry point xem chung?",
+        "options": [
+          {
+            "label": "FRIEND",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Chọn bạn và URL video",
+                "edge": "REST · POST Movie session"
+              },
+              {
+                "actor": "core-api · MovieMatch → Friend",
+                "text": "areFriends + exact hostname allowlist; reserve hai participants",
+                "edge": "SQL · session + active slots"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit MovieSession friend active; same pair replay lấy session cũ",
+                "edge": "SQL result · trả core-api"
+              }
+            ],
+            "continues": true
+          },
+          {
+            "label": "ANONYMOUS",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Vào queue người lạ",
+                "edge": "REST · anonymous enqueue"
+              },
+              {
+                "actor": "core-api · MovieMatch → Safety",
+                "text": "PG advisory lock; candidate FIFO; canPair lúc ghép",
+                "edge": "SQL · queue + anonymous session"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit MovieMatchQueueEntry/session snapshot + active slots; video do server chọn",
+                "edge": "SQL result · trả core-api"
+              }
+            ],
+            "continues": true
+          }
+        ]
+      },
+      {
+        "actor": "core-api · MovieMatch",
+        "text": "Trả session view đúng mode; anonymous chưa lộ partnerUserId",
+        "edge": "REST result · playback state"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Phát video trực tiếp từ source; thay playback position/play-pause",
+        "edge": "YouTube playback; REST · PATCH state"
+      },
+      {
+        "actor": "core-api · MovieMatch",
+        "text": "Membership; cập nhật state last-write-wins bằng giờ server",
+        "edge": "SQL · UPDATE playback"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lưu positionSeconds/isPlaying/positionUpdatedAt",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · MovieMatch",
+        "text": "Sau commit: phát movie.state.changed cho recipients đã authorize",
+        "edge": "Redis · PUBLISH"
+      },
+      {
+        "actor": "Redis · Pub/Sub",
+        "text": "Chuyển movie.state.changed trên per-user channel",
+        "edge": "Pub/Sub · PSUBSCRIBE"
+      },
+      {
+        "actor": "signaling-gateway",
+        "text": "Relay envelope tới socket room từ JWT",
+        "edge": "WebSocket · movie.state.changed"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Đồng bộ player; chat theo đúng mode",
+        "edge": ""
+      },
+      {
+        "actor": "Frontend",
+        "branch": "Kết thúc theo mode nào?",
+        "options": [
+          {
+            "label": "FRIEND END",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Một member explicit end",
+                "edge": "REST · Movie end"
+              },
+              {
+                "actor": "core-api · MovieMatch",
+                "text": "Chốt ended và nhả hai slots",
+                "edge": "SQL · COMMIT session/participants"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit ended; không có ticker tự hết hạn",
+                "edge": "SQL result · trả core-api"
+              }
+            ],
+            "continues": false
+          },
+          {
+            "label": "ANON RATING",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "End watch hoặc deadline; gửi rating sau watch_ended_at",
+                "edge": "REST · anonymous end/rating"
+              },
+              {
+                "actor": "core-api · MovieMatch",
+                "text": "Lock session; immutable rating; non-like terminal ngay",
+                "edge": "SQL · ratings/outcome; Friend nếu hai like"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit matched + Friendship/Conversation khi mutual; một like vẫn chờ",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · MovieMatch",
+                "text": "Trả outcome; chỉ matched lộ partnerUserId",
+                "edge": "REST result"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Matched mở Friend Chat; non-like không mở profile",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          }
+        ]
+      }
+    ],
+    "caution": "Anonymous chat append-only riêng theo session, không tự import sang Friend trong code hiện tại. Friend chat tái dùng Conversation. Reaction là ephemeral realtime, không persist.",
+    "sources": [
+      "docs/services/movie-match-service.md",
+      "apps/core-api/src/modules/movie-match/movie-match.service.ts"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "MovieMatch",
+        "uses": "Friend + anonymous watch",
+        "entities": [
+          "MovieSession",
+          "MovieSessionActiveParticipant",
+          "MovieMatchQueueEntry",
+          "MovieSessionMessage"
+        ],
+        "actions": [
+          "PG queue + advisory lock; participant slots",
+          "Playback state; anonymous chat/rating/reactions"
+        ]
+      },
+      {
+        "name": "Friend",
+        "uses": "Friend guard, chat và mutual-like",
+        "entities": [
+          "Friendship",
+          "Conversation",
+          "Message"
+        ],
+        "actions": [
+          "areFriends cho friend mode",
+          "Anonymous matched: ensureFriendship; không import chat"
+        ]
+      },
+      {
+        "name": "Safety",
+        "uses": "Chặn block/report tại hành động",
+        "entities": [
+          "Block",
+          "Report"
+        ],
+        "actions": [
+          "canPair / isBlocked / hidden-set",
+          "Đọc log PostgreSQL hiện tại"
+        ]
+      }
+    ],
+    "entities": [
+      "MovieSession",
+      "MovieSessionActiveParticipant",
+      "MovieMatchQueueEntry",
+      "MovieSessionMessage"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "rate limit",
+          "label": "HTTP throttle nếu THROTTLE_STORAGE=redis",
+          "direction": "both"
+        },
+        {
+          "role": "Pub/Sub",
+          "label": "movie.* playback/chat/reaction",
+          "direction": "write"
+        }
+      ],
+      "signaling": true,
+      "mediaCluster": false
+    },
+    "externals": [
+      {
+        "id": "video-source",
+        "lines": [
+          "YouTube",
+          "Client phát video trực tiếp"
+        ],
+        "request": "",
+        "callback": "",
+        "direct": "Client → YouTube: video playback",
+        "direction": "to-provider",
+        "redis": "",
+        "condition": "Friend URL allowlist; anonymous server chọn video"
+      }
+    ],
+    "operations": [
+      "Lazy-expire anonymous queue/session khi đọc hoặc thao tác",
+      "Friend mode chỉ explicit end, không ticker",
+      "Anonymous reaction ephemeral; controller HTTP throttle"
+    ],
+    "notes": "Queue, participants và playback durable đều ở PostgreSQL; Redis không phải queue Movie. Không có LiveKit/storage/transcode phía server; YouTube chỉ là video source ở client. Chat friend mode tiếp tục pipeline Friend riêng.",
+    "sources": [
+      "apps/core-api/src/modules/movie-match/movie-match.module.ts",
+      "apps/core-api/src/modules/movie-match/movie-match.service.ts",
+      "apps/core-api/src/modules/movie-match/entities/movie-match-anon.entities.ts",
+      "docs/services/movie-match-service.md",
+      "apps/core-api/src/app/app.module.ts"
+    ],
+    "links": [
+      {
+        "from": "MovieMatch",
+        "to": "Friend",
+        "label": "areFriends cho friend mode",
+        "condition": ""
+      },
+      {
+        "from": "MovieMatch",
+        "to": "Safety",
+        "label": "canPair lúc anonymous ghép cặp",
+        "condition": ""
+      },
+      {
+        "from": "MovieMatch",
+        "to": "Friend",
+        "label": "Mutual-like → ensureFriendship",
+        "condition": "Anonymous rating"
+      }
+    ],
+    "entityRelations": [
+      {
+        "from": "MovieSessionActiveParticipant",
+        "to": "MovieSession",
+        "label": "sessionId; PK userId chặn hai vai trò"
+      }
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "redis",
+        "label": "Redis"
+      },
+      {
+        "id": "gateway",
+        "label": "signaling-gateway"
+      },
+      {
+        "id": "video-source",
+        "label": "YouTube"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững · queue"
+      },
+      {
+        "id": "core-redis",
+        "from": "core",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "Pub/Sub"
+      },
+      {
+        "id": "redis-gateway",
+        "from": "redis",
+        "to": "gateway",
+        "bidirectional": false,
+        "protocol": "realtime Pub/Sub"
+      },
+      {
+        "id": "gateway-redis",
+        "from": "gateway",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "presence · quota"
+      },
+      {
+        "id": "client-video-source",
+        "from": "client",
+        "to": "video-source",
+        "bidirectional": false,
+        "protocol": "video playback"
+      },
+      {
+        "id": "gateway-client",
+        "from": "gateway",
+        "to": "client",
+        "bidirectional": true,
+        "protocol": "Socket: realtime"
+      }
+    ]
+  },
+  "featureSequence": [
+    "1. Người dùng chọn mode xem chung",
+    "2. Friend mode hay anonymous?",
+    "2.1. FRIEND: Kiểm tra Friendship\nNhận URL hợp lệ từ user\nTạo / lấy session đúng cặp",
+    "2.2. ANONYMOUS: Enqueue PostgreSQL\nLock matcher + re-check Safety\nGhép cặp; server chọn video",
+    "3. Session giữ slot của hai user\nClient tự phát video từ YouTube",
+    "4. PATCH playback vào core-api\nLưu state + timestamp server\nFanout movie.state.changed",
+    "5. Chat đúng mode\nFriend: Conversation\nAnonymous: session messages ẩn danh",
+    "6. Kết thúc phần xem?",
+    "6.1. FRIEND END [continues=false]: Một member explicit end\nSession ended; nhả hai slot\nKhông có timer tự kết thúc",
+    "6.2. ANON END / TTL: Ghi watch_ended_at\nMở rating; chưa mặc định matched",
+    "7. Anonymous: rating immutable\nNon-like: not_matched ngay\nMutual-like: tạo Friend + Conversation"
+  ],
+  "layerSequence": [
+    "1. Frontend: Chọn friend mode hoặc anonymous mode",
+    "2. Frontend: Entry point xem chung?",
+    "2.1. FRIEND",
+    "2.1.1. Frontend: Chọn bạn và URL video [REST · POST Movie session]",
+    "2.1.2. core-api · MovieMatch → Friend: areFriends + exact hostname allowlist; reserve hai participants [SQL · session + active slots]",
+    "2.1.3. PostgreSQL: Commit MovieSession friend active; same pair replay lấy session cũ [SQL result · trả core-api]",
+    "2.2. ANONYMOUS",
+    "2.2.1. Frontend: Vào queue người lạ [REST · anonymous enqueue]",
+    "2.2.2. core-api · MovieMatch → Safety: PG advisory lock; candidate FIFO; canPair lúc ghép [SQL · queue + anonymous session]",
+    "2.2.3. PostgreSQL: Commit MovieMatchQueueEntry/session snapshot + active slots; video do server chọn [SQL result · trả core-api]",
+    "3. core-api · MovieMatch: Trả session view đúng mode; anonymous chưa lộ partnerUserId [REST result · playback state]",
+    "4. Frontend: Phát video trực tiếp từ source; thay playback position/play-pause [YouTube playback; REST · PATCH state]",
+    "5. core-api · MovieMatch: Membership; cập nhật state last-write-wins bằng giờ server [SQL · UPDATE playback]",
+    "6. PostgreSQL: Lưu positionSeconds/isPlaying/positionUpdatedAt [SQL result · trả core-api]",
+    "7. core-api · MovieMatch: Sau commit: phát movie.state.changed cho recipients đã authorize [Redis · PUBLISH]",
+    "8. Redis · Pub/Sub: Chuyển movie.state.changed trên per-user channel [Pub/Sub · PSUBSCRIBE]",
+    "9. signaling-gateway: Relay envelope tới socket room từ JWT [WebSocket · movie.state.changed]",
+    "10. Frontend: Đồng bộ player; chat theo đúng mode",
+    "11. Frontend: Kết thúc theo mode nào?",
+    "11.1. FRIEND END [continues=false]",
+    "11.1.1. Frontend: Một member explicit end [REST · Movie end]",
+    "11.1.2. core-api · MovieMatch: Chốt ended và nhả hai slots [SQL · COMMIT session/participants]",
+    "11.1.3. PostgreSQL: Commit ended; không có ticker tự hết hạn [SQL result · trả core-api]",
+    "11.2. ANON RATING [continues=false]",
+    "11.2.1. Frontend: End watch hoặc deadline; gửi rating sau watch_ended_at [REST · anonymous end/rating]",
+    "11.2.2. core-api · MovieMatch: Lock session; immutable rating; non-like terminal ngay [SQL · ratings/outcome; Friend nếu hai like]",
+    "11.2.3. PostgreSQL: Commit matched + Friendship/Conversation khi mutual; một like vẫn chờ [SQL result · trả core-api]",
+    "11.2.4. core-api · MovieMatch: Trả outcome; chỉ matched lộ partnerUserId [REST result]",
+    "11.2.5. Frontend: Matched mở Friend Chat; non-like không mở profile"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

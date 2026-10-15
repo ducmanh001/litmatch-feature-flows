@@ -1,0 +1,568 @@
+{
+  "id": "22-support-va-admin-operations",
+  "title": "Support và Admin Operations",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#22-support-va-admin-operations",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/22-support-va-admin-operations.json",
+  "feature": {
+    "id": "22-support-va-admin-operations",
+    "title": "Support và Admin Operations",
+    "sources": [
+      "apps/core-api/src/modules/support/support.controller.ts",
+      "apps/core-api/src/modules/support/support.service.ts",
+      "apps/core-api/src/modules/admin/admin.controller.ts",
+      "apps/core-api/src/modules/admin/admin.service.ts"
+    ],
+    "core": [
+      "Support: ticket + transitions",
+      "Admin: role + permission guards",
+      "Domain actions + audit log"
+    ],
+    "rest": "REST: support/tickets, admin",
+    "dataLabel": "Ticket, audit, permission",
+    "redisLabel": "",
+    "realtime": false,
+    "external": null,
+    "archNotes": {
+      "important": "Support và Admin đều là module trong core-api; apps/admin là frontend. PostgreSQL giữ ticket, response, permission và audit; admin action gọi public API của domain tương ứng.",
+      "caution": "Role Admin/Moderator chưa đủ: từng endpoint còn áp dụng AdminPermissionGuard. User chỉ xem ticket của mình; thao tác tiền vẫn qua Economy và reversal, không chỉnh ledger trực tiếp."
+    },
+    "flow": [
+      {
+        "text": "User gửi category + message\nIdempotency-Key bắt buộc"
+      },
+      {
+        "text": "Ghi SupportTicket Open\nUnique user + key; replay trả ticket cũ\nKhác payload: conflict"
+      },
+      {
+        "text": "User theo dõi GET tickets/me\nStaff lọc danh sách qua Admin"
+      },
+      {
+        "text": "Staff chọn ticket / domain action\nSupport, user, video, catalog, Economy"
+      },
+      {
+        "branch": "Role + permission cho phép?",
+        "options": [
+          {
+            "label": "ĐƯỢC PHÉP",
+            "text": "Backend authorize action\nGọi domain API tương ứng",
+            "continues": true
+          },
+          {
+            "label": "BỊ CHẶN",
+            "text": "Từ chối request\nKhông áp thay đổi nghiệp vụ",
+            "continues": false
+          }
+        ]
+      },
+      {
+        "text": "Nếu Support: lock + transition\nNếu domain khác: áp guard domain\nGhi response / kết quả của action"
+      },
+      {
+        "text": "Commit thay đổi + audit phù hợp\nSupport: Closed terminal\nClient đọc lại để thấy kết quả"
+      }
+    ],
+    "flowNotes": {
+      "important": "Ticket retry cùng key trả row cũ; Open chuyển sang InProgress, Resolved hoặc Closed, InProgress chuyển sang Resolved hoặc Closed, Resolved chỉ sang Closed. Admin action giữ actor/audit và gọi domain owner.",
+      "caution": "Không quay ticket Closed về Open; replay cùng status hợp lệ nhưng khác transition bị chặn. Ban/moderation/catalog và refund có permission riêng; correction tài chính chỉ tạo reversal mới."
+    }
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "User gửi category/message support",
+        "edge": "REST · POST support/tickets + key"
+      },
+      {
+        "actor": "core-api · Support",
+        "text": "Trim/validate; unique userId + key, khác payload conflict",
+        "edge": "SQL · INSERT SupportTicket Open"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lưu Open ticket; replay cùng key trả row cũ",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Support",
+        "text": "Trả ticket của owner",
+        "edge": "REST result"
+      },
+      {
+        "actor": "Frontend",
+        "text": "User theo dõi tickets/me; staff mở Admin action",
+        "edge": "REST · user list / Admin endpoint"
+      },
+      {
+        "actor": "core-api · Admin",
+        "text": "Role Admin/Moderator + per-endpoint permission guard",
+        "edge": ""
+      },
+      {
+        "actor": "core-api · Admin",
+        "branch": "Action và quyền cho phép?",
+        "options": [
+          {
+            "label": "SUPPORT ALLOWED",
+            "steps": [
+              {
+                "actor": "core-api · Admin → Support",
+                "text": "Lock ticket; validate transition; ghi staffResponse nếu gửi",
+                "edge": "SQL · ticket state + audit"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit SupportTicket + AdminAuditLog",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · Admin",
+                "text": "Trả trạng thái mới; Closed terminal",
+                "edge": "REST result"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Refetch để thấy phản hồi",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          },
+          {
+            "label": "DOMAIN ALLOWED",
+            "steps": [
+              {
+                "actor": "core-api · Admin → Domain owner",
+                "text": "Xử lý user, moderation, catalog, Economy, permissions, room hoặc broadcast qua API module",
+                "edge": "SQL · domain writes + audit khi phù hợp"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit action và audit; Economy chỉ reversal mới",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · Domain owner",
+                "text": "Cleanup/push/fanout sau commit theo action riêng",
+                "edge": "REST result / optional provider/realtime"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Hiển thị outcome Admin",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          },
+          {
+            "label": "DENIED",
+            "steps": [
+              {
+                "actor": "core-api · Admin",
+                "text": "Reject request không đủ role/permission",
+                "edge": "REST result · forbidden"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Không áp thay đổi nghiệp vụ",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          }
+        ]
+      }
+    ],
+    "caution": "Không reopen Closed; replay cùng status hợp lệ. Support ticket không tự dùng Redis/Kafka/LiveKit; provider branches chỉ thuộc Admin action tương ứng. Frontend guard không thay backend authorization.",
+    "sources": [
+      "apps/core-api/src/modules/support/support.service.ts",
+      "apps/core-api/src/modules/admin/admin.controller.ts",
+      "apps/core-api/src/modules/admin/admin.service.ts"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "Support",
+        "uses": "Ticket owner + lifecycle",
+        "entities": [
+          "SupportTicket"
+        ],
+        "actions": [
+          "Unique user/key; payload conflict",
+          "Lock ticket; validate status transition"
+        ]
+      },
+      {
+        "name": "Admin / Audit",
+        "uses": "Staff quyền và action audit",
+        "entities": [
+          "AdminRolePermission",
+          "AdminAuditLog"
+        ],
+        "actions": [
+          "RolesGuard + AdminPermissionGuard",
+          "Audit actor/reason cùng transaction khi phù hợp"
+        ]
+      },
+      {
+        "name": "User / Safety",
+        "uses": "Users, ban và report queue",
+        "entities": [
+          "User",
+          "Report",
+          "Block"
+        ],
+        "actions": [
+          "Admin list/ban/unban; inspect reports"
+        ]
+      },
+      {
+        "name": "Gift / ShortVideo",
+        "uses": "Catalog + moderation",
+        "entities": [
+          "Gift",
+          "Video"
+        ],
+        "actions": [
+          "Gift CRUD; approve/reject/remove Video"
+        ]
+      },
+      {
+        "name": "Economy",
+        "uses": "Diamond / PTS qua ledger writer",
+        "entities": [
+          "LedgerAccount",
+          "LedgerTransaction",
+          "LedgerEntry",
+          "Wallet",
+          "OutboxEvent"
+        ],
+        "actions": [
+          "Lock Wallet; DB-unique idempotencyKey",
+          "Double-entry append-only; snapshot + outbox"
+        ]
+      },
+      {
+        "name": "Notification",
+        "uses": "In-app trước push; gọi qua DI",
+        "entities": [
+          "Notification",
+          "WebPushSubscription"
+        ],
+        "actions": [
+          "createWithManager hoặc create sau persist",
+          "sendPush best-effort sau commit"
+        ]
+      },
+      {
+        "name": "PartyRoom",
+        "uses": "Admin close-room branch",
+        "entities": [
+          "PartyRoom",
+          "PartyRoomMember"
+        ],
+        "actions": [
+          "Close + audit transaction; SFU cleanup sau commit"
+        ]
+      }
+    ],
+    "entities": [
+      "SupportTicket",
+      "AdminRolePermission",
+      "AdminAuditLog"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "rate limit",
+          "label": "HTTP throttle nếu THROTTLE_STORAGE=redis",
+          "direction": "both"
+        },
+        {
+          "role": "Pub/Sub",
+          "label": "Admin đóng Party: party.room.closed",
+          "direction": "write"
+        }
+      ],
+      "signaling": true,
+      "mediaCluster": true
+    },
+    "externals": [
+      {
+        "id": "push",
+        "lines": [
+          "FCM / APNs / Web Push",
+          "Notification push adapters"
+        ],
+        "request": "Push sau Notification commit",
+        "callback": "",
+        "direct": "Provider → device / Service Worker",
+        "direction": "to-client",
+        "redis": "",
+        "condition": "Provider + credentials; native token cần caller; Web Push opt-in"
+      },
+      {
+        "id": "broker",
+        "lines": [
+          "Kafka",
+          "Economy events + dead letter"
+        ],
+        "request": "OutboxRelay → litmatch.economy.events / DLQ",
+        "callback": "",
+        "direct": "",
+        "direction": "to-provider",
+        "redis": "",
+        "condition": "ECONOMY_OUTBOX_RELAY_ENABLED; chưa có domain consumer đăng ký"
+      },
+      {
+        "id": "livekit",
+        "lines": [
+          "media-server / LiveKit",
+          "WebRTC audio + room control"
+        ],
+        "request": "Create/delete room, roomExists, removeParticipant, update media grant",
+        "callback": "/api/v1/party/webhooks/livekit: signed participant/room events",
+        "direct": "Client ↔ LiveKit: audio WebRTC",
+        "direction": "both",
+        "redis": "LiveKit self-host: Redis cluster/message bus khi cấu hình; LiveKit Cloud do provider quản lý",
+        "condition": "Token JWT ký local trong core-api; LIVEKIT_URL / LIVEKIT_API_URL + API key/secret; ICE/TURN theo deployment"
+      }
+    ],
+    "operations": [
+      "Support status transitions: Closed terminal; replay cùng status hợp lệ",
+      "Admin broadcast Notification rows + audit rồi push",
+      "Admin refund/reversal qua Economy; reconciliation/outbox theo config",
+      "Admin close room qua Party owner; cleanup SFU/realtime sau commit"
+    ],
+    "notes": "Support ticket riêng chỉ PostgreSQL/REST; transport/provider branches thuộc admin action tương ứng, không mọi action đều gọi LiveKit/Kafka/push. apps/admin là frontend; module Admin trong core-api không được sửa ledger cũ. Redis không giữ permission nguồn sự thật.",
+    "sources": [
+      "apps/core-api/src/modules/support/support.module.ts",
+      "apps/core-api/src/modules/support/support.service.ts",
+      "apps/core-api/src/modules/admin/admin.module.ts",
+      "apps/core-api/src/modules/admin/admin.service.ts",
+      "apps/core-api/src/modules/admin/services/admin-permission.guard.ts",
+      "apps/core-api/src/common/audit/audit-log.entity.ts",
+      "apps/core-api/src/modules/economy/jobs/outbox-relay.service.ts",
+      "apps/core-api/src/app/app.module.ts"
+    ],
+    "links": [
+      {
+        "from": "Admin / Audit",
+        "to": "Support",
+        "label": "setStatusWithManager + staffResponse",
+        "condition": ""
+      },
+      {
+        "from": "Admin / Audit",
+        "to": "User / Safety",
+        "label": "User ban / report inspection",
+        "condition": ""
+      },
+      {
+        "from": "Admin / Audit",
+        "to": "Gift / ShortVideo",
+        "label": "Catalog / video moderation",
+        "condition": ""
+      },
+      {
+        "from": "Admin / Audit",
+        "to": "Economy",
+        "label": "Refund/reversal/catalog qua domain API",
+        "condition": ""
+      },
+      {
+        "from": "Admin / Audit",
+        "to": "Notification",
+        "label": "Broadcast trong transaction + push",
+        "condition": ""
+      },
+      {
+        "from": "Admin / Audit",
+        "to": "PartyRoom",
+        "label": "closeRoom + audit; cleanup sau commit",
+        "condition": ""
+      }
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "redis",
+        "label": "Redis"
+      },
+      {
+        "id": "gateway",
+        "label": "signaling-gateway"
+      },
+      {
+        "id": "livekit",
+        "label": "media-server\nLiveKit"
+      },
+      {
+        "id": "push",
+        "label": "FCM / APNs / Web Push"
+      },
+      {
+        "id": "broker",
+        "label": "Kafka"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      },
+      {
+        "id": "core-redis",
+        "from": "core",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "Pub/Sub"
+      },
+      {
+        "id": "core-livekit",
+        "from": "core",
+        "to": "livekit",
+        "bidirectional": true,
+        "protocol": "API · webhook"
+      },
+      {
+        "id": "core-push",
+        "from": "core",
+        "to": "push",
+        "bidirectional": false,
+        "protocol": "push"
+      },
+      {
+        "id": "core-broker",
+        "from": "core",
+        "to": "broker",
+        "bidirectional": false,
+        "protocol": "stream (tuỳ cấu hình)"
+      },
+      {
+        "id": "redis-gateway",
+        "from": "redis",
+        "to": "gateway",
+        "bidirectional": false,
+        "protocol": "realtime Pub/Sub"
+      },
+      {
+        "id": "gateway-redis",
+        "from": "gateway",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "presence · quota"
+      },
+      {
+        "id": "livekit-redis",
+        "from": "livekit",
+        "to": "redis",
+        "bidirectional": true,
+        "protocol": "Pub/Sub"
+      },
+      {
+        "id": "client-livekit",
+        "from": "client",
+        "to": "livekit",
+        "bidirectional": true,
+        "protocol": "Âm thanh trực tiếp / WebRTC"
+      },
+      {
+        "id": "client-push",
+        "from": "push",
+        "to": "client",
+        "bidirectional": false,
+        "protocol": "push"
+      },
+      {
+        "id": "gateway-client",
+        "from": "gateway",
+        "to": "client",
+        "bidirectional": true,
+        "protocol": "Socket: realtime"
+      }
+    ]
+  },
+  "featureSequence": [
+    "1. User gửi category + message\nIdempotency-Key bắt buộc",
+    "2. Ghi SupportTicket Open\nUnique user + key; replay trả ticket cũ\nKhác payload: conflict",
+    "3. User theo dõi GET tickets/me\nStaff lọc danh sách qua Admin",
+    "4. Staff chọn ticket / domain action\nSupport, user, video, catalog, Economy",
+    "5. Role + permission cho phép?",
+    "5.1. ĐƯỢC PHÉP: Backend authorize action\nGọi domain API tương ứng",
+    "5.2. BỊ CHẶN [continues=false]: Từ chối request\nKhông áp thay đổi nghiệp vụ",
+    "6. Nếu Support: lock + transition\nNếu domain khác: áp guard domain\nGhi response / kết quả của action",
+    "7. Commit thay đổi + audit phù hợp\nSupport: Closed terminal\nClient đọc lại để thấy kết quả"
+  ],
+  "layerSequence": [
+    "1. Frontend: User gửi category/message support [REST · POST support/tickets + key]",
+    "2. core-api · Support: Trim/validate; unique userId + key, khác payload conflict [SQL · INSERT SupportTicket Open]",
+    "3. PostgreSQL: Lưu Open ticket; replay cùng key trả row cũ [SQL result · trả core-api]",
+    "4. core-api · Support: Trả ticket của owner [REST result]",
+    "5. Frontend: User theo dõi tickets/me; staff mở Admin action [REST · user list / Admin endpoint]",
+    "6. core-api · Admin: Role Admin/Moderator + per-endpoint permission guard",
+    "7. core-api · Admin: Action và quyền cho phép?",
+    "7.1. SUPPORT ALLOWED [continues=false]",
+    "7.1.1. core-api · Admin → Support: Lock ticket; validate transition; ghi staffResponse nếu gửi [SQL · ticket state + audit]",
+    "7.1.2. PostgreSQL: Commit SupportTicket + AdminAuditLog [SQL result · trả core-api]",
+    "7.1.3. core-api · Admin: Trả trạng thái mới; Closed terminal [REST result]",
+    "7.1.4. Frontend: Refetch để thấy phản hồi",
+    "7.2. DOMAIN ALLOWED [continues=false]",
+    "7.2.1. core-api · Admin → Domain owner: Xử lý user, moderation, catalog, Economy, permissions, room hoặc broadcast qua API module [SQL · domain writes + audit khi phù hợp]",
+    "7.2.2. PostgreSQL: Commit action và audit; Economy chỉ reversal mới [SQL result · trả core-api]",
+    "7.2.3. core-api · Domain owner: Cleanup/push/fanout sau commit theo action riêng [REST result / optional provider/realtime]",
+    "7.2.4. Frontend: Hiển thị outcome Admin",
+    "7.3. DENIED [continues=false]",
+    "7.3.1. core-api · Admin: Reject request không đủ role/permission [REST result · forbidden]",
+    "7.3.2. Frontend: Không áp thay đổi nghiệp vụ"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

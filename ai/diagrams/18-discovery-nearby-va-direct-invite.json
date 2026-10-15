@@ -1,0 +1,623 @@
+{
+  "id": "18-discovery-nearby-va-direct-invite",
+  "title": "Discovery, Nearby và Direct Invite",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#18-discovery-nearby-va-direct-invite",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/18-discovery-nearby-va-direct-invite.json",
+  "feature": {
+    "id": "18-discovery-nearby-va-direct-invite",
+    "title": "Discovery, Nearby và Direct Invite",
+    "sources": [
+      "docs/services/discovery-service.md",
+      "docs/services/matching-service.md",
+      "docs/services/friend-service.md"
+    ],
+    "core": [
+      "Discovery: browse + Nearby",
+      "Matching Invite: consent + session",
+      "User / Safety / Friend qua DI"
+    ],
+    "rest": "REST: browse, nearby, invites",
+    "dataLabel": "Location, setting, Invite",
+    "redisLabel": "Rate limit + invite Pub/Sub",
+    "realtime": true,
+    "external": null,
+    "archNotes": {
+      "important": "Discovery query User và giữ vị trí quantized/settings trong PostgreSQL. Invite thuộc module Matching trong core-api; accept tạo hai confirmed tickets và MatchSession trực tiếp, không đi hàng đợi Sorted Set.",
+      "caution": "Nearby opt-in đối xứng, không lưu toạ độ thô và chỉ trả distanceBucket; Redis dùng rate limit và fanout. Browse lọc gender/tuổi, không dùng User.region làm thành phố."
+    },
+    "flow": [
+      {
+        "text": "User mở Browse hoặc Nearby"
+      },
+      {
+        "branch": "Nguồn danh sách?",
+        "options": [
+          {
+            "label": "BROWSE",
+            "text": "Query profile theo gender / tuổi\nLoại self, hidden-set và user không hợp lệ",
+            "continues": true
+          },
+          {
+            "label": "NEARBY",
+            "text": "Opt-in + vị trí quantized còn tươi\nRate limit; jitter theo cặp/ngày\nChỉ trả distanceBucket",
+            "continues": true
+          }
+        ]
+      },
+      {
+        "text": "Client xem card / profile\nAge bucket, không trả birthDate thô"
+      },
+      {
+        "branch": "Hành động tiếp theo?",
+        "options": [
+          {
+            "label": "MỜI SOUL / VOICE",
+            "text": "Matching lưu invite pending\nTTL + rate limit + unique pending pair",
+            "continues": true
+          },
+          {
+            "label": "PROFILE CHAT",
+            "text": "Qua Friend first-contact policy\nCần Gift nếu vượt ngưỡng\nKhông tạo MatchSession",
+            "continues": false
+          }
+        ]
+      },
+      {
+        "text": "Invitee chủ động accept\nRe-check canPair + trạng thái bận"
+      },
+      {
+        "text": "Hợp lệ: tạo 2 confirmed tickets\nCùng transaction: MatchSession\nAccept replay trả session cũ"
+      },
+      {
+        "text": "Sau commit: match.confirmed\nHai client đọc lại rồi mở Soul / Voice"
+      }
+    ],
+    "flowNotes": {
+      "important": "Direct invite là consent cụ thể nên accept không dùng gender preference của auto-match. User đang bận khiến accept rollback và invite giữ pending để thử lại; Safety fail chốt declined.",
+      "caution": "Decline/cancel/expiry không tạo session; pending chưa phải matched. Tắt Nearby xoá vị trí cùng transaction; stale location tự bị lọc lúc đọc, API không lộ toạ độ hay khoảng cách chính xác.",
+      "followup": "Invite accepted đi vào Soul hoặc Calling; profile chat là lựa chọn riêng qua Friend/Gift."
+    }
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Chọn Browse hoặc Nearby",
+        "edge": ""
+      },
+      {
+        "actor": "Frontend",
+        "branch": "Nguồn danh sách?",
+        "options": [
+          {
+            "label": "BROWSE",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Gửi gender/age filter",
+                "edge": "REST · browse"
+              },
+              {
+                "actor": "core-api · Discovery → User/Safety",
+                "text": "Exclude self/hidden users; query profile đúng filter",
+                "edge": "SQL · User browse"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Trả candidates active; không dùng User.region làm city",
+                "edge": "SQL result · trả core-api"
+              }
+            ],
+            "continues": true
+          },
+          {
+            "label": "NEARBY",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Opt-in và gửi vị trí; truy vấn Nearby",
+                "edge": "REST · setting/location/nearby"
+              },
+              {
+                "actor": "core-api · Nearby",
+                "text": "Reciprocity + privacy; rate-limit trước query/update",
+                "edge": "Redis · atomic rate counter"
+              },
+              {
+                "actor": "Redis · Quota",
+                "text": "Trả counter trong window cho location/query",
+                "edge": "Redis result · allowed/limited"
+              },
+              {
+                "actor": "core-api · Nearby",
+                "text": "Quantize lúc ghi; query fresh locations; Safety hidden-set",
+                "edge": "SQL · UserLocation/DiscoverySetting + candidates"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Lưu tọa độ quantized; trả candidates và target privacy",
+                "edge": "SQL result · trả core-api"
+              }
+            ],
+            "continues": true
+          }
+        ]
+      },
+      {
+        "actor": "core-api · Discovery",
+        "text": "Compose ageBucket/distanceBucket; jitter theo cặp/ngày; không raw coords",
+        "edge": "REST result · cards"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Xem card/profile; chọn direct invite hoặc profile chat",
+        "edge": ""
+      },
+      {
+        "actor": "Frontend",
+        "branch": "Hành động tiếp theo?",
+        "options": [
+          {
+            "label": "PROFILE CHAT",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Mở chat/follow profile",
+                "edge": "REST · ProfileSocial/Gift endpoints"
+              },
+              {
+                "actor": "core-api · Friend / Gift",
+                "text": "First-contact và Gift transaction nếu cần; không tạo MatchSession",
+                "edge": "REST result · Conversation/action state"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Đi Friend Chat theo state server",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          },
+          {
+            "label": "INVITE",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Mời Soul/Voice user cụ thể",
+                "edge": "REST · Matching Invite"
+              },
+              {
+                "actor": "core-api · Matching.Invite",
+                "text": "Rate-limit, hidden-set, unique pending pair; lưu pending",
+                "edge": "SQL · INSERT MatchInvite"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Commit pending + expiresAt",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · Notification",
+                "text": "Invite_received sau persist; push best-effort",
+                "edge": "REST result / push"
+              }
+            ],
+            "continues": true
+          }
+        ]
+      },
+      {
+        "actor": "Frontend",
+        "text": "Invitee chủ động accept",
+        "edge": "REST · invite accept"
+      },
+      {
+        "actor": "core-api · Matching.Invite",
+        "text": "Lazy expiry + canPair tại accept; bận giữ pending, Safety fail declined",
+        "edge": "SQL · confirmed tickets/session transaction"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Nếu hợp lệ commit 2 tickets confirmed + MatchSession; replay không tạo đôi",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Matching",
+        "text": "Sau commit: phát match.confirmed cho recipients đã authorize",
+        "edge": "Redis · PUBLISH"
+      },
+      {
+        "actor": "Redis · Pub/Sub",
+        "text": "Chuyển match.confirmed trên per-user channel",
+        "edge": "Pub/Sub · PSUBSCRIBE"
+      },
+      {
+        "actor": "signaling-gateway",
+        "text": "Relay envelope tới socket room từ JWT",
+        "edge": "WebSocket · match.confirmed"
+      },
+      {
+        "actor": "Frontend",
+        "text": "REST refetch rồi mở Soul / Voice",
+        "edge": ""
+      }
+    ],
+    "caution": "Invite pending/declined/cancelled/expired không phải matched. Direct consent không check genderPreference. Tắt Nearby opt-in xoá UserLocation; target showDistance=false thì ẩn distanceBucket.",
+    "sources": [
+      "docs/services/discovery-service.md",
+      "apps/core-api/src/modules/matching/services/invite.service.ts"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "Discovery",
+        "uses": "Browse + Nearby reciprocity",
+        "entities": [
+          "UserLocation",
+          "DiscoverySetting"
+        ],
+        "actions": [
+          "Quantize lúc ghi; jitter + distanceBucket",
+          "Freshness/filter trực tiếp khi đọc"
+        ]
+      },
+      {
+        "name": "User",
+        "uses": "Profiles + Nearby privacy",
+        "entities": [
+          "User",
+          "PrivacySetting"
+        ],
+        "actions": [
+          "browsePage / findActiveByIds",
+          "PrivacySettingsService theo user"
+        ]
+      },
+      {
+        "name": "Safety",
+        "uses": "Chặn block/report tại hành động",
+        "entities": [
+          "Block",
+          "Report"
+        ],
+        "actions": [
+          "canPair / isBlocked / hidden-set",
+          "Đọc log PostgreSQL hiện tại"
+        ]
+      },
+      {
+        "name": "Matching.Invite",
+        "uses": "Nhánh direct Soul/Voice consent",
+        "entities": [
+          "MatchInvite",
+          "MatchTicket",
+          "MatchSession"
+        ],
+        "actions": [
+          "Rate limit; TTL; pending pair unique",
+          "Accept tạo session trực tiếp, không Redis queue"
+        ]
+      },
+      {
+        "name": "Notification",
+        "uses": "In-app trước push; gọi qua DI",
+        "entities": [
+          "Notification",
+          "WebPushSubscription"
+        ],
+        "actions": [
+          "createWithManager hoặc create sau persist",
+          "sendPush best-effort sau commit"
+        ]
+      },
+      {
+        "name": "Friend / Gift",
+        "uses": "Nhánh profile direct chat",
+        "entities": [
+          "ProfileFollow",
+          "ProfileChatContact",
+          "Conversation",
+          "Gift",
+          "GiftEvent"
+        ],
+        "actions": [
+          "First-contact dưới ngưỡng mở trực tiếp",
+          "Vượt ngưỡng qua Gift + Economy transaction"
+        ]
+      },
+      {
+        "name": "Economy",
+        "uses": "Diamond / PTS qua ledger writer",
+        "entities": [
+          "LedgerAccount",
+          "LedgerTransaction",
+          "LedgerEntry",
+          "Wallet",
+          "OutboxEvent"
+        ],
+        "actions": [
+          "Lock Wallet; DB-unique idempotencyKey",
+          "Double-entry append-only; snapshot + outbox"
+        ]
+      }
+    ],
+    "entities": [
+      "UserLocation",
+      "DiscoverySetting",
+      "MatchInvite",
+      "MatchTicket",
+      "MatchSession"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "rate limit",
+          "label": "HTTP throttle nếu THROTTLE_STORAGE=redis",
+          "direction": "both"
+        },
+        {
+          "role": "rate limit",
+          "label": "Nearby location updates + queries",
+          "direction": "both"
+        },
+        {
+          "role": "rate limit",
+          "label": "Matching Invite per-user/hour",
+          "direction": "both"
+        },
+        {
+          "role": "Pub/Sub",
+          "label": "match.confirmed / invite events",
+          "direction": "write"
+        }
+      ],
+      "signaling": true,
+      "mediaCluster": false
+    },
+    "externals": [
+      {
+        "id": "push",
+        "lines": [
+          "FCM / APNs / Web Push",
+          "Notification push adapters"
+        ],
+        "request": "Push sau Notification commit",
+        "callback": "",
+        "direct": "Provider → device / Service Worker",
+        "direction": "to-client",
+        "redis": "",
+        "condition": "Provider + credentials; native token cần caller; Web Push opt-in"
+      },
+      {
+        "id": "broker",
+        "lines": [
+          "Kafka",
+          "Economy events + dead letter"
+        ],
+        "request": "OutboxRelay → litmatch.economy.events / DLQ",
+        "callback": "",
+        "direct": "",
+        "direction": "to-provider",
+        "redis": "",
+        "condition": "ECONOMY_OUTBOX_RELAY_ENABLED; chưa có domain consumer đăng ký"
+      }
+    ],
+    "operations": [
+      "InviteSweeperService housekeeping; lazy expiry tại endpoint",
+      "Tắt nearbyVisible xoá location cùng transaction",
+      "Safety fail accept → declined; busy → giữ pending",
+      "Profile Gift nhánh riêng: Economy outbox/reconciliation"
+    ],
+    "notes": "Discovery không gọi Matching service để browse; CTA Invite là request riêng tới Matching trong cùng core-api. Invites và location durable ở PostgreSQL; Redis chỉ rate counters/event bus. Push thuộc invite Notification hoặc Gift; Kafka chỉ profile Gift, không Discovery broker consumer.",
+    "sources": [
+      "apps/core-api/src/modules/discovery/discovery.module.ts",
+      "apps/core-api/src/modules/discovery/nearby.service.ts",
+      "apps/core-api/src/modules/matching/services/invite.service.ts",
+      "apps/core-api/src/modules/matching/jobs/invite-sweeper.service.ts",
+      "apps/core-api/src/modules/friend/services/profile-social.service.ts",
+      "apps/core-api/src/modules/gift/gift.service.ts",
+      "apps/core-api/src/app/app.module.ts"
+    ],
+    "links": [
+      {
+        "from": "Discovery",
+        "to": "User",
+        "label": "Profile query + Nearby privacy",
+        "condition": ""
+      },
+      {
+        "from": "Discovery",
+        "to": "Safety",
+        "label": "hidden-set block/report",
+        "condition": ""
+      },
+      {
+        "from": "Matching.Invite",
+        "to": "Safety",
+        "label": "canPair khi accept",
+        "condition": ""
+      },
+      {
+        "from": "Matching.Invite",
+        "to": "Notification",
+        "label": "Invite_received sau persist",
+        "condition": ""
+      },
+      {
+        "from": "Friend / Gift",
+        "to": "Economy",
+        "label": "Gift mở chat profile",
+        "condition": "Nhánh Gift; direct chat không debit"
+      }
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "redis",
+        "label": "Redis"
+      },
+      {
+        "id": "gateway",
+        "label": "signaling-gateway"
+      },
+      {
+        "id": "push",
+        "label": "FCM / APNs / Web Push"
+      },
+      {
+        "id": "broker",
+        "label": "Kafka"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      },
+      {
+        "id": "core-redis",
+        "from": "core",
+        "to": "redis",
+        "bidirectional": true,
+        "protocol": "quota · Pub/Sub"
+      },
+      {
+        "id": "core-push",
+        "from": "core",
+        "to": "push",
+        "bidirectional": false,
+        "protocol": "push"
+      },
+      {
+        "id": "core-broker",
+        "from": "core",
+        "to": "broker",
+        "bidirectional": false,
+        "protocol": "stream (tuỳ cấu hình)"
+      },
+      {
+        "id": "redis-gateway",
+        "from": "redis",
+        "to": "gateway",
+        "bidirectional": false,
+        "protocol": "realtime Pub/Sub"
+      },
+      {
+        "id": "gateway-redis",
+        "from": "gateway",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "presence · quota"
+      },
+      {
+        "id": "client-push",
+        "from": "push",
+        "to": "client",
+        "bidirectional": false,
+        "protocol": "push"
+      },
+      {
+        "id": "gateway-client",
+        "from": "gateway",
+        "to": "client",
+        "bidirectional": true,
+        "protocol": "Socket: realtime"
+      }
+    ]
+  },
+  "featureSequence": [
+    "1. User mở Browse hoặc Nearby",
+    "2. Nguồn danh sách?",
+    "2.1. BROWSE: Query profile theo gender / tuổi\nLoại self, hidden-set và user không hợp lệ",
+    "2.2. NEARBY: Opt-in + vị trí quantized còn tươi\nRate limit; jitter theo cặp/ngày\nChỉ trả distanceBucket",
+    "3. Client xem card / profile\nAge bucket, không trả birthDate thô",
+    "4. Hành động tiếp theo?",
+    "4.1. MỜI SOUL / VOICE: Matching lưu invite pending\nTTL + rate limit + unique pending pair",
+    "4.2. PROFILE CHAT [continues=false]: Qua Friend first-contact policy\nCần Gift nếu vượt ngưỡng\nKhông tạo MatchSession",
+    "5. Invitee chủ động accept\nRe-check canPair + trạng thái bận",
+    "6. Hợp lệ: tạo 2 confirmed tickets\nCùng transaction: MatchSession\nAccept replay trả session cũ",
+    "7. Sau commit: match.confirmed\nHai client đọc lại rồi mở Soul / Voice"
+  ],
+  "layerSequence": [
+    "1. Frontend: Chọn Browse hoặc Nearby",
+    "2. Frontend: Nguồn danh sách?",
+    "2.1. BROWSE",
+    "2.1.1. Frontend: Gửi gender/age filter [REST · browse]",
+    "2.1.2. core-api · Discovery → User/Safety: Exclude self/hidden users; query profile đúng filter [SQL · User browse]",
+    "2.1.3. PostgreSQL: Trả candidates active; không dùng User.region làm city [SQL result · trả core-api]",
+    "2.2. NEARBY",
+    "2.2.1. Frontend: Opt-in và gửi vị trí; truy vấn Nearby [REST · setting/location/nearby]",
+    "2.2.2. core-api · Nearby: Reciprocity + privacy; rate-limit trước query/update [Redis · atomic rate counter]",
+    "2.2.3. Redis · Quota: Trả counter trong window cho location/query [Redis result · allowed/limited]",
+    "2.2.4. core-api · Nearby: Quantize lúc ghi; query fresh locations; Safety hidden-set [SQL · UserLocation/DiscoverySetting + candidates]",
+    "2.2.5. PostgreSQL: Lưu tọa độ quantized; trả candidates và target privacy [SQL result · trả core-api]",
+    "3. core-api · Discovery: Compose ageBucket/distanceBucket; jitter theo cặp/ngày; không raw coords [REST result · cards]",
+    "4. Frontend: Xem card/profile; chọn direct invite hoặc profile chat",
+    "5. Frontend: Hành động tiếp theo?",
+    "5.1. PROFILE CHAT [continues=false]",
+    "5.1.1. Frontend: Mở chat/follow profile [REST · ProfileSocial/Gift endpoints]",
+    "5.1.2. core-api · Friend / Gift: First-contact và Gift transaction nếu cần; không tạo MatchSession [REST result · Conversation/action state]",
+    "5.1.3. Frontend: Đi Friend Chat theo state server",
+    "5.2. INVITE",
+    "5.2.1. Frontend: Mời Soul/Voice user cụ thể [REST · Matching Invite]",
+    "5.2.2. core-api · Matching.Invite: Rate-limit, hidden-set, unique pending pair; lưu pending [SQL · INSERT MatchInvite]",
+    "5.2.3. PostgreSQL: Commit pending + expiresAt [SQL result · trả core-api]",
+    "5.2.4. core-api · Notification: Invite_received sau persist; push best-effort [REST result / push]",
+    "6. Frontend: Invitee chủ động accept [REST · invite accept]",
+    "7. core-api · Matching.Invite: Lazy expiry + canPair tại accept; bận giữ pending, Safety fail declined [SQL · confirmed tickets/session transaction]",
+    "8. PostgreSQL: Nếu hợp lệ commit 2 tickets confirmed + MatchSession; replay không tạo đôi [SQL result · trả core-api]",
+    "9. core-api · Matching: Sau commit: phát match.confirmed cho recipients đã authorize [Redis · PUBLISH]",
+    "10. Redis · Pub/Sub: Chuyển match.confirmed trên per-user channel [Pub/Sub · PSUBSCRIBE]",
+    "11. signaling-gateway: Relay envelope tới socket room từ JWT [WebSocket · match.confirmed]",
+    "12. Frontend: REST refetch rồi mở Soul / Voice"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

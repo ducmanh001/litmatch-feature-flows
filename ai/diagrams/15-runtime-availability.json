@@ -1,0 +1,247 @@
+{
+  "id": "15-runtime-availability",
+  "title": "Runtime Availability",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#15-runtime-availability",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/15-runtime-availability.json",
+  "feature": {
+    "id": "15-runtime-availability",
+    "title": "Runtime Availability",
+    "sources": [
+      "apps/core-api/src/app/capabilities.controller.ts",
+      "apps/core-api/src/app/capabilities.service.ts"
+    ],
+    "core": [
+      "Capabilities: config snapshot",
+      "Provider readiness + maintenance",
+      "Backend guards tại endpoint"
+    ],
+    "rest": "REST: GET /capabilities",
+    "dataLabel": "",
+    "redisLabel": "",
+    "realtime": false,
+    "external": null,
+    "archNotes": {
+      "important": "CapabilitiesService trong core-api suy contract từ cấu hình môi trường, credential presence và maintenance. Flow chỉ đọc và trả DTO; không có service availability độc lập hay dữ liệu bền vững mới.",
+      "caution": "Contract không phải health probe của provider và không chứng minh production readiness. Frontend dùng contract để hiển thị, endpoint nghiệp vụ vẫn giữ guard riêng."
+    },
+    "flow": [
+      {
+        "text": "Web / Admin khởi động hoặc refresh\nGọi public GET /capabilities"
+      },
+      {
+        "text": "Core API đọc cấu hình đã validate\nProvider + credential + environment"
+      },
+      {
+        "text": "Áp maintenance theo capability\nPhân biệt provider native IAP"
+      },
+      {
+        "text": "Trả enabled / disabled / beta\nKèm thông điệp capability"
+      },
+      {
+        "branch": "Entry point đang khả dụng?",
+        "options": [
+          {
+            "label": "ENABLED / BETA",
+            "text": "Client hiện entry point phù hợp\nBeta thể hiện chế độ thử nghiệm",
+            "continues": true
+          },
+          {
+            "label": "DISABLED",
+            "text": "Client ẩn / vô hiệu CTA\nHiển thị lý do từ contract",
+            "continues": false
+          }
+        ]
+      },
+      {
+        "text": "User thực hiện nghiệp vụ\nBackend kiểm tra lại quyền + provider\nChỉ side effect khi request hợp lệ"
+      }
+    ],
+    "flowNotes": {
+      "important": "Availability là read-only projection của runtime config, không ghi vào PostgreSQL hay Redis. Apple và Google có trạng thái riêng; không suy cả hai đều sẵn sàng từ một provider.",
+      "caution": "enabled phản ánh cấu hình, không đảm bảo request provider sẽ thành công. Code có thể tồn tại trong repo nhưng production adapter vẫn disabled hoặc chưa được triển khai."
+    }
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Khởi động/refresh Web hoặc Admin",
+        "edge": "REST · GET /capabilities"
+      },
+      {
+        "actor": "core-api · Capabilities",
+        "text": "Public + SkipThrottle; đọc validated runtime config",
+        "edge": "in-process · ConfigService"
+      },
+      {
+        "actor": "core-api · Capabilities",
+        "text": "Xác định provider credentials, environment và maintenance flags",
+        "edge": "in-process · capability projection"
+      },
+      {
+        "actor": "core-api · Capabilities",
+        "text": "Trả enabled/disabled/beta theo từng provider/platform",
+        "edge": "REST result · CapabilitiesDto"
+      },
+      {
+        "actor": "Frontend",
+        "branch": "Entry point capability khả dụng?",
+        "options": [
+          {
+            "label": "ENABLED / BETA",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Hiện CTA; beta được thể hiện là thử nghiệm",
+                "edge": "REST · nghiệp vụ khi user chọn"
+              },
+              {
+                "actor": "core-api · Domain",
+                "text": "Backend kiểm tra lại quyền, provider/config trước side effect",
+                "edge": "REST result · action outcome"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Hiển thị outcome request thật",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          },
+          {
+            "label": "DISABLED",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Ẩn/vô hiệu CTA và hiện lý do contract",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          }
+        ]
+      }
+    ],
+    "caution": "Không PG/Redis write, không provider network probe; configured enabled không đảm bảo request provider thành công hay production readiness.",
+    "sources": [
+      "apps/core-api/src/app/capabilities.controller.ts",
+      "apps/core-api/src/app/capabilities.service.ts"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "Capabilities",
+        "uses": "Contract runtime read-only",
+        "entities": [],
+        "actions": [
+          "Đọc ConfigService đã validate",
+          "Provider credentials + maintenance → enabled/disabled/beta"
+        ]
+      },
+      {
+        "name": "Config / provider factories",
+        "uses": "Readiness theo environment",
+        "entities": [],
+        "actions": [
+          "Auth, payOS/IAP, video, push config",
+          "Endpoint nghiệp vụ giữ guard riêng"
+        ]
+      }
+    ],
+    "entities": [],
+    "redis": {
+      "business": [],
+      "signaling": false,
+      "mediaCluster": false
+    },
+    "externals": [],
+    "operations": [
+      "GET /capabilities không gọi provider network",
+      "Public + SkipThrottle; không DB write hay job"
+    ],
+    "notes": "Availability đọc config trong process, không query PostgreSQL/Redis và không phải health probe provider. Danh sách capability bao gồm provider readiness nhưng endpoint này không tạo network branch tới provider.",
+    "sources": [
+      "apps/core-api/src/app/capabilities.controller.ts",
+      "apps/core-api/src/app/capabilities.service.ts",
+      "apps/core-api/src/config/capabilities.ts"
+    ],
+    "links": [
+      {
+        "from": "Capabilities",
+        "to": "Config / provider factories",
+        "label": "Đọc config/readiness; không provider I/O",
+        "condition": ""
+      }
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      }
+    ]
+  },
+  "featureSequence": [
+    "1. Web / Admin khởi động hoặc refresh\nGọi public GET /capabilities",
+    "2. Core API đọc cấu hình đã validate\nProvider + credential + environment",
+    "3. Áp maintenance theo capability\nPhân biệt provider native IAP",
+    "4. Trả enabled / disabled / beta\nKèm thông điệp capability",
+    "5. Entry point đang khả dụng?",
+    "5.1. ENABLED / BETA: Client hiện entry point phù hợp\nBeta thể hiện chế độ thử nghiệm",
+    "5.2. DISABLED [continues=false]: Client ẩn / vô hiệu CTA\nHiển thị lý do từ contract",
+    "6. User thực hiện nghiệp vụ\nBackend kiểm tra lại quyền + provider\nChỉ side effect khi request hợp lệ"
+  ],
+  "layerSequence": [
+    "1. Frontend: Khởi động/refresh Web hoặc Admin [REST · GET /capabilities]",
+    "2. core-api · Capabilities: Public + SkipThrottle; đọc validated runtime config [in-process · ConfigService]",
+    "3. core-api · Capabilities: Xác định provider credentials, environment và maintenance flags [in-process · capability projection]",
+    "4. core-api · Capabilities: Trả enabled/disabled/beta theo từng provider/platform [REST result · CapabilitiesDto]",
+    "5. Frontend: Entry point capability khả dụng?",
+    "5.1. ENABLED / BETA [continues=false]",
+    "5.1.1. Frontend: Hiện CTA; beta được thể hiện là thử nghiệm [REST · nghiệp vụ khi user chọn]",
+    "5.1.2. core-api · Domain: Backend kiểm tra lại quyền, provider/config trước side effect [REST result · action outcome]",
+    "5.1.3. Frontend: Hiển thị outcome request thật",
+    "5.2. DISABLED [continues=false]",
+    "5.2.1. Frontend: Ẩn/vô hiệu CTA và hiện lý do contract"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

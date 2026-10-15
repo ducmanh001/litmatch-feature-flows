@@ -1,0 +1,958 @@
+{
+  "id": "09-diamond-top-up-va-vip/04-post-webhook-apple-refund",
+  "featureId": "09-diamond-top-up-va-vip",
+  "feature": "Diamond, Top-up và VIP",
+  "summary": "Nạp Diamond qua store hoặc payOS, mua VIP bằng Diamond, hoàn tiền từ store; mọi thay đổi số dư đi qua một sổ kép duy nhất.",
+  "name": "Webhook Apple hoàn tiền",
+  "title": "Apple báo REFUND hoặc REVOKE: kiểm chữ ký JWS, rồi đảo bút toán của lần nạp gốc; số dư có thể âm.",
+  "method": "POST",
+  "route": "/api/v1/economy/webhooks/apple",
+  "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts",
+  "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.json",
+  "diagramUrl": "https://ducmanh001.github.io/litmatch-feature-flows/#09-diamond-top-up-va-vip",
+  "catalog": "annotated-09-diamond-top-up-va-vip.mjs",
+  "flow": "[CONTROLLER] → [EXTERNAL] → [SERVICE] → [POSTGRES]",
+  "roles": [
+    [
+      "CONTROLLER",
+      "Nhận App Store Server Notification V2, nhờ verifier kiểm chữ ký, đối chiếu bundleId, chỉ xử lý REFUND và REVOKE, luôn ACK 200 sau khi verify."
+    ],
+    [
+      "EXTERNAL",
+      "Apple ký thông báo bằng JWS (ES256) kèm chuỗi chứng chỉ x5c; core-api xác thực chuỗi lên Apple Root CA G3."
+    ],
+    [
+      "SERVICE",
+      "RefundService tìm receipt gốc rồi nhờ LedgerService.reverse ghi bút toán đảo và đánh dấu receipt refunded; gọi lại nhiều lần vẫn chỉ hoàn một lần."
+    ],
+    [
+      "POSTGRES",
+      "Một transaction ghi bút toán đảo, đổi trạng thái giao dịch gốc (UPDATE có điều kiện), đổi receipt, ghi outbox; số dư ví được phép âm."
+    ]
+  ],
+  "tables": [
+    [
+      "iap_receipts",
+      "receipt đã credit: chuyển sang refunded và trỏ refund_transaction_id sang giao dịch đảo."
+    ],
+    [
+      "transactions",
+      "giao dịch gốc chuyển completed sang reversed; giao dịch mới type reversal trỏ reversal_of về gốc, actor null."
+    ],
+    [
+      "ledger_entries",
+      "bút toán đảo chiều: Nợ ví user, Có system_iap; bảng chỉ thêm, trigger chặn sửa và xóa."
+    ],
+    [
+      "wallets",
+      "số dư bị trừ lại, được phép âm (user nợ diamond)."
+    ],
+    [
+      "outbox_events",
+      "event economy.diamond.refunded ghi cùng transaction."
+    ]
+  ],
+  "redis": [],
+  "related": [
+    [
+      "Economy (LedgerService.record)",
+      "đường ghi sổ idempotent mà reverse gọi vào; xem luồng Mua VIP."
+    ],
+    [
+      "Nạp IAP",
+      "luồng nạp ban đầu, tạo ra receipt credited mà webhook này đảo lại."
+    ],
+    [
+      "Job quét hoàn tiền",
+      "IapRefundPollService quét Apple Refund History và Google Voided Purchases làm đường dự phòng, gọi cùng RefundService.refundIapPurchase (chưa chép)."
+    ],
+    [
+      "Google RTDN",
+      "POST /economy/webhooks/google/rtdn chỉ log tín hiệu CANCELED, không tự hoàn tiền (chưa chép)."
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "text": "Nhận webhook công khai của Apple (tối đa 60 lần/phút)",
+      "line": 36,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L36",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L36"
+    },
+    {
+      "number": 2,
+      "text": "Kiểm chữ ký JWS trước khi tin bất kỳ trường nào",
+      "line": 44,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L44",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L44"
+    },
+    {
+      "number": 3,
+      "text": "Xác thực chuỗi x5c lên Apple Root CA G3, rồi verify ES256",
+      "line": 60,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L60",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L60"
+    },
+    {
+      "number": 4,
+      "text": "Đối chiếu bundleId, chỉ xử lý REFUND và REVOKE",
+      "line": 106,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L106",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L106"
+    },
+    {
+      "number": 5,
+      "text": "Giao RefundService tìm receipt gốc và hoàn tiền",
+      "line": 132,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L132",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L132"
+    },
+    {
+      "number": 6,
+      "text": "Tìm receipt gốc; không rõ hoặc đã hoàn thì dừng",
+      "line": 145,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L145",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L145"
+    },
+    {
+      "number": 7,
+      "text": "Nhờ LedgerService.reverse đảo bút toán của giao dịch gốc",
+      "line": 174,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L174",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L174"
+    },
+    {
+      "number": 8,
+      "text": "Ghi giao dịch đảo vào sổ; số dư ví được phép âm",
+      "line": 228,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L228",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L228"
+    },
+    {
+      "number": 9,
+      "text": "Đánh dấu giao dịch gốc reversed (UPDATE có điều kiện)",
+      "line": 262,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L262",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L262"
+    },
+    {
+      "number": 10,
+      "text": "Gốc đã bị đảo trước đó: coi là idempotent, nối receipt",
+      "line": 288,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L288",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L288"
+    },
+    {
+      "number": 11,
+      "text": "Luôn ACK 200 cho Apple sau khi đã verify",
+      "line": 309,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L309",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L309"
+    }
+  ],
+  "declaredSteps": [
+    {
+      "at": "@Post('apple')",
+      "text": "Nhận webhook công khai của Apple (tối đa 60 lần/phút)"
+    },
+    {
+      "at": "const payload = await this.appleVerifier.verify(dto.signedPayload);",
+      "text": "Kiểm chữ ký JWS trước khi tin bất kỳ trường nào"
+    },
+    {
+      "at": "const certs = header.x5c.map(",
+      "text": "Xác thực chuỗi x5c lên Apple Root CA G3, rồi verify ES256"
+    },
+    {
+      "at": "const expectedBundleId =",
+      "text": "Đối chiếu bundleId, chỉ xử lý REFUND và REVOKE"
+    },
+    {
+      "at": "await this.refundService.refundIapPurchase(",
+      "text": "Giao RefundService tìm receipt gốc và hoàn tiền"
+    },
+    {
+      "at": "const receipt = await this.receiptRepo.findOneBy({",
+      "text": "Tìm receipt gốc; không rõ hoặc đã hoàn thì dừng"
+    },
+    {
+      "at": "const result = await this.ledger.reverse(",
+      "text": "Nhờ LedgerService.reverse đảo bút toán của giao dịch gốc"
+    },
+    {
+      "at": "return this.record({",
+      "text": "Ghi giao dịch đảo vào sổ; số dư ví được phép âm"
+    },
+    {
+      "at": "const marked = await manager.update(",
+      "text": "Đánh dấu giao dịch gốc reversed (UPDATE có điều kiện)"
+    },
+    {
+      "at": "const existingReversal = await this.transactionRepo.findOneBy({",
+      "text": "Gốc đã bị đảo trước đó: coi là idempotent, nối receipt"
+    },
+    {
+      "at": "return { received: true };",
+      "in": "EconomyWebhooksController.appleNotification",
+      "nth": 2,
+      "text": "Luôn ACK 200 cho Apple sau khi đã verify"
+    }
+  ],
+  "whyComments": [
+    {
+      "at": "const payload = await this.appleVerifier.verify(dto.signedPayload);",
+      "text": [
+        "Chữ ký JWS được verify TRƯỚC khi tin bất kỳ trường nào; payload chưa verify không được dùng."
+      ],
+      "src": "doc gốc economy-webhooks.controller.ts L35-37",
+      "file": "apps/core-api/src/modules/economy/webhooks/economy-webhooks.controller.ts"
+    },
+    {
+      "at": "const expectedBundleId =",
+      "text": [
+        "Chain hợp lệ chỉ chứng minh \"Apple ký\", không chứng minh \"ký cho app này\" (mọi app dùng chung chuỗi chứng chỉ), nên phải đối chiếu bundleId. Sai bundleId vẫn ACK 200 để store không retry dồn dập."
+      ],
+      "src": "comment gốc economy-webhooks.controller.ts L64-65 + doc L38-40",
+      "file": "apps/core-api/src/modules/economy/webhooks/economy-webhooks.controller.ts"
+    },
+    {
+      "at": "const txnInfo = this.appleVerifier.decodeTransactionInfo(",
+      "text": [
+        "signedTransactionInfo lồng bên trong đã nằm trong phạm vi chữ ký của payload ngoài, nên chỉ cần decode, không verify lần nữa."
+      ],
+      "src": "comment gốc notification-verifier.ts L141 + doc class L96-98",
+      "file": "apps/core-api/src/modules/economy/webhooks/economy-webhooks.controller.ts"
+    },
+    {
+      "at": "const certs = header.x5c.map(",
+      "text": [
+        "Chuỗi chứng chỉ x5c trong header phải dẫn lên Apple Root CA G3 (nạp từ env, không hardcode) và mọi chứng chỉ còn hạn."
+      ],
+      "src": "doc class notification-verifier.ts L91-95 + doc chainIsTrusted L145",
+      "file": "apps/core-api/src/modules/economy/ports/notification-verifier.ts"
+    },
+    {
+      "at": "const leafPublicKey = await importX509(certs[0].toString(), 'ES256');",
+      "text": [
+        "Khóa cứng ES256, không đọc alg từ header vì đó là dữ liệu CHƯA xác thực (chống algorithm confusion)."
+      ],
+      "src": "comment gốc notification-verifier.ts L131-133",
+      "file": "apps/core-api/src/modules/economy/ports/notification-verifier.ts"
+    },
+    {
+      "at": "if (!receipt) {",
+      "text": [
+        "Receipt không rõ: có thể của app khác, hoặc refund đến gần như tức thời khi credit chưa xử lý xong. Trả unknown_receipt, job quét định kỳ sẽ bắt lại; không phải lỗi cần retry gấp."
+      ],
+      "src": "comment gốc refund.service.ts L45-46",
+      "file": "apps/core-api/src/modules/economy/services/refund.service.ts"
+    },
+    {
+      "at": "if (receipt.status === IapReceiptStatus.Refunded) {",
+      "text": [
+        "Đã hoàn thì bỏ qua: webhook retry hay job quét trùng cũng chỉ hoàn một lần."
+      ],
+      "src": "doc class refund.service.ts L19-22",
+      "file": "apps/core-api/src/modules/economy/services/refund.service.ts"
+    },
+    {
+      "at": "actorUserId: null,",
+      "text": [
+        "actor = null: hoàn tiền tự động từ store, không phải hành động của user."
+      ],
+      "src": "comment gốc refund.service.ts L71",
+      "file": "apps/core-api/src/modules/economy/services/refund.service.ts"
+    },
+    {
+      "at": "withinTransaction: async (manager, reversalTxn) => {",
+      "text": [
+        "[POSTGRES] Đánh dấu receipt refunded CÙNG transaction với bút toán đảo, nên không có trạng thái ví đã bị đảo mà receipt vẫn credited."
+      ],
+      "src": "suy ra từ code + doc reverse opts ledger.service.ts L196-197 (chạy thêm trong CÙNG DB transaction, vd set iap_receipts.status=refunded)",
+      "file": "apps/core-api/src/modules/economy/services/refund.service.ts"
+    },
+    {
+      "at": "const existingReversal = await this.transactionRepo.findOneBy({",
+      "text": [
+        "Giao dịch gốc đã bị đảo trước (vd admin) nhưng receipt chưa kịp cập nhật: coi là idempotent, tìm đúng giao dịch đã đảo để giữ vết kiểm toán."
+      ],
+      "src": "comment gốc refund.service.ts L87-89",
+      "file": "apps/core-api/src/modules/economy/services/refund.service.ts"
+    },
+    {
+      "at": "type: TransactionType.Reversal,",
+      "text": [
+        "Reversal được phép đẩy số dư âm = user nợ diamond (đã tiêu rồi mới bị hoàn). Không kẹp về 0 vì sẽ phá sổ kép; nợ được trừ dần khi user nạp tiếp."
+      ],
+      "src": "comment gốc ledger.service.ts L449-450 (mayGoNegative cho Reversal/Adjustment trong applyWalletDeltas) + docs/services/economy-service.md mục 5 (không clamp về 0) và mục 2 (credit mới tự bù nợ)",
+      "file": "apps/core-api/src/modules/economy/services/ledger.service.ts"
+    },
+    {
+      "at": "direction:",
+      "text": [
+        "Đảo chiều từng bút toán của giao dịch gốc, không sửa hay xóa giao dịch gốc: trigger ở DB chặn UPDATE và DELETE trên ledger_entries."
+      ],
+      "src": "doc reverse ledger.service.ts L183-186 + comment migration 1752000000000-economy-ledger.ts (ledger_entries append-only)",
+      "file": "apps/core-api/src/modules/economy/services/ledger.service.ts"
+    },
+    {
+      "at": "const marked = await manager.update(",
+      "text": [
+        "[POSTGRES] UPDATE có điều kiện status = completed: 2 request cùng đảo thì chỉ 1 bên cập nhật được dòng; bên thua ném lỗi và rollback bút toán đảo của mình."
+      ],
+      "src": "doc reverse ledger.service.ts L183-187 + comment L264",
+      "file": "apps/core-api/src/modules/economy/services/ledger.service.ts"
+    }
+  ],
+  "sources": [
+    "apps/core-api/src/database/migrations/1752000000000-economy-ledger.ts",
+    "apps/core-api/src/modules/economy/ports/notification-verifier.ts",
+    "apps/core-api/src/modules/economy/services/ledger.service.ts",
+    "apps/core-api/src/modules/economy/services/refund.service.ts",
+    "apps/core-api/src/modules/economy/webhooks/economy-webhooks.controller.ts"
+  ],
+  "sourceContext": {
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/economy/webhooks/economy-webhooks.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('apple')",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const payload = await this.appleVerifier.verify(dto.signedPayload);",
+            "text": [
+              "Chữ ký JWS được verify TRƯỚC khi tin bất kỳ trường nào; payload chưa verify không được dùng."
+            ],
+            "src": "doc gốc economy-webhooks.controller.ts L35-37"
+          },
+          {
+            "at": "const expectedBundleId =",
+            "text": [
+              "Chain hợp lệ chỉ chứng minh \"Apple ký\", không chứng minh \"ký cho app này\" (mọi app dùng chung chuỗi chứng chỉ), nên phải đối chiếu bundleId. Sai bundleId vẫn ACK 200 để store không retry dồn dập."
+            ],
+            "src": "comment gốc economy-webhooks.controller.ts L64-65 + doc L38-40"
+          },
+          {
+            "at": "const txnInfo = this.appleVerifier.decodeTransactionInfo(",
+            "text": [
+              "signedTransactionInfo lồng bên trong đã nằm trong phạm vi chữ ký của payload ngoài, nên chỉ cần decode, không verify lần nữa."
+            ],
+            "src": "comment gốc notification-verifier.ts L141 + doc class L96-98"
+          }
+        ]
+      },
+      {
+        "tag": "EXTERNAL",
+        "file": "apps/core-api/src/modules/economy/ports/notification-verifier.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async verify(signedPayload: string)",
+            "nth": 1,
+            "to": "^  }$"
+          },
+          {
+            "at": "private chainIsTrusted(",
+            "to": "^  }$"
+          },
+          {
+            "at": "decodeTransactionInfo(signedTransactionInfo: string): AppleTransactionInfo {",
+            "nth": 1,
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const certs = header.x5c.map(",
+            "text": [
+              "Chuỗi chứng chỉ x5c trong header phải dẫn lên Apple Root CA G3 (nạp từ env, không hardcode) và mọi chứng chỉ còn hạn."
+            ],
+            "src": "doc class notification-verifier.ts L91-95 + doc chainIsTrusted L145"
+          },
+          {
+            "at": "const leafPublicKey = await importX509(certs[0].toString(), 'ES256');",
+            "text": [
+              "Khóa cứng ES256, không đọc alg từ header vì đó là dữ liệu CHƯA xác thực (chống algorithm confusion)."
+            ],
+            "src": "comment gốc notification-verifier.ts L131-133"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/economy/services/refund.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async refundIapPurchase(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "if (!receipt) {",
+            "text": [
+              "Receipt không rõ: có thể của app khác, hoặc refund đến gần như tức thời khi credit chưa xử lý xong. Trả unknown_receipt, job quét định kỳ sẽ bắt lại; không phải lỗi cần retry gấp."
+            ],
+            "src": "comment gốc refund.service.ts L45-46"
+          },
+          {
+            "at": "if (receipt.status === IapReceiptStatus.Refunded) {",
+            "text": [
+              "Đã hoàn thì bỏ qua: webhook retry hay job quét trùng cũng chỉ hoàn một lần."
+            ],
+            "src": "doc class refund.service.ts L19-22"
+          },
+          {
+            "at": "actorUserId: null,",
+            "text": [
+              "actor = null: hoàn tiền tự động từ store, không phải hành động của user."
+            ],
+            "src": "comment gốc refund.service.ts L71"
+          },
+          {
+            "at": "withinTransaction: async (manager, reversalTxn) => {",
+            "text": [
+              "[POSTGRES] Đánh dấu receipt refunded CÙNG transaction với bút toán đảo, nên không có trạng thái ví đã bị đảo mà receipt vẫn credited."
+            ],
+            "src": "suy ra từ code + doc reverse opts ledger.service.ts L196-197 (chạy thêm trong CÙNG DB transaction, vd set iap_receipts.status=refunded)"
+          },
+          {
+            "at": "const existingReversal = await this.transactionRepo.findOneBy({",
+            "text": [
+              "Giao dịch gốc đã bị đảo trước (vd admin) nhưng receipt chưa kịp cập nhật: coi là idempotent, tìm đúng giao dịch đã đảo để giữ vết kiểm toán."
+            ],
+            "src": "comment gốc refund.service.ts L87-89"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/economy/services/ledger.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async reverse(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async applyWalletDeltas(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "type: TransactionType.Reversal,",
+            "text": [
+              "Reversal được phép đẩy số dư âm = user nợ diamond (đã tiêu rồi mới bị hoàn). Không kẹp về 0 vì sẽ phá sổ kép; nợ được trừ dần khi user nạp tiếp."
+            ],
+            "src": "comment gốc ledger.service.ts L449-450 (mayGoNegative cho Reversal/Adjustment trong applyWalletDeltas) + docs/services/economy-service.md mục 5 (không clamp về 0) và mục 2 (credit mới tự bù nợ)"
+          },
+          {
+            "at": "direction:",
+            "text": [
+              "Đảo chiều từng bút toán của giao dịch gốc, không sửa hay xóa giao dịch gốc: trigger ở DB chặn UPDATE và DELETE trên ledger_entries."
+            ],
+            "src": "doc reverse ledger.service.ts L183-186 + comment migration 1752000000000-economy-ledger.ts (ledger_entries append-only)"
+          },
+          {
+            "at": "const marked = await manager.update(",
+            "text": [
+              "[POSTGRES] UPDATE có điều kiện status = completed: 2 request cùng đảo thì chỉ 1 bên cập nhật được dòng; bên thua ném lỗi và rollback bút toán đảo của mình."
+            ],
+            "src": "doc reverse ledger.service.ts L183-187 + comment L264"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752000000000-economy-ledger.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE wallets (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752000000000-economy-ledger.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TRIGGER trg_ledger_entries_append_only",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      }
+    ],
+    "ranges": [
+      {
+        "file": "apps/core-api/src/modules/economy/webhooks/economy-webhooks.controller.ts",
+        "range": {
+          "at": "@Post('apple')",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/ports/notification-verifier.ts",
+        "range": {
+          "at": "async verify(signedPayload: string)",
+          "nth": 1,
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/ports/notification-verifier.ts",
+        "range": {
+          "at": "private chainIsTrusted(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/ports/notification-verifier.ts",
+        "range": {
+          "at": "decodeTransactionInfo(signedTransactionInfo: string): AppleTransactionInfo {",
+          "nth": 1,
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/services/refund.service.ts",
+        "range": {
+          "at": "async refundIapPurchase(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/services/ledger.service.ts",
+        "range": {
+          "at": "async reverse(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/economy/services/ledger.service.ts",
+        "range": {
+          "at": "private async applyWalletDeltas(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/database/migrations/1752000000000-economy-ledger.ts",
+        "range": {
+          "at": "CREATE TABLE wallets (",
+          "to": "^    `\\);$",
+          "pad": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "file": "apps/core-api/src/database/migrations/1752000000000-economy-ledger.ts",
+        "range": {
+          "at": "CREATE TRIGGER trg_ledger_entries_append_only",
+          "to": "^    `\\);$",
+          "pad": [
+            1,
+            0
+          ]
+        }
+      }
+    ],
+    "helpers": [],
+    "skip": [
+      "decodeTransactionInfo",
+      "applyWalletDeltas"
+    ],
+    "attach": {},
+    "nested": true
+  },
+  "omittedContext": {
+    "note": "Curated source selection; unlisted call bodies, shared request infrastructure, DTOs and other context may be omitted. skip names stay unexpanded; helpers may be substituted; attach controls placement. Flattened scopes are not executable code.",
+    "skip": [
+      "decodeTransactionInfo",
+      "applyWalletDeltas"
+    ],
+    "attach": {},
+    "helpers": []
+  },
+  "featureMetadata": {
+    "id": "09-diamond-top-up-va-vip",
+    "short": "Diamond, Top-up và VIP",
+    "title": "Diamond, Top-up và VIP",
+    "summary": "Nạp Diamond qua store hoặc payOS, mua VIP bằng Diamond, hoàn tiền từ store; mọi thay đổi số dư đi qua một sổ kép duy nhất.",
+    "diagramAnchor": "09-diamond-top-up-va-vip"
+  },
+  "endpointCatalog": {
+    "n": "04",
+    "slug": "post-webhook-apple-refund",
+    "method": "POST",
+    "short": "/economy/webhooks/apple",
+    "route": "/api/v1/economy/webhooks/apple",
+    "name": "Webhook Apple hoàn tiền",
+    "title": "Apple báo REFUND hoặc REVOKE: kiểm chữ ký JWS, rồi đảo bút toán của lần nạp gốc; số dư có thể âm.",
+    "flow": "[CONTROLLER] → [EXTERNAL] → [SERVICE] → [POSTGRES]",
+    "roles": [
+      [
+        "CONTROLLER",
+        "Nhận App Store Server Notification V2, nhờ verifier kiểm chữ ký, đối chiếu bundleId, chỉ xử lý REFUND và REVOKE, luôn ACK 200 sau khi verify."
+      ],
+      [
+        "EXTERNAL",
+        "Apple ký thông báo bằng JWS (ES256) kèm chuỗi chứng chỉ x5c; core-api xác thực chuỗi lên Apple Root CA G3."
+      ],
+      [
+        "SERVICE",
+        "RefundService tìm receipt gốc rồi nhờ LedgerService.reverse ghi bút toán đảo và đánh dấu receipt refunded; gọi lại nhiều lần vẫn chỉ hoàn một lần."
+      ],
+      [
+        "POSTGRES",
+        "Một transaction ghi bút toán đảo, đổi trạng thái giao dịch gốc (UPDATE có điều kiện), đổi receipt, ghi outbox; số dư ví được phép âm."
+      ]
+    ],
+    "tables": [
+      [
+        "iap_receipts",
+        "receipt đã credit: chuyển sang refunded và trỏ refund_transaction_id sang giao dịch đảo."
+      ],
+      [
+        "transactions",
+        "giao dịch gốc chuyển completed sang reversed; giao dịch mới type reversal trỏ reversal_of về gốc, actor null."
+      ],
+      [
+        "ledger_entries",
+        "bút toán đảo chiều: Nợ ví user, Có system_iap; bảng chỉ thêm, trigger chặn sửa và xóa."
+      ],
+      [
+        "wallets",
+        "số dư bị trừ lại, được phép âm (user nợ diamond)."
+      ],
+      [
+        "outbox_events",
+        "event economy.diamond.refunded ghi cùng transaction."
+      ]
+    ],
+    "related": [
+      [
+        "Economy (LedgerService.record)",
+        "đường ghi sổ idempotent mà reverse gọi vào; xem luồng Mua VIP."
+      ],
+      [
+        "Nạp IAP",
+        "luồng nạp ban đầu, tạo ra receipt credited mà webhook này đảo lại."
+      ],
+      [
+        "Job quét hoàn tiền",
+        "IapRefundPollService quét Apple Refund History và Google Voided Purchases làm đường dự phòng, gọi cùng RefundService.refundIapPurchase (chưa chép)."
+      ],
+      [
+        "Google RTDN",
+        "POST /economy/webhooks/google/rtdn chỉ log tín hiệu CANCELED, không tự hoàn tiền (chưa chép)."
+      ]
+    ],
+    "nested": true,
+    "skip": [
+      "decodeTransactionInfo",
+      "applyWalletDeltas"
+    ],
+    "steps": [
+      {
+        "at": "@Post('apple')",
+        "text": "Nhận webhook công khai của Apple (tối đa 60 lần/phút)"
+      },
+      {
+        "at": "const payload = await this.appleVerifier.verify(dto.signedPayload);",
+        "text": "Kiểm chữ ký JWS trước khi tin bất kỳ trường nào"
+      },
+      {
+        "at": "const certs = header.x5c.map(",
+        "text": "Xác thực chuỗi x5c lên Apple Root CA G3, rồi verify ES256"
+      },
+      {
+        "at": "const expectedBundleId =",
+        "text": "Đối chiếu bundleId, chỉ xử lý REFUND và REVOKE"
+      },
+      {
+        "at": "await this.refundService.refundIapPurchase(",
+        "text": "Giao RefundService tìm receipt gốc và hoàn tiền"
+      },
+      {
+        "at": "const receipt = await this.receiptRepo.findOneBy({",
+        "text": "Tìm receipt gốc; không rõ hoặc đã hoàn thì dừng"
+      },
+      {
+        "at": "const result = await this.ledger.reverse(",
+        "text": "Nhờ LedgerService.reverse đảo bút toán của giao dịch gốc"
+      },
+      {
+        "at": "return this.record({",
+        "text": "Ghi giao dịch đảo vào sổ; số dư ví được phép âm"
+      },
+      {
+        "at": "const marked = await manager.update(",
+        "text": "Đánh dấu giao dịch gốc reversed (UPDATE có điều kiện)"
+      },
+      {
+        "at": "const existingReversal = await this.transactionRepo.findOneBy({",
+        "text": "Gốc đã bị đảo trước đó: coi là idempotent, nối receipt"
+      },
+      {
+        "at": "return { received: true };",
+        "in": "EconomyWebhooksController.appleNotification",
+        "nth": 2,
+        "text": "Luôn ACK 200 cho Apple sau khi đã verify"
+      }
+    ],
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/economy/webhooks/economy-webhooks.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('apple')",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const payload = await this.appleVerifier.verify(dto.signedPayload);",
+            "text": [
+              "Chữ ký JWS được verify TRƯỚC khi tin bất kỳ trường nào; payload chưa verify không được dùng."
+            ],
+            "src": "doc gốc economy-webhooks.controller.ts L35-37"
+          },
+          {
+            "at": "const expectedBundleId =",
+            "text": [
+              "Chain hợp lệ chỉ chứng minh \"Apple ký\", không chứng minh \"ký cho app này\" (mọi app dùng chung chuỗi chứng chỉ), nên phải đối chiếu bundleId. Sai bundleId vẫn ACK 200 để store không retry dồn dập."
+            ],
+            "src": "comment gốc economy-webhooks.controller.ts L64-65 + doc L38-40"
+          },
+          {
+            "at": "const txnInfo = this.appleVerifier.decodeTransactionInfo(",
+            "text": [
+              "signedTransactionInfo lồng bên trong đã nằm trong phạm vi chữ ký của payload ngoài, nên chỉ cần decode, không verify lần nữa."
+            ],
+            "src": "comment gốc notification-verifier.ts L141 + doc class L96-98"
+          }
+        ]
+      },
+      {
+        "tag": "EXTERNAL",
+        "file": "apps/core-api/src/modules/economy/ports/notification-verifier.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async verify(signedPayload: string)",
+            "nth": 1,
+            "to": "^  }$"
+          },
+          {
+            "at": "private chainIsTrusted(",
+            "to": "^  }$"
+          },
+          {
+            "at": "decodeTransactionInfo(signedTransactionInfo: string): AppleTransactionInfo {",
+            "nth": 1,
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const certs = header.x5c.map(",
+            "text": [
+              "Chuỗi chứng chỉ x5c trong header phải dẫn lên Apple Root CA G3 (nạp từ env, không hardcode) và mọi chứng chỉ còn hạn."
+            ],
+            "src": "doc class notification-verifier.ts L91-95 + doc chainIsTrusted L145"
+          },
+          {
+            "at": "const leafPublicKey = await importX509(certs[0].toString(), 'ES256');",
+            "text": [
+              "Khóa cứng ES256, không đọc alg từ header vì đó là dữ liệu CHƯA xác thực (chống algorithm confusion)."
+            ],
+            "src": "comment gốc notification-verifier.ts L131-133"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/economy/services/refund.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async refundIapPurchase(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "if (!receipt) {",
+            "text": [
+              "Receipt không rõ: có thể của app khác, hoặc refund đến gần như tức thời khi credit chưa xử lý xong. Trả unknown_receipt, job quét định kỳ sẽ bắt lại; không phải lỗi cần retry gấp."
+            ],
+            "src": "comment gốc refund.service.ts L45-46"
+          },
+          {
+            "at": "if (receipt.status === IapReceiptStatus.Refunded) {",
+            "text": [
+              "Đã hoàn thì bỏ qua: webhook retry hay job quét trùng cũng chỉ hoàn một lần."
+            ],
+            "src": "doc class refund.service.ts L19-22"
+          },
+          {
+            "at": "actorUserId: null,",
+            "text": [
+              "actor = null: hoàn tiền tự động từ store, không phải hành động của user."
+            ],
+            "src": "comment gốc refund.service.ts L71"
+          },
+          {
+            "at": "withinTransaction: async (manager, reversalTxn) => {",
+            "text": [
+              "[POSTGRES] Đánh dấu receipt refunded CÙNG transaction với bút toán đảo, nên không có trạng thái ví đã bị đảo mà receipt vẫn credited."
+            ],
+            "src": "suy ra từ code + doc reverse opts ledger.service.ts L196-197 (chạy thêm trong CÙNG DB transaction, vd set iap_receipts.status=refunded)"
+          },
+          {
+            "at": "const existingReversal = await this.transactionRepo.findOneBy({",
+            "text": [
+              "Giao dịch gốc đã bị đảo trước (vd admin) nhưng receipt chưa kịp cập nhật: coi là idempotent, tìm đúng giao dịch đã đảo để giữ vết kiểm toán."
+            ],
+            "src": "comment gốc refund.service.ts L87-89"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/economy/services/ledger.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async reverse(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async applyWalletDeltas(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "type: TransactionType.Reversal,",
+            "text": [
+              "Reversal được phép đẩy số dư âm = user nợ diamond (đã tiêu rồi mới bị hoàn). Không kẹp về 0 vì sẽ phá sổ kép; nợ được trừ dần khi user nạp tiếp."
+            ],
+            "src": "comment gốc ledger.service.ts L449-450 (mayGoNegative cho Reversal/Adjustment trong applyWalletDeltas) + docs/services/economy-service.md mục 5 (không clamp về 0) và mục 2 (credit mới tự bù nợ)"
+          },
+          {
+            "at": "direction:",
+            "text": [
+              "Đảo chiều từng bút toán của giao dịch gốc, không sửa hay xóa giao dịch gốc: trigger ở DB chặn UPDATE và DELETE trên ledger_entries."
+            ],
+            "src": "doc reverse ledger.service.ts L183-186 + comment migration 1752000000000-economy-ledger.ts (ledger_entries append-only)"
+          },
+          {
+            "at": "const marked = await manager.update(",
+            "text": [
+              "[POSTGRES] UPDATE có điều kiện status = completed: 2 request cùng đảo thì chỉ 1 bên cập nhật được dòng; bên thua ném lỗi và rollback bút toán đảo của mình."
+            ],
+            "src": "doc reverse ledger.service.ts L183-187 + comment L264"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752000000000-economy-ledger.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE wallets (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752000000000-economy-ledger.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TRIGGER trg_ledger_entries_append_only",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "sourceManifest": {
+    "verifiedCodeSha256": true,
+    "mode": "published-presentation",
+    "baselineCommit": "cb30743143bd8f6576b154db4b606380c365c674",
+    "sourceCommit": "d3cb28c",
+    "sources": [
+      "apps/core-api/src/database/migrations/1752000000000-economy-ledger.ts",
+      "apps/core-api/src/modules/economy/ports/notification-verifier.ts",
+      "apps/core-api/src/modules/economy/services/ledger.service.ts",
+      "apps/core-api/src/modules/economy/services/refund.service.ts",
+      "apps/core-api/src/modules/economy/webhooks/economy-webhooks.controller.ts"
+    ],
+    "steps": [
+      "Step 1: Nhận webhook công khai của Apple (tối đa 60 lần/phút)",
+      "Step 2: Kiểm chữ ký JWS trước khi tin bất kỳ trường nào",
+      "Step 3: Xác thực chuỗi x5c lên Apple Root CA G3, rồi verify ES256",
+      "Step 4: Đối chiếu bundleId, chỉ xử lý REFUND và REVOKE",
+      "Step 5: Giao RefundService tìm receipt gốc và hoàn tiền",
+      "Step 6: Tìm receipt gốc; không rõ hoặc đã hoàn thì dừng",
+      "Step 7: Nhờ LedgerService.reverse đảo bút toán của giao dịch gốc",
+      "Step 8: Ghi giao dịch đảo vào sổ; số dư ví được phép âm",
+      "Step 9: Đánh dấu giao dịch gốc reversed (UPDATE có điều kiện)",
+      "Step 10: Gốc đã bị đảo trước đó: coi là idempotent, nối receipt",
+      "Step 11: Luôn ACK 200 cho Apple sau khi đã verify"
+    ],
+    "removedOverview": "// ════════════════════════════════════════════════════════════════════════════\n//  POST /api/v1/economy/webhooks/apple\n//  Apple báo REFUND hoặc REVOKE: kiểm chữ ký JWS, rồi đảo bút toán của lần nạp gốc; số dư có thể âm.\n// ════════════════════════════════════════════════════════════════════════════\n//  Luồng      [CONTROLLER] → [EXTERNAL] → [SERVICE] → [POSTGRES]\n//\n//  Vai trò từng tầng\n//    [CONTROLLER] Nhận App Store Server Notification V2, nhờ verifier kiểm chữ ký, đối\n//                 chiếu bundleId, chỉ xử lý REFUND và REVOKE, luôn ACK 200 sau khi\n//                 verify.\n//    [EXTERNAL]   Apple ký thông báo bằng JWS (ES256) kèm chuỗi chứng chỉ x5c; core-api\n//                 xác thực chuỗi lên Apple Root CA G3.\n//    [SERVICE]    RefundService tìm receipt gốc rồi nhờ LedgerService.reverse ghi bút\n//                 toán đảo và đánh dấu receipt refunded; gọi lại nhiều lần vẫn chỉ hoàn\n//                 một lần.\n//    [POSTGRES]   Một transaction ghi bút toán đảo, đổi trạng thái giao dịch gốc\n//                 (UPDATE có điều kiện), đổi receipt, ghi outbox; số dư ví được phép\n//                 âm.\n//\n//  Bảng       iap_receipts — receipt đã credit: chuyển sang refunded và trỏ\n//               refund_transaction_id sang giao dịch đảo.\n//             transactions — giao dịch gốc chuyển completed sang reversed; giao dịch\n//               mới type reversal trỏ reversal_of về gốc, actor null.\n//             ledger_entries — bút toán đảo chiều: Nợ ví user, Có system_iap; bảng chỉ\n//               thêm, trigger chặn sửa và xóa.\n//             wallets — số dư bị trừ lại, được phép âm (user nợ diamond).\n//             outbox_events — event economy.diamond.refunded ghi cùng transaction.\n//  Liên quan  Economy (LedgerService.record) — đường ghi sổ idempotent mà reverse gọi\n//               vào; xem luồng Mua VIP.\n//             Nạp IAP — luồng nạp ban đầu, tạo ra receipt credited mà webhook này đảo\n//               lại.\n//             Job quét hoàn tiền — IapRefundPollService quét Apple Refund History và\n//               Google Voided Purchases làm đường dự phòng, gọi cùng\n//               RefundService.refundIapPurchase (chưa chép).\n//             Google RTDN — POST /economy/webhooks/google/rtdn chỉ log tín hiệu\n//               CANCELED, không tự hoàn tiền (chưa chép).\n//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi\n//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới\n//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //\n//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các\n//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số\n//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức\n//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong\n//             repo.\n",
+    "baselineBodySha256": "0500860f8003dc9bfd3c5b70328d799fd5809a28eefe8371dc3d0753415e71d4",
+    "bodySha256": "0500860f8003dc9bfd3c5b70328d799fd5809a28eefe8371dc3d0753415e71d4",
+    "rawSha256": "fb45674df7434b507e4874bd039462e72ea4282abc372c832f33cd66e51fa942",
+    "codeSha256": "fb45674df7434b507e4874bd039462e72ea4282abc372c832f33cd66e51fa942"
+  },
+  "code": {
+    "path": "code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts",
+    "sha256": "fb45674df7434b507e4874bd039462e72ea4282abc372c832f33cd66e51fa942",
+    "hashAlgorithm": "sha256",
+    "content": "//  POST /api/v1/economy/webhooks/apple\n//  Apple báo REFUND hoặc REVOKE: kiểm chữ ký JWS, rồi đảo bút toán của lần nạp gốc; số dư có thể âm.\n//  Step 1: Nhận webhook công khai của Apple (tối đa 60 lần/phút)\n//  Step 2: Kiểm chữ ký JWS trước khi tin bất kỳ trường nào\n//  Step 3: Xác thực chuỗi x5c lên Apple Root CA G3, rồi verify ES256\n//  Step 4: Đối chiếu bundleId, chỉ xử lý REFUND và REVOKE\n//  Step 5: Giao RefundService tìm receipt gốc và hoàn tiền\n//  Step 6: Tìm receipt gốc; không rõ hoặc đã hoàn thì dừng\n//  Step 7: Nhờ LedgerService.reverse đảo bút toán của giao dịch gốc\n//  Step 8: Ghi giao dịch đảo vào sổ; số dư ví được phép âm\n//  Step 9: Đánh dấu giao dịch gốc reversed (UPDATE có điều kiện)\n//  Step 10: Gốc đã bị đảo trước đó: coi là idempotent, nối receipt\n//  Step 11: Luôn ACK 200 cho Apple sau khi đã verify\n\n// [CONTROLLER] EconomyWebhooksController.appleNotification  ·  economy-webhooks.controller.ts L42–44, L56–91\n@Public()\n@Controller('economy/webhooks')\nexport class EconomyWebhooksController {\n  private readonly logger = new Logger(EconomyWebhooksController.name);\n  // RefundService\n  private readonly logger = new Logger(RefundService.name);\n  constructor(\n    private readonly refundService: RefundService,\n    private readonly appleVerifier: AppleNotificationVerifier,\n    private readonly config: ConfigService<CoreApiEnv, true>,\n    // RefundService\n    @InjectRepository(IapReceipt)\n    private readonly receiptRepo: Repository<IapReceipt>,\n    @InjectRepository(LedgerTransaction)\n    private readonly transactionRepo: Repository<LedgerTransaction>,\n    private readonly ledger: LedgerPersistencePort,\n    // LedgerService\n    @InjectDataSource() private readonly dataSource: DataSource,\n  ) {}\n\n  // Step 1: Nhận webhook công khai của Apple (tối đa 60 lần/phút)\n  @Post('apple')\n  @HttpCode(HttpStatus.OK)\n  @Throttle({ default: { limit: 60, ttl: minutes(1) } })\n  async appleNotification(\n    @Body() dto: AppleServerNotificationDto,\n  ): Promise<{ received: boolean }> {\n\n    // Step 2: Kiểm chữ ký JWS trước khi tin bất kỳ trường nào\n    // Chữ ký JWS được verify TRƯỚC khi tin bất kỳ trường nào; payload chưa verify không được\n    // dùng.\n    const payload = await this.appleVerifier.verify(dto.signedPayload);\n\n    // [EXTERNAL] StoreAppleNotificationVerifier.verify  ·  notification-verifier.ts L106–138\n    const signedPayload = dto.signedPayload;\n    const header = decodeProtectedHeader(signedPayload) as { x5c?: string[] };\n    if (!header.x5c || header.x5c.length === 0) {\n      throw new DomainException(\n        EconomyErrors.WEBHOOK_SIGNATURE_INVALID,\n        'Thiếu x5c trong JWS header',\n        HttpStatus.UNAUTHORIZED,\n      );\n    }\n\n    // Step 3: Xác thực chuỗi x5c lên Apple Root CA G3, rồi verify ES256\n    // Chuỗi chứng chỉ x5c trong header phải dẫn lên Apple Root CA G3 (nạp từ env, không hardcode)\n    // và mọi chứng chỉ còn hạn.\n    const certs = header.x5c.map(\n      (b64) => new X509Certificate(Buffer.from(b64, 'base64')),\n    );\n    const trustedRootPem = this.config\n      .getOrThrow('ECONOMY_APPLE_ROOT_CA_PEM', { infer: true })\n      .replace(/\\\\n/g, '\\n');\n    const trustedRoot = new X509Certificate(trustedRootPem);\n\n    // [EXTERNAL] StoreAppleNotificationVerifier.chainIsTrusted  ·  notification-verifier.ts L146–167\n    const now = new Date();\n    if (\n      certs.some(\n        (c) => now < new Date(c.validFrom) || now > new Date(c.validTo),\n      )\n    )\n      return false;\n    for (let i = 0; i < certs.length - 1; i++) {\n      if (\n        !certs[i].checkIssued(certs[i + 1]) ||\n        !certs[i].verify(certs[i + 1].publicKey)\n      )\n        return false;\n    }\n    const last = certs[certs.length - 1];\n    if (last.fingerprint256 === trustedRoot.fingerprint256) return true;\n    return last.checkIssued(trustedRoot) && last.verify(trustedRoot.publicKey);\n\n    if (!this.chainIsTrusted(certs, trustedRoot)) {\n      throw new DomainException(\n        EconomyErrors.WEBHOOK_SIGNATURE_INVALID,\n        'Chain chứng chỉ Apple không hợp lệ',\n        HttpStatus.UNAUTHORIZED,\n      );\n    }\n\n    // Khóa cứng ES256, không đọc alg từ header vì đó là dữ liệu CHƯA xác thực (chống algorithm\n    // confusion).\n    const leafPublicKey = await importX509(certs[0].toString(), 'ES256');\n    const { payload } = await jwtVerify(signedPayload, leafPublicKey, {\n      algorithms: ['ES256'],\n    });\n    return payload as unknown as AppleNotificationPayload;\n\n    // Step 4: Đối chiếu bundleId, chỉ xử lý REFUND và REVOKE\n    // Chain hợp lệ chỉ chứng minh \"Apple ký\", không chứng minh \"ký cho app này\" (mọi app dùng\n    // chung chuỗi chứng chỉ), nên phải đối chiếu bundleId. Sai bundleId vẫn ACK 200 để store\n    // không retry dồn dập.\n    const expectedBundleId = this.config.getOrThrow('ECONOMY_APPLE_BUNDLE_ID', {\n      infer: true,\n    });\n    if (expectedBundleId && payload.data.bundleId !== expectedBundleId) {\n      this.logger.warn(\n        `Apple notification bundleId lạ: ${payload.data.bundleId}`,\n      );\n      return { received: true };\n    }\n\n    if (\n      !APPLE_REFUND_NOTIFICATION_TYPES.has(payload.notificationType) ||\n      !payload.data.signedTransactionInfo\n    ) {\n      return { received: true };\n    }\n    // signedTransactionInfo lồng bên trong đã nằm trong phạm vi chữ ký của payload ngoài, nên chỉ\n    // cần decode, không verify lần nữa.\n    const txnInfo = this.appleVerifier.decodeTransactionInfo(\n      payload.data.signedTransactionInfo,\n    );\n\n    // Step 5: Giao RefundService tìm receipt gốc và hoàn tiền\n    await this.refundService.refundIapPurchase(\n      IapProvider.Apple,\n      txnInfo.transactionId,\n      `apple:${payload.notificationType}${payload.subtype ? `:${payload.subtype}` : ''}`,\n    );\n\n    // [SERVICE] RefundService.refundIapPurchase  ·  refund.service.ts L35–111\n    const provider = IapProvider.Apple;\n    const providerTransactionId = txnInfo.transactionId;\n    const reason =\n      `apple:${payload.notificationType}${payload.subtype ? `:${payload.subtype}` : ''}`;\n\n    // Step 6: Tìm receipt gốc; không rõ hoặc đã hoàn thì dừng\n    const receipt = await this.receiptRepo.findOneBy({\n      provider,\n      providerTransactionId,\n    });\n    // Receipt không rõ: có thể của app khác, hoặc refund đến gần như tức thời khi credit chưa xử\n    // lý xong. Trả unknown_receipt, job quét định kỳ sẽ bắt lại; không phải lỗi cần retry gấp.\n    if (!receipt) {\n      this.logger.warn(\n        `Refund cho receipt không rõ: ${provider}:${providerTransactionId}`,\n      );\n      return { outcome: 'unknown_receipt' };\n    }\n    // Đã hoàn thì bỏ qua: webhook retry hay job quét trùng cũng chỉ hoàn một lần.\n    if (receipt.status === IapReceiptStatus.Refunded) {\n      return {\n        outcome: 'already_refunded',\n        transactionId: receipt.refundTransactionId ?? undefined,\n      };\n    }\n    if (!receipt.transactionId) {\n      this.logger.error(\n        `Receipt ${receipt.id} đã credited nhưng không có transactionId — dữ liệu lệch, cần điều tra`,\n      );\n      return { outcome: 'receipt_not_credited' };\n    }\n\n    try {\n\n      // Step 7: Nhờ LedgerService.reverse đảo bút toán của giao dịch gốc\n      const result = await this.ledger.reverse(\n        receipt.transactionId,\n        `refund:${provider}:${providerTransactionId}`,\n        reason,\n        {\n          // actor = null: hoàn tiền tự động từ store, không phải hành động của user.\n          actorUserId: null,\n          outboxEventTypeOverride: 'economy.diamond.refunded',\n          // [POSTGRES] Đánh dấu receipt refunded CÙNG transaction với bút toán đảo, nên không có\n          // trạng thái ví đã bị đảo mà receipt vẫn credited.\n          withinTransaction: async (manager, reversalTxn) => {\n            await manager.update(\n              IapReceipt,\n              { id: receipt.id },\n              {\n                status: IapReceiptStatus.Refunded,\n                refundTransactionId: reversalTxn.id,\n              },\n            );\n          },\n        },\n      );\n\n      // [SERVICE] LedgerService.reverse  ·  ledger.service.ts L188–274\n      const originalTransactionId = receipt.transactionId;\n      const idempotencyKey = `refund:${provider}:${providerTransactionId}`;\n      // opts = đối số 4 của lời gọi ở trên\n      const original = await this.dataSource\n        .getRepository(LedgerTransaction)\n        .findOneBy({ id: originalTransactionId });\n      if (!original) {\n        throw new DomainException(\n          EconomyErrors.TRANSACTION_NOT_FOUND,\n          'Không tìm thấy giao dịch gốc',\n          HttpStatus.NOT_FOUND,\n        );\n      }\n      if (original.status === TransactionStatus.Reversed) {\n        throw new DomainException(\n          EconomyErrors.TRANSACTION_ALREADY_REVERSED,\n          'Giao dịch đã được hoàn trước đó',\n          HttpStatus.CONFLICT,\n        );\n      }\n\n      const entries = await this.dataSource\n        .getRepository(LedgerEntry)\n        .findBy({ transactionId: original.id });\n      const accounts = await this.dataSource\n        .getRepository(LedgerAccount)\n        .findBy(entries.map((e) => ({ id: e.accountId })));\n      const accountById = new Map(accounts.map((a) => [a.id, a]));\n\n      // Step 8: Ghi giao dịch đảo vào sổ; số dư ví được phép âm\n      return this.record({\n        // Reversal được phép đẩy số dư âm = user nợ diamond (đã tiêu rồi mới bị hoàn). Không kẹp\n        // về 0 vì sẽ phá sổ kép; nợ được trừ dần khi user nạp tiếp.\n        type: TransactionType.Reversal,\n        idempotencyKey,\n        actorUserId:\n          opts.actorUserId !== undefined\n            ? (opts.actorUserId ?? undefined)\n            : (original.actorUserId ?? undefined),\n        reversalOf: original.id,\n        metadata: { reason, originalType: original.type },\n        outboxEventTypeOverride: opts.outboxEventTypeOverride,\n        entries: entries.map((e) => {\n          const account = accountById.get(e.accountId);\n          if (!account)\n            throw new Error(\n              `Ledger account ${e.accountId} biến mất — dữ liệu hỏng`,\n            );\n          return {\n            accountKind: account.kind,\n            userId: account.userId ?? undefined,\n            // Đảo chiều từng bút toán của giao dịch gốc, không sửa hay xóa giao dịch gốc: trigger\n            // ở DB chặn UPDATE và DELETE trên ledger_entries.\n            direction:\n              e.direction === LedgerDirection.Debit\n                ? LedgerDirection.Credit\n                : LedgerDirection.Debit,\n            amount: BigInt(e.amount),\n            currency: e.currency,\n          };\n        }),\n        withinTransaction: async (manager, reversalTxn) => {\n\n          // Step 9: Đánh dấu giao dịch gốc reversed (UPDATE có điều kiện)\n          // [POSTGRES] UPDATE có điều kiện status = completed: 2 request cùng đảo thì chỉ 1 bên\n          // cập nhật được dòng; bên thua ném lỗi và rollback bút toán đảo của mình.\n          const marked = await manager.update(\n            LedgerTransaction,\n            { id: original.id, status: TransactionStatus.Completed },\n            { status: TransactionStatus.Reversed },\n          );\n          if (!marked.affected) {\n            throw new DomainException(\n              EconomyErrors.TRANSACTION_ALREADY_REVERSED,\n              'Giao dịch đã được hoàn trước đó',\n              HttpStatus.CONFLICT,\n            );\n          }\n          await opts.withinTransaction?.(manager, reversalTxn);\n        },\n      });\n\n      return { outcome: 'refunded', transactionId: result.transaction.id };\n    } catch (err) {\n      if (\n        err instanceof DomainException &&\n        err.code === EconomyErrors.TRANSACTION_ALREADY_REVERSED\n      ) {\n\n        // Step 10: Gốc đã bị đảo trước đó: coi là idempotent, nối receipt\n        // Giao dịch gốc đã bị đảo trước (vd admin) nhưng receipt chưa kịp cập nhật: coi là\n        // idempotent, tìm đúng giao dịch đã đảo để giữ vết kiểm toán.\n        const existingReversal = await this.transactionRepo.findOneBy({\n          reversalOf: receipt.transactionId,\n        });\n        await this.receiptRepo.update(\n          { id: receipt.id },\n          {\n            status: IapReceiptStatus.Refunded,\n            refundTransactionId: existingReversal?.id ?? null,\n          },\n        );\n        return {\n          outcome: 'already_refunded',\n          transactionId: existingReversal?.id,\n        };\n      }\n      throw err;\n    }\n\n    // Step 11: Luôn ACK 200 cho Apple sau khi đã verify\n    return { received: true };\n  }\n}\n\n// [POSTGRES] CREATE TABLE wallets  ·  1752000000000-economy-ledger.ts L82–93\nawait queryRunner.query(`\n  CREATE TABLE wallets (\n    user_id         uuid PRIMARY KEY REFERENCES users(id),\n    -- balance CÓ THỂ âm sau refund/chargeback (user nợ diamond) — không đặt CHECK >= 0\n    balance         bigint      NOT NULL DEFAULT 0,\n    -- earnings (PTS) chỉ được cộng ở giai đoạn này (chưa có luồng tiêu) → vẫn giữ CHECK >= 0\n    earnings        bigint      NOT NULL DEFAULT 0 CHECK (earnings >= 0),\n    vip_tier        varchar(16) NULL,\n    vip_expires_at  timestamptz NULL,\n    updated_at      timestamptz NOT NULL DEFAULT now()\n  )\n`);\n\n// [POSTGRES] 1752000000000-economy-ledger.ts  ·  1752000000000-economy-ledger.ts L76–80\nawait queryRunner.query(`\n  CREATE TRIGGER trg_ledger_entries_append_only\n  BEFORE UPDATE OR DELETE ON ledger_entries\n  FOR EACH ROW EXECUTE FUNCTION forbid_ledger_entry_mutation()\n`);\n"
+  },
+  "provenance": {
+    "catalog": {
+      "path": "annotated-09-diamond-top-up-va-vip.mjs",
+      "sha256": "14613674bf4168e304a64d5de42eee89ecb4d66bbe207a648ba14d3482fae5dd"
+    },
+    "displayedCodeSha256": "fb45674df7434b507e4874bd039462e72ea4282abc372c832f33cd66e51fa942"
+  }
+}

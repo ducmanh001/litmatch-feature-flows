@@ -1,0 +1,607 @@
+{
+  "id": "07-feed-va-stories",
+  "title": "Feed và Stories",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#07-feed-va-stories",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/07-feed-va-stories.json",
+  "feature": {
+    "id": "07-feed-va-stories",
+    "title": "Feed và Stories",
+    "sources": [
+      "docs/services/feed-service.md",
+      "docs/services/media-service.md"
+    ],
+    "core": [
+      "Feed: post + interaction",
+      "Story: TTL + views",
+      "Media / Friend / Safety"
+    ],
+    "rest": "REST: posts, timeline, stories",
+    "dataLabel": "Post, Comment, Story, View",
+    "redisLabel": "",
+    "realtime": false,
+    "external": {
+      "lines": [
+        "S3-compatible storage",
+        "Ảnh: quarantine → final"
+      ],
+      "control": "Presign + validate asset",
+      "direct": "Client → storage: upload ảnh",
+      "kind": "storage"
+    },
+    "archNotes": {
+      "important": "Feed truy vấn PostgreSQL; audience và block được áp dụng trong core-api. Ảnh upload trực tiếp qua storage, Media kiểm tra owner, metadata và magic bytes trước khi lưu URL final; Story là entity riêng có expiresAt.",
+      "caution": "Feed toàn cục chỉ public; timeline profile lọc audience theo quan hệ. Flow đọc post/story dùng REST, không có fanout feed riêng; reply Story đi tiếp qua Friend Chat với realtime của Friend."
+    },
+    "flow": [
+      {
+        "text": "Chuẩn bị text / imageAssetId\nẢnh upload bằng Media upload intent"
+      },
+      {
+        "text": "Backend validate owner + object\nChặn guest tạo nội dung / tương tác"
+      },
+      {
+        "branch": "Tạo Post hay Story?",
+        "options": [
+          {
+            "label": "POST",
+            "text": "Lưu audience + content\nIdempotency-Key chặn post trùng",
+            "continues": true
+          },
+          {
+            "label": "STORY",
+            "text": "Lưu Story riêng + expiresAt\nTTL snapshot theo giờ server",
+            "continues": true
+          }
+        ]
+      },
+      {
+        "text": "Đọc qua guard audience + block\nFeed: public; timeline: theo quan hệ\nStory ring: mình + bạn bè"
+      },
+      {
+        "text": "Like / comment Post: counter atomic\nStory view: unique; self-view không đếm"
+      },
+      {
+        "branch": "Đọc tiếp theo loại nội dung?",
+        "options": [
+          {
+            "label": "POST",
+            "text": "Post không có Story TTL\nGiữ quyền theo audience + block\nTiếp tục tương tác",
+            "continues": true
+          },
+          {
+            "label": "CÒN TTL",
+            "text": "Hiển thị nếu có quyền\nBạn bè có thể reply thành DM\nSnapshot mediaUrl vào message",
+            "continues": true
+          },
+          {
+            "label": "HẾT TTL",
+            "text": "Ẩn ngay bằng read filter\nSweeper dọn Story + views\nKhông chờ cron để chặn đọc",
+            "continues": false
+          }
+        ]
+      },
+      {
+        "text": "Notification theo interaction hợp lệ\nReply DM theo pipeline Friend Chat"
+      }
+    ],
+    "flowNotes": {
+      "important": "Post/comment xoá mềm để giữ audit; Story hết TTL được hard-delete bởi sweeper. Reaction unique và counters cập nhật cùng transaction, view Story không đếm tác giả tự xem.",
+      "caution": "Đi thẳng post URL vẫn phải qua audience/block guard. Story ring chưa phân phối public rộng hơn bạn bè; chỉ tác giả được xem danh sách viewers.",
+      "followup": "Reply cần Friendship và snapshot mediaUrl để DM vẫn hữu ích sau khi Story hết hạn."
+    }
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Soạn Post/Story; nếu có ảnh xin upload intent",
+        "edge": "REST · Media upload intent"
+      },
+      {
+        "actor": "core-api · Media",
+        "text": "Validate owner/purpose/type/size; gọi ImageStoragePort",
+        "edge": "in-process · issueUploadUrl"
+      },
+      {
+        "actor": "core-api · Media adapter",
+        "text": "Tạo presigned URL bằng getSignedUrl tại server",
+        "edge": "in-process result · upload URL"
+      },
+      {
+        "actor": "core-api · Media",
+        "text": "Yêu cầu lưu ImageAsset upload intent",
+        "edge": "SQL · INSERT ImageAsset"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Lưu ImageAsset thuộc caller và metadata intent",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Media",
+        "text": "Trả assetId/uploadUrl sau khi intent đã lưu",
+        "edge": "REST result"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Upload ảnh trực tiếp bằng presigned URL",
+        "edge": "HTTP · PUT object"
+      },
+      {
+        "actor": "S3 / R2 / MinIO",
+        "text": "Lưu object quarantine; trả kết quả upload",
+        "edge": "HTTP result · upload"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Gửi imageAssetId cùng nội dung Post/Story",
+        "edge": "REST · Post/Story create"
+      },
+      {
+        "actor": "core-api · Feed / Story → Media",
+        "text": "Check asset owner/purpose; yêu cầu metadata và magic bytes",
+        "edge": "Storage API · HEAD / GET / promote"
+      },
+      {
+        "actor": "S3 / R2 / MinIO",
+        "text": "Trả metadata/bytes; promote object hợp lệ qua Media adapter",
+        "edge": "HTTP result · core-api"
+      },
+      {
+        "actor": "core-api · Feed / Story → Media",
+        "text": "Ảnh validated; enforce guest/audience và yêu cầu lưu content",
+        "edge": "SQL · INSERT content"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Commit Post idempotent hoặc Story riêng với expiresAt",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Feed / Story",
+        "text": "Compose và trả PostDto/StoryDto từ dữ liệu đã lưu",
+        "edge": "REST result · create response"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Yêu cầu feed/timeline/ring hoặc tương tác",
+        "edge": "REST · read/like/comment/view"
+      },
+      {
+        "actor": "core-api · Feed / Story",
+        "text": "Enforce audience + block; Story phải chưa hết TTL",
+        "edge": "SQL · SELECT / atomic interaction writes"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Trả nội dung có quyền; persist reaction/comment/counter hoặc unique StoryView",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Feed / Story",
+        "text": "Trả DTO; post interaction Notification atomic, push sau commit",
+        "edge": "REST result / optional push"
+      },
+      {
+        "actor": "Frontend",
+        "branch": "Story reply hay chỉ đọc?",
+        "options": [
+          {
+            "label": "REPLY",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Bạn của tác giả gửi reply",
+                "edge": "REST · Story reply"
+              },
+              {
+                "actor": "core-api · Story → Friend",
+                "text": "Snapshot mediaUrl; membership/block/idempotency qua sendMessage",
+                "edge": "SQL · INSERT Message"
+              },
+              {
+                "actor": "PostgreSQL",
+                "text": "Lưu DM thật; Story hết hạn không xoá message",
+                "edge": "SQL result · trả core-api"
+              },
+              {
+                "actor": "core-api · Friend",
+                "text": "Sau commit: phát friend.message cho recipients đã authorize",
+                "edge": "Redis · PUBLISH"
+              },
+              {
+                "actor": "Redis · Pub/Sub",
+                "text": "Chuyển friend.message trên per-user channel",
+                "edge": "Pub/Sub · PSUBSCRIBE"
+              },
+              {
+                "actor": "signaling-gateway",
+                "text": "Relay envelope tới socket room từ JWT",
+                "edge": "WebSocket · friend.message"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Hiển thị DM từ Story reply",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          },
+          {
+            "label": "ĐỌC",
+            "steps": [
+              {
+                "actor": "Frontend",
+                "text": "Hiển thị nội dung theo quyền; Story hết TTL bị ẩn ngay",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          }
+        ]
+      }
+    ],
+    "caution": "Text-only Post bỏ qua upload branch. Global feed chỉ public; Story ring mình + bạn. StorySweeper hard-delete rác nhưng read TTL là chốt correctness; feed không có fanout riêng.",
+    "sources": [
+      "docs/services/feed-service.md",
+      "docs/services/media-service.md"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "Feed / Story",
+        "uses": "Post audience + Story TTL",
+        "entities": [
+          "Post",
+          "Comment",
+          "Reaction",
+          "Story",
+          "StoryView"
+        ],
+        "actions": [
+          "Audience/block guard; atomic counters",
+          "Story unique viewers + expiry lúc đọc"
+        ]
+      },
+      {
+        "name": "Media",
+        "uses": "Ảnh thuộc caller, object đã validate",
+        "entities": [
+          "ImageAsset"
+        ],
+        "actions": [
+          "resolve imageAssetId; kiểm tra owner/status",
+          "Promote quarantine sang final key bất biến"
+        ]
+      },
+      {
+        "name": "Friend",
+        "uses": "Audience và Story reply thành DM",
+        "entities": [
+          "Friendship",
+          "Conversation",
+          "Message",
+          "ConversationStreak",
+          "ConversationMemberState"
+        ],
+        "actions": [
+          "areFriends / listFriendIds cho audience/ring",
+          "Reply: sendMessage + attachment snapshot"
+        ]
+      },
+      {
+        "name": "Safety",
+        "uses": "Chặn block/report tại hành động",
+        "entities": [
+          "Block",
+          "Report"
+        ],
+        "actions": [
+          "canPair / isBlocked / hidden-set",
+          "Đọc log PostgreSQL hiện tại"
+        ]
+      },
+      {
+        "name": "Notification",
+        "uses": "In-app trước push; gọi qua DI",
+        "entities": [
+          "Notification",
+          "WebPushSubscription"
+        ],
+        "actions": [
+          "createWithManager hoặc create sau persist",
+          "sendPush best-effort sau commit"
+        ]
+      },
+      {
+        "name": "User",
+        "uses": "Public author profiles",
+        "entities": [
+          "User"
+        ],
+        "actions": [
+          "Batch hydrate tác giả post/comment"
+        ]
+      }
+    ],
+    "entities": [
+      "Post",
+      "Comment",
+      "Reaction",
+      "Story",
+      "StoryView",
+      "ImageAsset"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "rate limit",
+          "label": "HTTP throttle nếu THROTTLE_STORAGE=redis",
+          "direction": "both"
+        },
+        {
+          "role": "Pub/Sub",
+          "label": "Chỉ nhánh Story reply: friend.message / streak",
+          "direction": "write"
+        }
+      ],
+      "signaling": true,
+      "mediaCluster": false
+    },
+    "externals": [
+      {
+        "id": "storage",
+        "lines": [
+          "S3 / R2 / MinIO",
+          "Ảnh: quarantine → final"
+        ],
+        "request": "Presign, kiểm tra object, promote",
+        "callback": "Metadata + magic bytes khi resolve asset",
+        "direct": "Client PUT presigned / đọc URL final",
+        "direction": "both",
+        "redis": "",
+        "condition": "MEDIA_STORAGE_PROVIDER; dev không upload binary thật"
+      },
+      {
+        "id": "push",
+        "lines": [
+          "FCM / APNs / Web Push",
+          "Notification push adapters"
+        ],
+        "request": "Push sau Notification commit",
+        "callback": "",
+        "direct": "Provider → device / Service Worker",
+        "direction": "to-client",
+        "redis": "",
+        "condition": "Provider + credentials; native token cần caller; Web Push opt-in"
+      }
+    ],
+    "operations": [
+      "StorySweeperService dọn Story hết TTL + views cascade",
+      "Like/comment ghi Notification cùng transaction; push sau commit",
+      "Story reply: message persist rồi streak/notification riêng"
+    ],
+    "notes": "Post/story feed không có fanout riêng; signaling chỉ thuộc Story reply đi qua Friend Chat. Feed toàn cục chỉ public, Story ring là mình + bạn bè. PostgreSQL giữ nội dung/counters; storage giữ ảnh, Redis không giữ timeline nguồn sự thật.",
+    "sources": [
+      "apps/core-api/src/modules/feed/feed.module.ts",
+      "apps/core-api/src/modules/feed/feed.service.ts",
+      "apps/core-api/src/modules/feed/services/story.service.ts",
+      "apps/core-api/src/modules/feed/jobs/story-sweeper.service.ts",
+      "apps/core-api/src/modules/media/media.service.ts",
+      "apps/core-api/src/app/app.module.ts"
+    ],
+    "links": [
+      {
+        "from": "Feed / Story",
+        "to": "Safety",
+        "label": "Block guard lúc đọc/tương tác",
+        "condition": ""
+      },
+      {
+        "from": "Feed / Story",
+        "to": "Friend",
+        "label": "Audience/ring graph bạn bè",
+        "condition": ""
+      },
+      {
+        "from": "Feed / Story",
+        "to": "Media",
+        "label": "Resolve imageAssetId thuộc owner",
+        "condition": ""
+      },
+      {
+        "from": "Feed / Story",
+        "to": "Notification",
+        "label": "Post like/comment; cùng manager",
+        "condition": ""
+      },
+      {
+        "from": "Feed / Story",
+        "to": "Friend",
+        "label": "Story reply → sendMessage snapshot",
+        "condition": "Chỉ Story reply"
+      },
+      {
+        "from": "Feed / Story",
+        "to": "User",
+        "label": "Batch hydrate public authors",
+        "condition": ""
+      }
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "redis",
+        "label": "Redis"
+      },
+      {
+        "id": "gateway",
+        "label": "signaling-gateway"
+      },
+      {
+        "id": "storage",
+        "label": "S3 / R2 / MinIO"
+      },
+      {
+        "id": "push",
+        "label": "FCM / APNs / Web Push"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      },
+      {
+        "id": "core-redis",
+        "from": "core",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "Pub/Sub"
+      },
+      {
+        "id": "core-storage",
+        "from": "core",
+        "to": "storage",
+        "bidirectional": true,
+        "protocol": "presign · media"
+      },
+      {
+        "id": "core-push",
+        "from": "core",
+        "to": "push",
+        "bidirectional": false,
+        "protocol": "push"
+      },
+      {
+        "id": "redis-gateway",
+        "from": "redis",
+        "to": "gateway",
+        "bidirectional": false,
+        "protocol": "realtime Pub/Sub"
+      },
+      {
+        "id": "gateway-redis",
+        "from": "gateway",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "presence · quota"
+      },
+      {
+        "id": "client-storage",
+        "from": "client",
+        "to": "storage",
+        "bidirectional": true,
+        "protocol": "upload/media"
+      },
+      {
+        "id": "client-push",
+        "from": "push",
+        "to": "client",
+        "bidirectional": false,
+        "protocol": "push"
+      },
+      {
+        "id": "gateway-client",
+        "from": "gateway",
+        "to": "client",
+        "bidirectional": true,
+        "protocol": "Socket: realtime"
+      }
+    ]
+  },
+  "featureSequence": [
+    "1. Chuẩn bị text / imageAssetId\nẢnh upload bằng Media upload intent",
+    "2. Backend validate owner + object\nChặn guest tạo nội dung / tương tác",
+    "3. Tạo Post hay Story?",
+    "3.1. POST: Lưu audience + content\nIdempotency-Key chặn post trùng",
+    "3.2. STORY: Lưu Story riêng + expiresAt\nTTL snapshot theo giờ server",
+    "4. Đọc qua guard audience + block\nFeed: public; timeline: theo quan hệ\nStory ring: mình + bạn bè",
+    "5. Like / comment Post: counter atomic\nStory view: unique; self-view không đếm",
+    "6. Đọc tiếp theo loại nội dung?",
+    "6.1. POST: Post không có Story TTL\nGiữ quyền theo audience + block\nTiếp tục tương tác",
+    "6.2. CÒN TTL: Hiển thị nếu có quyền\nBạn bè có thể reply thành DM\nSnapshot mediaUrl vào message",
+    "6.3. HẾT TTL [continues=false]: Ẩn ngay bằng read filter\nSweeper dọn Story + views\nKhông chờ cron để chặn đọc",
+    "7. Notification theo interaction hợp lệ\nReply DM theo pipeline Friend Chat"
+  ],
+  "layerSequence": [
+    "1. Frontend: Soạn Post/Story; nếu có ảnh xin upload intent [REST · Media upload intent]",
+    "2. core-api · Media: Validate owner/purpose/type/size; gọi ImageStoragePort [in-process · issueUploadUrl]",
+    "3. core-api · Media adapter: Tạo presigned URL bằng getSignedUrl tại server [in-process result · upload URL]",
+    "4. core-api · Media: Yêu cầu lưu ImageAsset upload intent [SQL · INSERT ImageAsset]",
+    "5. PostgreSQL: Lưu ImageAsset thuộc caller và metadata intent [SQL result · trả core-api]",
+    "6. core-api · Media: Trả assetId/uploadUrl sau khi intent đã lưu [REST result]",
+    "7. Frontend: Upload ảnh trực tiếp bằng presigned URL [HTTP · PUT object]",
+    "8. S3 / R2 / MinIO: Lưu object quarantine; trả kết quả upload [HTTP result · upload]",
+    "9. Frontend: Gửi imageAssetId cùng nội dung Post/Story [REST · Post/Story create]",
+    "10. core-api · Feed / Story → Media: Check asset owner/purpose; yêu cầu metadata và magic bytes [Storage API · HEAD / GET / promote]",
+    "11. S3 / R2 / MinIO: Trả metadata/bytes; promote object hợp lệ qua Media adapter [HTTP result · core-api]",
+    "12. core-api · Feed / Story → Media: Ảnh validated; enforce guest/audience và yêu cầu lưu content [SQL · INSERT content]",
+    "13. PostgreSQL: Commit Post idempotent hoặc Story riêng với expiresAt [SQL result · trả core-api]",
+    "14. core-api · Feed / Story: Compose và trả PostDto/StoryDto từ dữ liệu đã lưu [REST result · create response]",
+    "15. Frontend: Yêu cầu feed/timeline/ring hoặc tương tác [REST · read/like/comment/view]",
+    "16. core-api · Feed / Story: Enforce audience + block; Story phải chưa hết TTL [SQL · SELECT / atomic interaction writes]",
+    "17. PostgreSQL: Trả nội dung có quyền; persist reaction/comment/counter hoặc unique StoryView [SQL result · trả core-api]",
+    "18. core-api · Feed / Story: Trả DTO; post interaction Notification atomic, push sau commit [REST result / optional push]",
+    "19. Frontend: Story reply hay chỉ đọc?",
+    "19.1. REPLY [continues=false]",
+    "19.1.1. Frontend: Bạn của tác giả gửi reply [REST · Story reply]",
+    "19.1.2. core-api · Story → Friend: Snapshot mediaUrl; membership/block/idempotency qua sendMessage [SQL · INSERT Message]",
+    "19.1.3. PostgreSQL: Lưu DM thật; Story hết hạn không xoá message [SQL result · trả core-api]",
+    "19.1.4. core-api · Friend: Sau commit: phát friend.message cho recipients đã authorize [Redis · PUBLISH]",
+    "19.1.5. Redis · Pub/Sub: Chuyển friend.message trên per-user channel [Pub/Sub · PSUBSCRIBE]",
+    "19.1.6. signaling-gateway: Relay envelope tới socket room từ JWT [WebSocket · friend.message]",
+    "19.1.7. Frontend: Hiển thị DM từ Story reply",
+    "19.2. ĐỌC [continues=false]",
+    "19.2.1. Frontend: Hiển thị nội dung theo quyền; Story hết TTL bị ẩn ngay"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}

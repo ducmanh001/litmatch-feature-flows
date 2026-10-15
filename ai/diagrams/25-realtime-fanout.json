@@ -1,0 +1,308 @@
+{
+  "id": "25-realtime-fanout",
+  "title": "Realtime Fanout",
+  "url": "https://ducmanh001.github.io/litmatch-feature-flows/#25-realtime-fanout",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/25-realtime-fanout.json",
+  "feature": {
+    "id": "25-realtime-fanout",
+    "title": "Realtime Fanout",
+    "sources": [
+      "docs/services/realtime-gateway.md",
+      "apps/signaling-gateway/src/app/signaling.gateway.ts",
+      "apps/signaling-gateway/src/app/connection-quota.service.ts",
+      "apps/signaling-gateway/src/app/redis-adapter.service.ts"
+    ],
+    "core": [
+      "Domain publish sau commit",
+      "Recipient payload đã authorize",
+      "Gateway chỉ transport"
+    ],
+    "rest": "REST: đọc lại durable state",
+    "dataLabel": "State của domain producer",
+    "redisLabel": "Pub/Sub + presence + quota",
+    "realtime": true,
+    "external": null,
+    "archNotes": {
+      "important": "core-api quyết recipient/payload và publish sau durable commit; Redis Pub/Sub đưa envelope tới Gateway. Gateway verify JWT, quản lý Redis connection lease/presence và fanout room user từ JWT, không query DB hay quyết business.",
+      "caution": "Pub/Sub at-most-once không giữ lịch sử. Cluster adapter Socket.IO dùng connection Redis riêng; relay dùng server.local để tránh mỗi pod nhân đôi cùng event. Quota Redis lỗi thì handshake fail closed."
+    },
+    "flowNotes": {
+      "important": "Socket handshake hợp lệ acquire quota atomically và cập nhật presence lease. Domain event không cần internal API Core→Gateway; subscriber nhận per-user channel và emit cục bộ.",
+      "caution": "Socket reconnect cần REST refetch state; lease TTL dọn pod chết. LiveKit media có control/transport riêng, không đi qua signaling-gateway fanout này."
+    },
+    "flow": []
+  },
+  "layerFlow": {
+    "stages": [
+      {
+        "actor": "Frontend",
+        "text": "Có access token; mở Socket.IO /signaling bằng WebSocket",
+        "edge": "WebSocket · auth.token"
+      },
+      {
+        "actor": "signaling-gateway",
+        "text": "Verify JWT; user room chỉ từ payload.sub",
+        "edge": "Redis · quota acquire Lua"
+      },
+      {
+        "actor": "Redis · Quota/Presence",
+        "text": "Acquire global connection lease atomically; TTL và presence lease",
+        "edge": "Redis result · admitted / quota exceeded"
+      },
+      {
+        "actor": "signaling-gateway",
+        "branch": "JWT và quota Redis cho phép?",
+        "options": [
+          {
+            "label": "BỊ CHẶN",
+            "steps": [
+              {
+                "actor": "signaling-gateway",
+                "text": "Reject handshake; Redis/quota lỗi fail closed",
+                "edge": "WebSocket · connect_error"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Hiển thị lỗi/retry transport, không coi là business failure",
+                "edge": ""
+              }
+            ],
+            "continues": false
+          },
+          {
+            "label": "ADMITTED",
+            "steps": [
+              {
+                "actor": "signaling-gateway",
+                "text": "Join room user của JWT; bắt đầu refresh lease",
+                "edge": "WebSocket · connected"
+              },
+              {
+                "actor": "Frontend",
+                "text": "Nhận connected; gửi thao tác nghiệp vụ qua REST",
+                "edge": "REST · hành động domain"
+              }
+            ],
+            "continues": true
+          }
+        ]
+      },
+      {
+        "actor": "core-api · Domain producer",
+        "text": "Xử lý nghiệp vụ; yêu cầu lưu state trước realtime",
+        "edge": "SQL · domain writes + COMMIT"
+      },
+      {
+        "actor": "PostgreSQL",
+        "text": "Commit durable domain state; Gateway không đọc bảng này",
+        "edge": "SQL result · trả core-api"
+      },
+      {
+        "actor": "core-api · Domain producer",
+        "text": "Authorize recipient/payload; publish sau commit",
+        "edge": "Redis · PUBLISH realtime:user:{userId}"
+      },
+      {
+        "actor": "Redis · Pub/Sub",
+        "text": "Đưa envelope tới subscriber từng Gateway pod; không lưu history",
+        "edge": "Pub/Sub · PSUBSCRIBE"
+      },
+      {
+        "actor": "signaling-gateway",
+        "text": "Parse envelope; server.local.to(user room).emit để tránh duplicate",
+        "edge": "WebSocket · domain event"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Nhận event và invalidate/refetch state theo contract",
+        "edge": "REST · domain state API"
+      },
+      {
+        "actor": "core-api · Domain producer",
+        "text": "Trả durable state theo quyền caller",
+        "edge": "REST result"
+      },
+      {
+        "actor": "Frontend",
+        "text": "Reconnect dùng REST phục hồi event đã mất; disconnect giải phóng lease",
+        "edge": "WebSocket disconnect / Redis lease release tại Gateway"
+      }
+    ],
+    "caution": "Socket.IO cluster adapter có Redis pub/sub connections riêng, không chung subscriber. Pub/Sub at-most-once; quota lease TTL xử lý pod chết. Core API quyết business, Gateway không query PostgreSQL.",
+    "sources": [
+      "docs/services/realtime-gateway.md",
+      "apps/signaling-gateway/src/app/signaling.gateway.ts",
+      "apps/signaling-gateway/src/app/connection-quota.service.ts"
+    ]
+  },
+  "dependencies": {
+    "modules": [
+      {
+        "name": "Core domain producers",
+        "uses": "Authorize payload trước publish",
+        "entities": [
+          "MatchSession",
+          "Message",
+          "PartyRoomComment"
+        ],
+        "actions": [
+          "Persist domain state rồi publish per-recipient"
+        ]
+      },
+      {
+        "name": "User",
+        "uses": "Consumer presence riêng",
+        "entities": [
+          "PrivacySetting"
+        ],
+        "actions": [
+          "Read presence khi showOnlineStatus"
+        ]
+      }
+    ],
+    "entities": [
+      "MatchSession",
+      "Message",
+      "PartyRoomComment"
+    ],
+    "redis": {
+      "business": [
+        {
+          "role": "Pub/Sub",
+          "label": "realtime:user:{userId}",
+          "direction": "write"
+        }
+      ],
+      "signaling": true,
+      "mediaCluster": false
+    },
+    "externals": [],
+    "operations": [
+      "Gateway quota lease acquire/refresh/release + TTL",
+      "PSUBSCRIBE connection riêng; Redis adapter pub/sub riêng",
+      "Relay server.local; socket reconnect cần REST refetch"
+    ],
+    "notes": "PostgreSQL minh họa durable state của domain producer, Gateway không query PostgreSQL. Redis quota/presence thuộc Gateway; LiveKit WebRTC không đi qua flow này.",
+    "sources": [
+      "apps/core-api/src/common/realtime/publish-realtime.ts",
+      "apps/signaling-gateway/src/app/signaling.gateway.ts",
+      "apps/signaling-gateway/src/app/connection-quota.service.ts",
+      "apps/signaling-gateway/src/app/redis-adapter.service.ts",
+      "docs/services/realtime-gateway.md"
+    ]
+  },
+  "architecture": {
+    "source": "architecture-layout.mjs",
+    "components": [
+      {
+        "id": "client",
+        "label": "Client: Web / Admin"
+      },
+      {
+        "id": "core",
+        "label": "core-api"
+      },
+      {
+        "id": "postgres",
+        "label": "PostgreSQL"
+      },
+      {
+        "id": "redis",
+        "label": "Redis"
+      },
+      {
+        "id": "gateway",
+        "label": "signaling-gateway"
+      }
+    ],
+    "edges": [
+      {
+        "id": "client-core",
+        "from": "client",
+        "to": "core",
+        "bidirectional": false,
+        "protocol": "REST: yêu cầu nghiệp vụ"
+      },
+      {
+        "id": "core-postgres",
+        "from": "core",
+        "to": "postgres",
+        "bidirectional": false,
+        "protocol": "state bền vững"
+      },
+      {
+        "id": "core-redis",
+        "from": "core",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "Pub/Sub"
+      },
+      {
+        "id": "redis-gateway",
+        "from": "redis",
+        "to": "gateway",
+        "bidirectional": false,
+        "protocol": "realtime Pub/Sub"
+      },
+      {
+        "id": "gateway-redis",
+        "from": "gateway",
+        "to": "redis",
+        "bidirectional": false,
+        "protocol": "presence · quota"
+      },
+      {
+        "id": "gateway-client",
+        "from": "gateway",
+        "to": "client",
+        "bidirectional": true,
+        "protocol": "Socket: realtime"
+      }
+    ]
+  },
+  "featureSequence": [],
+  "layerSequence": [
+    "1. Frontend: Có access token; mở Socket.IO /signaling bằng WebSocket [WebSocket · auth.token]",
+    "2. signaling-gateway: Verify JWT; user room chỉ từ payload.sub [Redis · quota acquire Lua]",
+    "3. Redis · Quota/Presence: Acquire global connection lease atomically; TTL và presence lease [Redis result · admitted / quota exceeded]",
+    "4. signaling-gateway: JWT và quota Redis cho phép?",
+    "4.1. BỊ CHẶN [continues=false]",
+    "4.1.1. signaling-gateway: Reject handshake; Redis/quota lỗi fail closed [WebSocket · connect_error]",
+    "4.1.2. Frontend: Hiển thị lỗi/retry transport, không coi là business failure",
+    "4.2. ADMITTED",
+    "4.2.1. signaling-gateway: Join room user của JWT; bắt đầu refresh lease [WebSocket · connected]",
+    "4.2.2. Frontend: Nhận connected; gửi thao tác nghiệp vụ qua REST [REST · hành động domain]",
+    "5. core-api · Domain producer: Xử lý nghiệp vụ; yêu cầu lưu state trước realtime [SQL · domain writes + COMMIT]",
+    "6. PostgreSQL: Commit durable domain state; Gateway không đọc bảng này [SQL result · trả core-api]",
+    "7. core-api · Domain producer: Authorize recipient/payload; publish sau commit [Redis · PUBLISH realtime:user:{userId}]",
+    "8. Redis · Pub/Sub: Đưa envelope tới subscriber từng Gateway pod; không lưu history [Pub/Sub · PSUBSCRIBE]",
+    "9. signaling-gateway: Parse envelope; server.local.to(user room).emit để tránh duplicate [WebSocket · domain event]",
+    "10. Frontend: Nhận event và invalidate/refetch state theo contract [REST · domain state API]",
+    "11. core-api · Domain producer: Trả durable state theo quyền caller [REST result]",
+    "12. Frontend: Reconnect dùng REST phục hồi event đã mất; disconnect giải phóng lease [WebSocket disconnect / Redis lease release tại Gateway]"
+  ],
+  "provenance": {
+    "inputs": [
+      {
+        "path": "feature-catalog.mjs",
+        "sha256": "59ca963b2d91f43ffc384f2ecc26b916e282134a3a7e09e7594eea7713a8434f"
+      },
+      {
+        "path": "layer-flow-catalog.mjs",
+        "sha256": "e035999edc15991da8ba24a8c366b3e7884d283c064fcf22e638fd267406557d"
+      },
+      {
+        "path": "dependency-catalog.mjs",
+        "sha256": "8d230de7d6f280614028d8ced1e443fb9698b4dd518ce6c190e7feee365358f9"
+      },
+      {
+        "path": "extra-feature-catalog.mjs",
+        "sha256": "11c1c834a1ea4b4c00c59805302d7a1bc76aa8592a2b9845f73e26a4e6e3f143"
+      },
+      {
+        "path": "architecture-layout.mjs",
+        "sha256": "0478503a7579bc9b1e5a030b44df8eb94d92228fb70d211adac90adfea84d39f"
+      }
+    ]
+  }
+}
