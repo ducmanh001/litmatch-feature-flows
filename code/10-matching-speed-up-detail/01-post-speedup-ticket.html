@@ -6,11 +6,11 @@
 <title>POST /api/v1/matching/tickets/:id/speedup — Matching Speed-up</title>
 <style>
 :root{color-scheme:light;--bg:#fff;--fg:#1f2328;--muted:#59636e;--border:#d1d9e0;--subtle:#f6f8fa;--accent:#0969da;--lnum:#818b98;--target:#fff8c5;--sec:#ddf4ff;--secfg:#0550ae;
---pl-c:#6e7781;--pl-k:#cf222e;--pl-en:#8250df;--pl-c1:#0550ae;--pl-s:#0a3069;--ok:#1a7f37;--info:#0969da;--warn:#bc4c00;--t-controller:#1a7f37;--t-service:#bc4c00;--t-worker:#8250df;--t-postgres:#0969da;--t-redis:#cf222e;--t-kafka:#57606a;--t-bullmq:#bf3989;--t-external:#0a7a6b;--t-gateway:#9a6700}
+--pl-c:#6e7781;--pl-k:#cf222e;--pl-en:#8250df;--pl-c1:#0550ae;--pl-s:#0a3069;--ok:#1a7f37;--info:#0969da;--warn:#bc4c00;--t-controller:#1a7f37;--t-service:#bc4c00;--t-worker:#8250df;--t-postgres:#0969da;--t-redis:#cf222e;--t-kafka:#57606a;--t-bullmq:#bf3989;--t-external:#0a7a6b;--t-gateway:#9a6700;--on-t:#fff}
 :root[data-theme=dark]{color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--lnum:#6e7681;--target:#3b2e0b;--sec:#10294a;--secfg:#79c0ff;
---pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341}
+--pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341;--on-t:#0d1117}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--lnum:#6e7681;--target:#3b2e0b;--sec:#10294a;--secfg:#79c0ff;
---pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341}}
+--pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341;--on-t:#0d1117}}
 *{box-sizing:border-box}html,body{margin:0}
 body{background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}
 main{max-width:1180px;margin:0 auto;padding:24px 16px 48px}
@@ -26,7 +26,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .legend{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--border);font-size:12px;color:var(--muted)}
 .lg{font:700 11px/18px ui-monospace,SFMono-Regular,Consolas,monospace;padding:0 8px;border:1px solid currentColor;border-radius:999px}
 .src{overflow-x:auto;padding:8px 0;font:12px/20px ui-monospace,SFMono-Regular,"SF Mono","Cascadia Mono",Menlo,Consolas,"Liberation Mono",monospace;tab-size:2}
-.ln{display:flex;min-width:max-content}
+.ln{display:flex;min-width:max-content;border-left:8px solid transparent}
 .ln .n{flex:none;width:56px;padding:0 16px 0 0;text-align:right;color:var(--lnum);user-select:none;text-decoration:none}
 .ln .n::before{content:attr(data-n)}.ln .n:hover{color:var(--fg)}
 .ln .t{white-space:pre;padding-right:24px}
@@ -34,7 +34,13 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .ln.tag{background:var(--subtle);border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-top:2px}
 .ln.sec{background:var(--sec)}.ln.sec .pl-c{color:var(--secfg);font-weight:600}.ln.rule .pl-c{color:var(--border)}
 .pl-c{color:var(--pl-c)}.pl-k{color:var(--pl-k)}.pl-en{color:var(--pl-en)}.pl-c1{color:var(--pl-c1)}.pl-s{color:var(--pl-s)}
-.tg{font-weight:700}.tg-controller{color:var(--t-controller)}.ln.tag.tier-controller{box-shadow:inset 4px 0 0 var(--t-controller)}.tg-service{color:var(--t-service)}.ln.tag.tier-service{box-shadow:inset 4px 0 0 var(--t-service)}.tg-worker{color:var(--t-worker)}.ln.tag.tier-worker{box-shadow:inset 4px 0 0 var(--t-worker)}.tg-postgres{color:var(--t-postgres)}.ln.tag.tier-postgres{box-shadow:inset 4px 0 0 var(--t-postgres)}.tg-redis{color:var(--t-redis)}.ln.tag.tier-redis{box-shadow:inset 4px 0 0 var(--t-redis)}.tg-kafka{color:var(--t-kafka)}.ln.tag.tier-kafka{box-shadow:inset 4px 0 0 var(--t-kafka)}.tg-bullmq{color:var(--t-bullmq)}.ln.tag.tier-bullmq{box-shadow:inset 4px 0 0 var(--t-bullmq)}.tg-external{color:var(--t-external)}.ln.tag.tier-external{box-shadow:inset 4px 0 0 var(--t-external)}.tg-gateway{color:var(--t-gateway)}.ln.tag.tier-gateway{box-shadow:inset 4px 0 0 var(--t-gateway)}
+.tg{font-weight:700}
+.ln.bandrule{height:6px;min-height:6px;overflow:hidden;margin-top:6px}.ln.bandrule .n{visibility:hidden}
+.ln.band{align-items:center;min-height:36px}.ln.band .n{color:var(--on-t);opacity:.8}.ln.band .t{display:flex;align-items:baseline}
+.bn{font:800 20px/1 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.08em;margin-right:18px}
+.bs{font:600 14px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}
+.bx{display:none}.ln.bandref .br{color:var(--muted);font-size:12px}.cl{font-weight:600}
+.tg-controller{color:var(--t-controller)}.ln.tag.tier-controller{box-shadow:inset 4px 0 0 var(--t-controller)}.ln.bandrule.tier-controller,.ln.band.tier-controller{background:var(--t-controller);color:var(--on-t)}.ln.bandref.tier-controller{background:var(--subtle);background:color-mix(in srgb,var(--t-controller) 10%,var(--bg))}.ln.code.tier-controller,.ln.chunkref.tier-controller,.ln.bandref.tier-controller{border-left-color:var(--t-controller)}.ln.chunkref.tier-controller .cl{color:var(--t-controller)}.tg-service{color:var(--t-service)}.ln.tag.tier-service{box-shadow:inset 4px 0 0 var(--t-service)}.ln.bandrule.tier-service,.ln.band.tier-service{background:var(--t-service);color:var(--on-t)}.ln.bandref.tier-service{background:var(--subtle);background:color-mix(in srgb,var(--t-service) 10%,var(--bg))}.ln.code.tier-service,.ln.chunkref.tier-service,.ln.bandref.tier-service{border-left-color:var(--t-service)}.ln.chunkref.tier-service .cl{color:var(--t-service)}.tg-worker{color:var(--t-worker)}.ln.tag.tier-worker{box-shadow:inset 4px 0 0 var(--t-worker)}.ln.bandrule.tier-worker,.ln.band.tier-worker{background:var(--t-worker);color:var(--on-t)}.ln.bandref.tier-worker{background:var(--subtle);background:color-mix(in srgb,var(--t-worker) 10%,var(--bg))}.ln.code.tier-worker,.ln.chunkref.tier-worker,.ln.bandref.tier-worker{border-left-color:var(--t-worker)}.ln.chunkref.tier-worker .cl{color:var(--t-worker)}.tg-postgres{color:var(--t-postgres)}.ln.tag.tier-postgres{box-shadow:inset 4px 0 0 var(--t-postgres)}.ln.bandrule.tier-postgres,.ln.band.tier-postgres{background:var(--t-postgres);color:var(--on-t)}.ln.bandref.tier-postgres{background:var(--subtle);background:color-mix(in srgb,var(--t-postgres) 10%,var(--bg))}.ln.code.tier-postgres,.ln.chunkref.tier-postgres,.ln.bandref.tier-postgres{border-left-color:var(--t-postgres)}.ln.chunkref.tier-postgres .cl{color:var(--t-postgres)}.tg-redis{color:var(--t-redis)}.ln.tag.tier-redis{box-shadow:inset 4px 0 0 var(--t-redis)}.ln.bandrule.tier-redis,.ln.band.tier-redis{background:var(--t-redis);color:var(--on-t)}.ln.bandref.tier-redis{background:var(--subtle);background:color-mix(in srgb,var(--t-redis) 10%,var(--bg))}.ln.code.tier-redis,.ln.chunkref.tier-redis,.ln.bandref.tier-redis{border-left-color:var(--t-redis)}.ln.chunkref.tier-redis .cl{color:var(--t-redis)}.tg-kafka{color:var(--t-kafka)}.ln.tag.tier-kafka{box-shadow:inset 4px 0 0 var(--t-kafka)}.ln.bandrule.tier-kafka,.ln.band.tier-kafka{background:var(--t-kafka);color:var(--on-t)}.ln.bandref.tier-kafka{background:var(--subtle);background:color-mix(in srgb,var(--t-kafka) 10%,var(--bg))}.ln.code.tier-kafka,.ln.chunkref.tier-kafka,.ln.bandref.tier-kafka{border-left-color:var(--t-kafka)}.ln.chunkref.tier-kafka .cl{color:var(--t-kafka)}.tg-bullmq{color:var(--t-bullmq)}.ln.tag.tier-bullmq{box-shadow:inset 4px 0 0 var(--t-bullmq)}.ln.bandrule.tier-bullmq,.ln.band.tier-bullmq{background:var(--t-bullmq);color:var(--on-t)}.ln.bandref.tier-bullmq{background:var(--subtle);background:color-mix(in srgb,var(--t-bullmq) 10%,var(--bg))}.ln.code.tier-bullmq,.ln.chunkref.tier-bullmq,.ln.bandref.tier-bullmq{border-left-color:var(--t-bullmq)}.ln.chunkref.tier-bullmq .cl{color:var(--t-bullmq)}.tg-external{color:var(--t-external)}.ln.tag.tier-external{box-shadow:inset 4px 0 0 var(--t-external)}.ln.bandrule.tier-external,.ln.band.tier-external{background:var(--t-external);color:var(--on-t)}.ln.bandref.tier-external{background:var(--subtle);background:color-mix(in srgb,var(--t-external) 10%,var(--bg))}.ln.code.tier-external,.ln.chunkref.tier-external,.ln.bandref.tier-external{border-left-color:var(--t-external)}.ln.chunkref.tier-external .cl{color:var(--t-external)}.tg-gateway{color:var(--t-gateway)}.ln.tag.tier-gateway{box-shadow:inset 4px 0 0 var(--t-gateway)}.ln.bandrule.tier-gateway,.ln.band.tier-gateway{background:var(--t-gateway);color:var(--on-t)}.ln.bandref.tier-gateway{background:var(--subtle);background:color-mix(in srgb,var(--t-gateway) 10%,var(--bg))}.ln.code.tier-gateway,.ln.chunkref.tier-gateway,.ln.bandref.tier-gateway{border-left-color:var(--t-gateway)}.ln.chunkref.tier-gateway .cl{color:var(--t-gateway)}
 .idx{padding:20px 24px 28px}.idx h1{margin:0 0 8px;font-size:22px;font-weight:600}.idx p{margin:0 0 16px;color:var(--muted);max-width:820px}
 .idx h2{margin:30px 0 4px;font-size:17px;font-weight:600}.idx .sum{margin:0 0 10px}
 .tbl td.fn>a{font-weight:600}.tbl td.fn .rt{margin-top:3px;color:var(--muted)}.tbl td.tiers .lg{display:inline-block;margin:0 4px 4px 0}
@@ -52,7 +58,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 <main>
 <div class="box">
   <div class="bar">
-    <div class="path"><a href="https://github.com/ducmanh001/litmatch-feature-flows">litmatch-feature-flows</a> / <a href="https://github.com/ducmanh001/litmatch-feature-flows/tree/main/code/10-matching-speed-up-detail">10-matching-speed-up-detail</a> / <b>01-post-speedup-ticket.ts</b><span class="meta">186 dòng · 121 dòng code · litmatch @ d3cb28c</span></div>
+    <div class="path"><a href="https://github.com/ducmanh001/litmatch-feature-flows">litmatch-feature-flows</a> / <a href="https://github.com/ducmanh001/litmatch-feature-flows/tree/main/code/10-matching-speed-up-detail">10-matching-speed-up-detail</a> / <b>01-post-speedup-ticket.ts</b><span class="meta">144 dòng · 59 dòng code · litmatch @ d3cb28c</span></div>
     <div class="actions">
       <a class="btn" href="../index.html">Tổng quan</a>
       <a class="btn" href="index.html">Các endpoint</a>
@@ -100,158 +106,116 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 <div class="ln head" id="L32"><a class="n" href="#L32" data-n="32"></a><span class="t"><span class="pl-c">//             Matching worker — bước kế tiếp: matcher ZPOPMIN lấy vé điểm thấp nhất nên</span></span></div>
 <div class="ln head" id="L33"><a class="n" href="#L33" data-n="33"></a><span class="t"><span class="pl-c">//               vé đã boost được ghép trước (xem luồng vào hàng đợi Voice Match).</span></span></div>
 <div class="ln blank" id="L34"><a class="n" href="#L34" data-n="34"></a><span class="t">&nbsp;</span></div>
-<div class="ln tag tier-controller" id="L35"><a class="n" href="#L35" data-n="35"></a><span class="t"><span class="pl-c">// <b class="tg tg-controller">[CONTROLLER]</b> matching.controller.ts · L134–154</span></span></div>
-<div class="ln code" id="L36"><a class="n" href="#L36" data-n="36"></a><span class="t">@<span class="pl-en">Post</span>(<span class="pl-s">'tickets/:id/speedup'</span>)</span></div>
-<div class="ln code" id="L37"><a class="n" href="#L37" data-n="37"></a><span class="t">@<span class="pl-en">HttpCode</span>(HttpStatus.<span class="pl-c1">OK</span>)</span></div>
-<div class="ln code" id="L38"><a class="n" href="#L38" data-n="38"></a><span class="t"><span class="pl-k">async</span> <span class="pl-en">speedup</span>(</span></div>
-<div class="ln code" id="L39"><a class="n" href="#L39" data-n="39"></a><span class="t">  @<span class="pl-en">CurrentUser</span>() user: <span class="pl-en">AuthenticatedUser</span>,</span></div>
-<div class="ln code" id="L40"><a class="n" href="#L40" data-n="40"></a><span class="t">  @<span class="pl-en">Param</span>(<span class="pl-s">'id'</span>, <span class="pl-en">ParseUUIDPipe</span>) id: <span class="pl-c1">string</span>,</span></div>
-<div class="ln code" id="L41"><a class="n" href="#L41" data-n="41"></a><span class="t">  @<span class="pl-en">IdempotencyKey</span>() idempotencyKey: <span class="pl-c1">string</span>,</span></div>
-<div class="ln code" id="L42"><a class="n" href="#L42" data-n="42"></a><span class="t">): <span class="pl-en">Promise</span>&lt;<span class="pl-en">SpeedupResultDto</span>&gt; {</span></div>
-<div class="ln code" id="L43"><a class="n" href="#L43" data-n="43"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">result</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.matchingService.<span class="pl-en">speedup</span>(user, id, idempotencyKey);</span></div>
-<div class="ln code" id="L44"><a class="n" href="#L44" data-n="44"></a><span class="t">  <span class="pl-k">return</span> SpeedupResultDto.<span class="pl-en">from</span>(</span></div>
-<div class="ln code" id="L45"><a class="n" href="#L45" data-n="45"></a><span class="t">    result.transactionId,</span></div>
-<div class="ln code" id="L46"><a class="n" href="#L46" data-n="46"></a><span class="t">    result.replayed,</span></div>
-<div class="ln code" id="L47"><a class="n" href="#L47" data-n="47"></a><span class="t">    result.ticket,</span></div>
-<div class="ln code" id="L48"><a class="n" href="#L48" data-n="48"></a><span class="t">    <span class="pl-k">await</span> <span class="pl-c1">this</span>.matchingService.<span class="pl-en">getSpeedupPriceDiamondForUser</span>(user.userId),</span></div>
-<div class="ln code" id="L49"><a class="n" href="#L49" data-n="49"></a><span class="t">  );</span></div>
-<div class="ln code" id="L50"><a class="n" href="#L50" data-n="50"></a><span class="t">}</span></div>
-<div class="ln blank" id="L51"><a class="n" href="#L51" data-n="51"></a><span class="t">&nbsp;</span></div>
-<div class="ln tag tier-service" id="L52"><a class="n" href="#L52" data-n="52"></a><span class="t"><span class="pl-c">// <b class="tg tg-service">[SERVICE]</b> matching.service.ts · L424–479, L225–239, L263–274</span></span></div>
-<div class="ln code" id="L53"><a class="n" href="#L53" data-n="53"></a><span class="t"><span class="pl-k">async</span> <span class="pl-en">speedup</span>(</span></div>
-<div class="ln code" id="L54"><a class="n" href="#L54" data-n="54"></a><span class="t">  user: <span class="pl-en">AuthenticatedUser</span>,</span></div>
-<div class="ln code" id="L55"><a class="n" href="#L55" data-n="55"></a><span class="t">  ticketId: <span class="pl-c1">string</span>,</span></div>
-<div class="ln code" id="L56"><a class="n" href="#L56" data-n="56"></a><span class="t">  idempotencyKey: <span class="pl-c1">string</span>,</span></div>
-<div class="ln code" id="L57"><a class="n" href="#L57" data-n="57"></a><span class="t">): <span class="pl-en">Promise</span>&lt;{</span></div>
-<div class="ln code" id="L58"><a class="n" href="#L58" data-n="58"></a><span class="t">  transactionId: <span class="pl-c1">string</span>;</span></div>
-<div class="ln code" id="L59"><a class="n" href="#L59" data-n="59"></a><span class="t">  replayed: <span class="pl-c1">boolean</span>;</span></div>
-<div class="ln code" id="L60"><a class="n" href="#L60" data-n="60"></a><span class="t">  ticket: <span class="pl-en">MatchTicket</span>;</span></div>
-<div class="ln code" id="L61"><a class="n" href="#L61" data-n="61"></a><span class="t">}&gt; {</span></div>
-<div class="ln code" id="L62"><a class="n" href="#L62" data-n="62"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">ticket</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.<span class="pl-en">getTicket</span>(user, ticketId);</span></div>
-<div class="ln code" id="L63"><a class="n" href="#L63" data-n="63"></a><span class="t">  <span class="pl-k">if</span> (ticket.status !== MatchTicketStatus.<span class="pl-en">Queued</span>) {</span></div>
-<div class="ln code" id="L64"><a class="n" href="#L64" data-n="64"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
-<div class="ln code" id="L65"><a class="n" href="#L65" data-n="65"></a><span class="t">      MatchingErrors.<span class="pl-c1">TICKET_INVALID_TRANSITION</span>,</span></div>
-<div class="ln code" id="L66"><a class="n" href="#L66" data-n="66"></a><span class="t">      <span class="pl-s">`Ticket đang '${</span>ticket.status<span class="pl-s">}', chỉ speed-up được khi đang 'queued'`</span>,</span></div>
-<div class="ln code" id="L67"><a class="n" href="#L67" data-n="67"></a><span class="t">      HttpStatus.<span class="pl-c1">CONFLICT</span>,</span></div>
-<div class="ln code" id="L68"><a class="n" href="#L68" data-n="68"></a><span class="t">    );</span></div>
-<div class="ln code" id="L69"><a class="n" href="#L69" data-n="69"></a><span class="t">  }</span></div>
-<div class="ln code" id="L70"><a class="n" href="#L70" data-n="70"></a><span class="t">&nbsp;</span></div>
-<div class="ln code" id="L71"><a class="n" href="#L71" data-n="71"></a><span class="t">  <span class="pl-c">// Giá do server tính ngay trước khi trừ (theo hạng VIP hiện tại): client không tự gửi</span></span></div>
-<div class="ln code" id="L72"><a class="n" href="#L72" data-n="72"></a><span class="t">  <span class="pl-c">// giá và không được hard-code.</span></span></div>
-<div class="ln code" id="L73"><a class="n" href="#L73" data-n="73"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">price</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.<span class="pl-en">getSpeedupPriceDiamondForUser</span>(user.userId);</span></div>
-<div class="ln code" id="L74"><a class="n" href="#L74" data-n="74"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">boostMs</span> = <span class="pl-c1">this</span>.config.<span class="pl-en">getOrThrow</span>(<span class="pl-s">'MATCHING_PRIORITY_BOOST_MS'</span>, {</span></div>
-<div class="ln code" id="L75"><a class="n" href="#L75" data-n="75"></a><span class="t">    <span class="pl-k">infer</span>: <span class="pl-c1">true</span>,</span></div>
-<div class="ln code" id="L76"><a class="n" href="#L76" data-n="76"></a><span class="t">  });</span></div>
-<div class="ln code" id="L77"><a class="n" href="#L77" data-n="77"></a><span class="t">  <span class="pl-c">// Key = (user, Idempotency-Key của client). Economy dùng nguyên chuỗi này làm key</span></span></div>
-<div class="ln code" id="L78"><a class="n" href="#L78" data-n="78"></a><span class="t">  <span class="pl-c">// giao dịch, nên bấm lại cùng key chỉ trừ tiền một lần.</span></span></div>
-<div class="ln code" id="L79"><a class="n" href="#L79" data-n="79"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">prefixedKey</span> = <span class="pl-en">speedupIdempotencyKey</span>(user.userId, idempotencyKey);</span></div>
-<div class="ln code" id="L80"><a class="n" href="#L80" data-n="80"></a><span class="t">&nbsp;</span></div>
-<div class="ln code" id="L81"><a class="n" href="#L81" data-n="81"></a><span class="t">  <span class="pl-c">// Trừ Diamond TRƯỚC khi đụng vào hàng đợi: Economy tự khóa ví, kiểm số dư và ghi sổ</span></span></div>
-<div class="ln code" id="L82"><a class="n" href="#L82" data-n="82"></a><span class="t">  <span class="pl-c">// idempotent. Bước sau lỗi thì tiền đã trừ, nhưng retry cùng key không trừ lại.</span></span></div>
-<div class="ln code" id="L83"><a class="n" href="#L83" data-n="83"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">spend</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.economy.<span class="pl-en">spendDiamond</span>(</span></div>
-<div class="ln code" id="L84"><a class="n" href="#L84" data-n="84"></a><span class="t">    user.userId,</span></div>
-<div class="ln code" id="L85"><a class="n" href="#L85" data-n="85"></a><span class="t">    TransactionType.<span class="pl-en">MatchingSpeedup</span>,</span></div>
-<div class="ln code" id="L86"><a class="n" href="#L86" data-n="86"></a><span class="t">    price,</span></div>
-<div class="ln code" id="L87"><a class="n" href="#L87" data-n="87"></a><span class="t">    prefixedKey,</span></div>
-<div class="ln code" id="L88"><a class="n" href="#L88" data-n="88"></a><span class="t">    { ticketId, priceDiamond: price },</span></div>
-<div class="ln code" id="L89"><a class="n" href="#L89" data-n="89"></a><span class="t">  );</span></div>
-<div class="ln code" id="L90"><a class="n" href="#L90" data-n="90"></a><span class="t">  <span class="pl-c">// <b class="tg tg-postgres">[POSTGRES]</b> Replay cùng key không cộng boost lần nữa (tránh double-boost); increment</span></span></div>
-<div class="ln code" id="L91"><a class="n" href="#L91" data-n="91"></a><span class="t">  <span class="pl-c">// nguyên tử, chỉ khi vé còn queued. Đánh đổi: trừ tiền và increment là 2 bước riêng,</span></span></div>
-<div class="ln code" id="L92"><a class="n" href="#L92" data-n="92"></a><span class="t">  <span class="pl-c">// process chết giữa chừng thì retry không cộng lại boost.</span></span></div>
-<div class="ln code" id="L93"><a class="n" href="#L93" data-n="93"></a><span class="t">  <span class="pl-k">if</span> (!spend.replayed) {</span></div>
-<div class="ln code" id="L94"><a class="n" href="#L94" data-n="94"></a><span class="t">    <span class="pl-k">await</span> <span class="pl-c1">this</span>.ticketRepo.<span class="pl-en">increment</span>(</span></div>
-<div class="ln code" id="L95"><a class="n" href="#L95" data-n="95"></a><span class="t">      { id: ticket.id, status: MatchTicketStatus.<span class="pl-en">Queued</span> },</span></div>
-<div class="ln code" id="L96"><a class="n" href="#L96" data-n="96"></a><span class="t">      <span class="pl-s">'priorityBoostMs'</span>,</span></div>
-<div class="ln code" id="L97"><a class="n" href="#L97" data-n="97"></a><span class="t">      boostMs,</span></div>
-<div class="ln code" id="L98"><a class="n" href="#L98" data-n="98"></a><span class="t">    );</span></div>
-<div class="ln code" id="L99"><a class="n" href="#L99" data-n="99"></a><span class="t">  }</span></div>
-<div class="ln code" id="L100"><a class="n" href="#L100" data-n="100"></a><span class="t">&nbsp;</span></div>
-<div class="ln code" id="L101"><a class="n" href="#L101" data-n="101"></a><span class="t">  <span class="pl-c">// Đọc lại tổng boost từ DB để tính score TUYỆT ĐỐI. Boost cộng dồn trong DB nên retry</span></span></div>
-<div class="ln code" id="L102"><a class="n" href="#L102" data-n="102"></a><span class="t">  <span class="pl-c">// hay replay cùng key chỉ sửa score về đúng tổng đã trả tiền, không double-boost.</span></span></div>
-<div class="ln code" id="L103"><a class="n" href="#L103" data-n="103"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">fresh</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.ticketRepo.<span class="pl-en">findOneByOrFail</span>({ id: ticket.id });</span></div>
-<div class="ln code" id="L104"><a class="n" href="#L104" data-n="104"></a><span class="t">  <span class="pl-c">// <b class="tg tg-redis">[REDIS]</b> ZADD XX chỉ cập nhật member đang có: vé đã rời hàng đợi (ghép hoặc hủy) thì</span></span></div>
-<div class="ln code" id="L105"><a class="n" href="#L105" data-n="105"></a><span class="t">  <span class="pl-c">// bỏ qua, không bị thêm lại. Lúc vào hàng đợi thì ngược lại, dùng NX để không đè</span></span></div>
-<div class="ln code" id="L106"><a class="n" href="#L106" data-n="106"></a><span class="t">  <span class="pl-c">// score đã boost.</span></span></div>
-<div class="ln code" id="L107"><a class="n" href="#L107" data-n="107"></a><span class="t">  <span class="pl-k">await</span> <span class="pl-c1">this</span>.queue.<span class="pl-en">enqueue</span>(</span></div>
-<div class="ln code" id="L108"><a class="n" href="#L108" data-n="108"></a><span class="t">    <span class="pl-en">shardKeyOfTicket</span>(fresh),</span></div>
-<div class="ln code" id="L109"><a class="n" href="#L109" data-n="109"></a><span class="t">    <span class="pl-en">String</span>(<span class="pl-en">ticketScore</span>(fresh)),</span></div>
-<div class="ln code" id="L110"><a class="n" href="#L110" data-n="110"></a><span class="t">    fresh.id,</span></div>
-<div class="ln code" id="L111"><a class="n" href="#L111" data-n="111"></a><span class="t">    <span class="pl-s">'XX'</span>,</span></div>
-<div class="ln code" id="L112"><a class="n" href="#L112" data-n="112"></a><span class="t">  );</span></div>
-<div class="ln code" id="L113"><a class="n" href="#L113" data-n="113"></a><span class="t">&nbsp;</span></div>
-<div class="ln code" id="L114"><a class="n" href="#L114" data-n="114"></a><span class="t">  <span class="pl-k">return</span> {</span></div>
-<div class="ln code" id="L115"><a class="n" href="#L115" data-n="115"></a><span class="t">    transactionId: spend.transactionId,</span></div>
-<div class="ln code" id="L116"><a class="n" href="#L116" data-n="116"></a><span class="t">    replayed: spend.replayed,</span></div>
-<div class="ln code" id="L117"><a class="n" href="#L117" data-n="117"></a><span class="t">    ticket: fresh,</span></div>
-<div class="ln code" id="L118"><a class="n" href="#L118" data-n="118"></a><span class="t">  };</span></div>
-<div class="ln code" id="L119"><a class="n" href="#L119" data-n="119"></a><span class="t">}</span></div>
-<div class="ln code" id="L120"><a class="n" href="#L120" data-n="120"></a><span class="t">&nbsp;</span></div>
-<div class="ln code" id="L121"><a class="n" href="#L121" data-n="121"></a><span class="t"><span class="pl-k">async</span> <span class="pl-en">getTicket</span>(</span></div>
-<div class="ln code" id="L122"><a class="n" href="#L122" data-n="122"></a><span class="t">  user: <span class="pl-en">AuthenticatedUser</span>,</span></div>
-<div class="ln code" id="L123"><a class="n" href="#L123" data-n="123"></a><span class="t">  ticketId: <span class="pl-c1">string</span>,</span></div>
-<div class="ln code" id="L124"><a class="n" href="#L124" data-n="124"></a><span class="t">): <span class="pl-en">Promise</span>&lt;<span class="pl-en">MatchTicket</span>&gt; {</span></div>
-<div class="ln code" id="L125"><a class="n" href="#L125" data-n="125"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">ticket</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.ticketRepo.<span class="pl-en">findOneBy</span>({ id: ticketId });</span></div>
-<div class="ln code" id="L126"><a class="n" href="#L126" data-n="126"></a><span class="t">  <span class="pl-k">if</span> (!ticket) {</span></div>
-<div class="ln code" id="L127"><a class="n" href="#L127" data-n="127"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
-<div class="ln code" id="L128"><a class="n" href="#L128" data-n="128"></a><span class="t">      MatchingErrors.<span class="pl-c1">TICKET_NOT_FOUND</span>,</span></div>
-<div class="ln code" id="L129"><a class="n" href="#L129" data-n="129"></a><span class="t">      <span class="pl-s">'Không tìm thấy ticket'</span>,</span></div>
-<div class="ln code" id="L130"><a class="n" href="#L130" data-n="130"></a><span class="t">      HttpStatus.<span class="pl-c1">NOT_FOUND</span>,</span></div>
-<div class="ln code" id="L131"><a class="n" href="#L131" data-n="131"></a><span class="t">    );</span></div>
-<div class="ln code" id="L132"><a class="n" href="#L132" data-n="132"></a><span class="t">  }</span></div>
-<div class="ln code" id="L133"><a class="n" href="#L133" data-n="133"></a><span class="t">  <span class="pl-c1">this</span>.<span class="pl-en">assertOwnership</span>(ticket, user);</span></div>
-<div class="ln code" id="L134"><a class="n" href="#L134" data-n="134"></a><span class="t">  <span class="pl-k">return</span> ticket;</span></div>
-<div class="ln code" id="L135"><a class="n" href="#L135" data-n="135"></a><span class="t">}</span></div>
-<div class="ln code" id="L136"><a class="n" href="#L136" data-n="136"></a><span class="t">&nbsp;</span></div>
-<div class="ln code" id="L137"><a class="n" href="#L137" data-n="137"></a><span class="t"><span class="pl-k">async</span> <span class="pl-en">getSpeedupPriceDiamondForUser</span>(userId: <span class="pl-c1">string</span>): <span class="pl-en">Promise</span>&lt;<span class="pl-c1">number</span>&gt; {</span></div>
-<div class="ln code" id="L138"><a class="n" href="#L138" data-n="138"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">tier</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.economy.<span class="pl-en">getActiveVipTier</span>(userId);</span></div>
-<div class="ln code" id="L139"><a class="n" href="#L139" data-n="139"></a><span class="t">  <span class="pl-k">if</span> (tier === VipTier.<span class="pl-en">Svip</span>)</span></div>
-<div class="ln code" id="L140"><a class="n" href="#L140" data-n="140"></a><span class="t">    <span class="pl-k">return</span> <span class="pl-c1">this</span>.config.<span class="pl-en">getOrThrow</span>(<span class="pl-s">'MATCHING_SVIP_SPEEDUP_PRICE_DIAMOND'</span>, {</span></div>
-<div class="ln code" id="L141"><a class="n" href="#L141" data-n="141"></a><span class="t">      <span class="pl-k">infer</span>: <span class="pl-c1">true</span>,</span></div>
-<div class="ln code" id="L142"><a class="n" href="#L142" data-n="142"></a><span class="t">    });</span></div>
-<div class="ln code" id="L143"><a class="n" href="#L143" data-n="143"></a><span class="t">  <span class="pl-k">if</span> (tier === VipTier.<span class="pl-en">Vip</span>)</span></div>
-<div class="ln code" id="L144"><a class="n" href="#L144" data-n="144"></a><span class="t">    <span class="pl-k">return</span> <span class="pl-c1">this</span>.config.<span class="pl-en">getOrThrow</span>(<span class="pl-s">'MATCHING_VIP_SPEEDUP_PRICE_DIAMOND'</span>, {</span></div>
-<div class="ln code" id="L145"><a class="n" href="#L145" data-n="145"></a><span class="t">      <span class="pl-k">infer</span>: <span class="pl-c1">true</span>,</span></div>
-<div class="ln code" id="L146"><a class="n" href="#L146" data-n="146"></a><span class="t">    });</span></div>
-<div class="ln code" id="L147"><a class="n" href="#L147" data-n="147"></a><span class="t">  <span class="pl-k">return</span> <span class="pl-c1">this</span>.<span class="pl-en">getSpeedupPriceDiamond</span>();</span></div>
-<div class="ln code" id="L148"><a class="n" href="#L148" data-n="148"></a><span class="t">}</span></div>
-<div class="ln blank" id="L149"><a class="n" href="#L149" data-n="149"></a><span class="t">&nbsp;</span></div>
-<div class="ln tag tier-redis" id="L150"><a class="n" href="#L150" data-n="150"></a><span class="t"><span class="pl-c">// <b class="tg tg-redis">[REDIS]</b> matching-redis.provider.ts · L32–36, L24–30, L43–52</span></span></div>
-<div class="ln code" id="L151"><a class="n" href="#L151" data-n="151"></a><span class="t"><span class="pl-k">export</span> <span class="pl-k">function</span> <span class="pl-en">shardKeyOfTicket</span>(</span></div>
-<div class="ln code" id="L152"><a class="n" href="#L152" data-n="152"></a><span class="t">  ticket: <span class="pl-en">Pick</span>&lt;<span class="pl-en">MatchTicket</span>, <span class="pl-s">'matchType'</span> | <span class="pl-s">'region'</span> | <span class="pl-s">'ageBand'</span>&gt;,</span></div>
-<div class="ln code" id="L153"><a class="n" href="#L153" data-n="153"></a><span class="t">): <span class="pl-c1">string</span> {</span></div>
-<div class="ln code" id="L154"><a class="n" href="#L154" data-n="154"></a><span class="t">  <span class="pl-k">return</span> <span class="pl-en">matchingShardKey</span>(ticket.matchType, ticket.region, ticket.ageBand);</span></div>
-<div class="ln code" id="L155"><a class="n" href="#L155" data-n="155"></a><span class="t">}</span></div>
-<div class="ln code" id="L156"><a class="n" href="#L156" data-n="156"></a><span class="t">&nbsp;</span></div>
-<div class="ln code" id="L157"><a class="n" href="#L157" data-n="157"></a><span class="t"><span class="pl-k">export</span> <span class="pl-k">function</span> <span class="pl-en">matchingShardKey</span>(</span></div>
-<div class="ln code" id="L158"><a class="n" href="#L158" data-n="158"></a><span class="t">  matchType: <span class="pl-c1">string</span>,</span></div>
-<div class="ln code" id="L159"><a class="n" href="#L159" data-n="159"></a><span class="t">  region: <span class="pl-c1">string</span>,</span></div>
-<div class="ln code" id="L160"><a class="n" href="#L160" data-n="160"></a><span class="t">  ageBand: <span class="pl-c1">number</span>,</span></div>
-<div class="ln code" id="L161"><a class="n" href="#L161" data-n="161"></a><span class="t">): <span class="pl-c1">string</span> {</span></div>
-<div class="ln code" id="L162"><a class="n" href="#L162" data-n="162"></a><span class="t">  <span class="pl-k">return</span> <span class="pl-s">`matching:queue:${</span>matchType<span class="pl-s">}:${</span>region<span class="pl-s">}:${</span>ageBand<span class="pl-s">}`</span>;</span></div>
-<div class="ln code" id="L163"><a class="n" href="#L163" data-n="163"></a><span class="t">}</span></div>
-<div class="ln code" id="L164"><a class="n" href="#L164" data-n="164"></a><span class="t">&nbsp;</span></div>
-<div class="ln code" id="L165"><a class="n" href="#L165" data-n="165"></a><span class="t"><span class="pl-k">export</span> <span class="pl-k">function</span> <span class="pl-en">ticketScore</span>(</span></div>
-<div class="ln code" id="L166"><a class="n" href="#L166" data-n="166"></a><span class="t">  ticket: <span class="pl-en">Pick</span>&lt;</span></div>
-<div class="ln code" id="L167"><a class="n" href="#L167" data-n="167"></a><span class="t">    <span class="pl-en">MatchTicket</span>,</span></div>
-<div class="ln code" id="L168"><a class="n" href="#L168" data-n="168"></a><span class="t">    <span class="pl-s">'enqueuedAt'</span> | <span class="pl-s">'priorityBoostMs'</span> | <span class="pl-s">'trustPenaltyMs'</span></span></div>
-<div class="ln code" id="L169"><a class="n" href="#L169" data-n="169"></a><span class="t">  &gt;,</span></div>
-<div class="ln code" id="L170"><a class="n" href="#L170" data-n="170"></a><span class="t">): <span class="pl-c1">number</span> {</span></div>
-<div class="ln code" id="L171"><a class="n" href="#L171" data-n="171"></a><span class="t">  <span class="pl-c">// Điểm nhỏ ghép trước: speed-up trừ boost khỏi điểm nên vé nhảy lên đầu hàng.</span></span></div>
-<div class="ln code" id="L172"><a class="n" href="#L172" data-n="172"></a><span class="t">  <span class="pl-c">// trustPenaltyMs là phần cộng thêm để hạ ưu tiên.</span></span></div>
-<div class="ln code" id="L173"><a class="n" href="#L173" data-n="173"></a><span class="t">  <span class="pl-k">return</span> (</span></div>
-<div class="ln code" id="L174"><a class="n" href="#L174" data-n="174"></a><span class="t">    ticket.enqueuedAt.<span class="pl-en">getTime</span>() + ticket.trustPenaltyMs - ticket.priorityBoostMs</span></div>
-<div class="ln code" id="L175"><a class="n" href="#L175" data-n="175"></a><span class="t">  );</span></div>
-<div class="ln code" id="L176"><a class="n" href="#L176" data-n="176"></a><span class="t">}</span></div>
-<div class="ln blank" id="L177"><a class="n" href="#L177" data-n="177"></a><span class="t">&nbsp;</span></div>
-<div class="ln tag tier-redis" id="L178"><a class="n" href="#L178" data-n="178"></a><span class="t"><span class="pl-c">// <b class="tg tg-redis">[REDIS]</b> redis-matching-queue.adapter.ts · L12–19</span></span></div>
-<div class="ln code" id="L179"><a class="n" href="#L179" data-n="179"></a><span class="t"><span class="pl-k">async</span> <span class="pl-en">enqueue</span>(</span></div>
-<div class="ln code" id="L180"><a class="n" href="#L180" data-n="180"></a><span class="t">  shard: <span class="pl-c1">string</span>,</span></div>
-<div class="ln code" id="L181"><a class="n" href="#L181" data-n="181"></a><span class="t">  score: <span class="pl-c1">string</span>,</span></div>
-<div class="ln code" id="L182"><a class="n" href="#L182" data-n="182"></a><span class="t">  ticketId: <span class="pl-c1">string</span>,</span></div>
-<div class="ln code" id="L183"><a class="n" href="#L183" data-n="183"></a><span class="t">  mode: <span class="pl-s">'NX'</span> | <span class="pl-s">'XX'</span>,</span></div>
-<div class="ln code" id="L184"><a class="n" href="#L184" data-n="184"></a><span class="t">): <span class="pl-en">Promise</span>&lt;<span class="pl-c1">void</span>&gt; {</span></div>
-<div class="ln code" id="L185"><a class="n" href="#L185" data-n="185"></a><span class="t">  <span class="pl-k">await</span> <span class="pl-c1">this</span>.redis.<span class="pl-en">zadd</span>(shard, mode, score, ticketId);</span></div>
-<div class="ln code" id="L186"><a class="n" href="#L186" data-n="186"></a><span class="t">}</span></div>
+<div class="ln bandrule tier-controller" id="L35"><a class="n" href="#L35" data-n="35"></a><span class="t"><span class="bx">// ████████████████████████████████████████████████████████████████████████████</span></span></div>
+<div class="ln band tier-controller" id="L36"><a class="n" href="#L36" data-n="36"></a><span class="t"><span class="bx">// ██  </span><b class="bn">CONTROLLER</b><span class="bx">  ·  </span><span class="bs">Nhận request: user từ JWT, id vé từ URL, Idempotency-Key từ header</span></span></div>
+<div class="ln bandref tier-controller" id="L37"><a class="n" href="#L37" data-n="37"></a><span class="t"><span class="bx">// </span><span class="br">▸ matching.controller.ts · speedup L134–135, L143–145, L147</span></span></div>
+<div class="ln code tier-controller" id="L38"><a class="n" href="#L38" data-n="38"></a><span class="t">@<span class="pl-en">Post</span>(<span class="pl-s">'tickets/:id/speedup'</span>)</span></div>
+<div class="ln code tier-controller" id="L39"><a class="n" href="#L39" data-n="39"></a><span class="t">@<span class="pl-en">HttpCode</span>(HttpStatus.<span class="pl-c1">OK</span>)</span></div>
+<div class="ln code tier-controller" id="L40"><a class="n" href="#L40" data-n="40"></a><span class="t">@<span class="pl-en">CurrentUser</span>() user: <span class="pl-en">AuthenticatedUser</span>,</span></div>
+<div class="ln code tier-controller" id="L41"><a class="n" href="#L41" data-n="41"></a><span class="t">@<span class="pl-en">Param</span>(<span class="pl-s">'id'</span>, <span class="pl-en">ParseUUIDPipe</span>) id: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code tier-controller" id="L42"><a class="n" href="#L42" data-n="42"></a><span class="t">@<span class="pl-en">IdempotencyKey</span>() idempotencyKey: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code tier-controller" id="L43"><a class="n" href="#L43" data-n="43"></a><span class="t">&nbsp;</span></div>
+<div class="ln code tier-controller" id="L44"><a class="n" href="#L44" data-n="44"></a><span class="t"><span class="pl-k">const</span> <span class="pl-c1">result</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.matchingService.<span class="pl-en">speedup</span>(user, id, idempotencyKey);</span></div>
+<div class="ln blank" id="L45"><a class="n" href="#L45" data-n="45"></a><span class="t">&nbsp;</span></div>
+<div class="ln bandrule tier-postgres" id="L46"><a class="n" href="#L46" data-n="46"></a><span class="t"><span class="bx">// ████████████████████████████████████████████████████████████████████████████</span></span></div>
+<div class="ln band tier-postgres" id="L47"><a class="n" href="#L47" data-n="47"></a><span class="t"><span class="bx">// ██  </span><b class="bn">POSTGRES</b><span class="bx">  ·  </span><span class="bs">Đọc vé; không có thì 404; vé của người khác thì từ chối</span></span></div>
+<div class="ln bandref tier-postgres" id="L48"><a class="n" href="#L48" data-n="48"></a><span class="t"><span class="bx">// </span><span class="br">▸ matching.service.ts · getTicket L229–237</span></span></div>
+<div class="ln code tier-postgres" id="L49"><a class="n" href="#L49" data-n="49"></a><span class="t"><span class="pl-k">const</span> <span class="pl-c1">ticket</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.ticketRepo.<span class="pl-en">findOneBy</span>({ id: ticketId });</span></div>
+<div class="ln code tier-postgres" id="L50"><a class="n" href="#L50" data-n="50"></a><span class="t"><span class="pl-k">if</span> (!ticket) {</span></div>
+<div class="ln code tier-postgres" id="L51"><a class="n" href="#L51" data-n="51"></a><span class="t">  <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
+<div class="ln code tier-postgres" id="L52"><a class="n" href="#L52" data-n="52"></a><span class="t">    MatchingErrors.<span class="pl-c1">TICKET_NOT_FOUND</span>,</span></div>
+<div class="ln code tier-postgres" id="L53"><a class="n" href="#L53" data-n="53"></a><span class="t">    <span class="pl-s">'Không tìm thấy ticket'</span>,</span></div>
+<div class="ln code tier-postgres" id="L54"><a class="n" href="#L54" data-n="54"></a><span class="t">    HttpStatus.<span class="pl-c1">NOT_FOUND</span>,</span></div>
+<div class="ln code tier-postgres" id="L55"><a class="n" href="#L55" data-n="55"></a><span class="t">  );</span></div>
+<div class="ln code tier-postgres" id="L56"><a class="n" href="#L56" data-n="56"></a><span class="t">}</span></div>
+<div class="ln code tier-postgres" id="L57"><a class="n" href="#L57" data-n="57"></a><span class="t"><span class="pl-c1">this</span>.<span class="pl-en">assertOwnership</span>(ticket, user);</span></div>
+<div class="ln blank" id="L58"><a class="n" href="#L58" data-n="58"></a><span class="t">&nbsp;</span></div>
+<div class="ln bandrule tier-service" id="L59"><a class="n" href="#L59" data-n="59"></a><span class="t"><span class="bx">// ████████████████████████████████████████████████████████████████████████████</span></span></div>
+<div class="ln band tier-service" id="L60"><a class="n" href="#L60" data-n="60"></a><span class="t"><span class="bx">// ██  </span><b class="bn">SERVICE</b><span class="bx">  ·  </span><span class="bs">Chỉ speed-up vé đang queued; tính giá; trừ Diamond qua Economy</span></span></div>
+<div class="ln bandref tier-service" id="L61"><a class="n" href="#L61" data-n="61"></a><span class="t"><span class="bx">// </span><span class="br">▸ matching.service.ts · speedup L434–440, L442–446, L448–454</span></span></div>
+<div class="ln code tier-service" id="L62"><a class="n" href="#L62" data-n="62"></a><span class="t"><span class="pl-k">if</span> (ticket.status !== MatchTicketStatus.<span class="pl-en">Queued</span>) {</span></div>
+<div class="ln code tier-service" id="L63"><a class="n" href="#L63" data-n="63"></a><span class="t">  <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
+<div class="ln code tier-service" id="L64"><a class="n" href="#L64" data-n="64"></a><span class="t">    MatchingErrors.<span class="pl-c1">TICKET_INVALID_TRANSITION</span>,</span></div>
+<div class="ln code tier-service" id="L65"><a class="n" href="#L65" data-n="65"></a><span class="t">    <span class="pl-s">`Ticket đang '${</span>ticket.status<span class="pl-s">}', chỉ speed-up được khi đang 'queued'`</span>,</span></div>
+<div class="ln code tier-service" id="L66"><a class="n" href="#L66" data-n="66"></a><span class="t">    HttpStatus.<span class="pl-c1">CONFLICT</span>,</span></div>
+<div class="ln code tier-service" id="L67"><a class="n" href="#L67" data-n="67"></a><span class="t">  );</span></div>
+<div class="ln code tier-service" id="L68"><a class="n" href="#L68" data-n="68"></a><span class="t">}</span></div>
+<div class="ln code tier-service" id="L69"><a class="n" href="#L69" data-n="69"></a><span class="t">&nbsp;</span></div>
+<div class="ln code tier-service" id="L70"><a class="n" href="#L70" data-n="70"></a><span class="t"><span class="pl-c">// Giá do server tính ngay trước khi trừ (theo hạng VIP hiện tại): client không tự gửi</span></span></div>
+<div class="ln code tier-service" id="L71"><a class="n" href="#L71" data-n="71"></a><span class="t"><span class="pl-c">// giá và không được hard-code.</span></span></div>
+<div class="ln code tier-service" id="L72"><a class="n" href="#L72" data-n="72"></a><span class="t"><span class="pl-k">const</span> <span class="pl-c1">price</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.<span class="pl-en">getSpeedupPriceDiamondForUser</span>(user.userId);</span></div>
+<div class="ln code tier-service" id="L73"><a class="n" href="#L73" data-n="73"></a><span class="t"><span class="pl-k">const</span> <span class="pl-c1">boostMs</span> = <span class="pl-c1">this</span>.config.<span class="pl-en">getOrThrow</span>(<span class="pl-s">'MATCHING_PRIORITY_BOOST_MS'</span>, {</span></div>
+<div class="ln code tier-service" id="L74"><a class="n" href="#L74" data-n="74"></a><span class="t">  <span class="pl-k">infer</span>: <span class="pl-c1">true</span>,</span></div>
+<div class="ln code tier-service" id="L75"><a class="n" href="#L75" data-n="75"></a><span class="t">});</span></div>
+<div class="ln code tier-service" id="L76"><a class="n" href="#L76" data-n="76"></a><span class="t"><span class="pl-c">// Key = (user, Idempotency-Key của client). Economy dùng nguyên chuỗi này làm key giao</span></span></div>
+<div class="ln code tier-service" id="L77"><a class="n" href="#L77" data-n="77"></a><span class="t"><span class="pl-c">// dịch, nên bấm lại cùng key chỉ trừ tiền một lần.</span></span></div>
+<div class="ln code tier-service" id="L78"><a class="n" href="#L78" data-n="78"></a><span class="t"><span class="pl-k">const</span> <span class="pl-c1">prefixedKey</span> = <span class="pl-en">speedupIdempotencyKey</span>(user.userId, idempotencyKey);</span></div>
+<div class="ln code tier-service" id="L79"><a class="n" href="#L79" data-n="79"></a><span class="t">&nbsp;</span></div>
+<div class="ln code tier-service" id="L80"><a class="n" href="#L80" data-n="80"></a><span class="t"><span class="pl-c">// Trừ Diamond TRƯỚC khi đụng vào hàng đợi: Economy tự khóa ví, kiểm số dư và ghi sổ</span></span></div>
+<div class="ln code tier-service" id="L81"><a class="n" href="#L81" data-n="81"></a><span class="t"><span class="pl-c">// idempotent. Bước sau lỗi thì tiền đã trừ, nhưng retry cùng key không trừ lại.</span></span></div>
+<div class="ln code tier-service" id="L82"><a class="n" href="#L82" data-n="82"></a><span class="t"><span class="pl-k">const</span> <span class="pl-c1">spend</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.economy.<span class="pl-en">spendDiamond</span>(</span></div>
+<div class="ln code tier-service" id="L83"><a class="n" href="#L83" data-n="83"></a><span class="t">  user.userId,</span></div>
+<div class="ln code tier-service" id="L84"><a class="n" href="#L84" data-n="84"></a><span class="t">  TransactionType.<span class="pl-en">MatchingSpeedup</span>,</span></div>
+<div class="ln code tier-service" id="L85"><a class="n" href="#L85" data-n="85"></a><span class="t">  price,</span></div>
+<div class="ln code tier-service" id="L86"><a class="n" href="#L86" data-n="86"></a><span class="t">  prefixedKey,</span></div>
+<div class="ln code tier-service" id="L87"><a class="n" href="#L87" data-n="87"></a><span class="t">  { ticketId, priceDiamond: price },</span></div>
+<div class="ln code tier-service" id="L88"><a class="n" href="#L88" data-n="88"></a><span class="t">);</span></div>
+<div class="ln blank" id="L89"><a class="n" href="#L89" data-n="89"></a><span class="t">&nbsp;</span></div>
+<div class="ln bandrule tier-postgres" id="L90"><a class="n" href="#L90" data-n="90"></a><span class="t"><span class="bx">// ████████████████████████████████████████████████████████████████████████████</span></span></div>
+<div class="ln band tier-postgres" id="L91"><a class="n" href="#L91" data-n="91"></a><span class="t"><span class="bx">// ██  </span><b class="bn">POSTGRES</b><span class="bx">  ·  </span><span class="bs">Cộng boost vào vé (nguyên tử), rồi đọc lại tổng boost</span></span></div>
+<div class="ln bandref tier-postgres" id="L92"><a class="n" href="#L92" data-n="92"></a><span class="t"><span class="bx">// </span><span class="br">▸ matching.service.ts · speedup L455–463, L466</span></span></div>
+<div class="ln code tier-postgres" id="L93"><a class="n" href="#L93" data-n="93"></a><span class="t"><span class="pl-c">// Replay cùng key không cộng boost lần nữa (tránh double-boost); increment nguyên tử,</span></span></div>
+<div class="ln code tier-postgres" id="L94"><a class="n" href="#L94" data-n="94"></a><span class="t"><span class="pl-c">// chỉ khi vé còn queued. Đánh đổi: trừ tiền và increment là 2 bước riêng, process chết</span></span></div>
+<div class="ln code tier-postgres" id="L95"><a class="n" href="#L95" data-n="95"></a><span class="t"><span class="pl-c">// giữa chừng thì retry không cộng lại boost.</span></span></div>
+<div class="ln code tier-postgres" id="L96"><a class="n" href="#L96" data-n="96"></a><span class="t"><span class="pl-k">if</span> (!spend.replayed) {</span></div>
+<div class="ln code tier-postgres" id="L97"><a class="n" href="#L97" data-n="97"></a><span class="t">  <span class="pl-k">await</span> <span class="pl-c1">this</span>.ticketRepo.<span class="pl-en">increment</span>(</span></div>
+<div class="ln code tier-postgres" id="L98"><a class="n" href="#L98" data-n="98"></a><span class="t">    { id: ticket.id, status: MatchTicketStatus.<span class="pl-en">Queued</span> },</span></div>
+<div class="ln code tier-postgres" id="L99"><a class="n" href="#L99" data-n="99"></a><span class="t">    <span class="pl-s">'priorityBoostMs'</span>,</span></div>
+<div class="ln code tier-postgres" id="L100"><a class="n" href="#L100" data-n="100"></a><span class="t">    boostMs,</span></div>
+<div class="ln code tier-postgres" id="L101"><a class="n" href="#L101" data-n="101"></a><span class="t">  );</span></div>
+<div class="ln code tier-postgres" id="L102"><a class="n" href="#L102" data-n="102"></a><span class="t">}</span></div>
+<div class="ln code tier-postgres" id="L103"><a class="n" href="#L103" data-n="103"></a><span class="t">&nbsp;</span></div>
+<div class="ln code tier-postgres" id="L104"><a class="n" href="#L104" data-n="104"></a><span class="t"><span class="pl-c">// Đọc lại tổng boost từ DB để tính score TUYỆT ĐỐI. Boost cộng dồn trong DB nên retry</span></span></div>
+<div class="ln code tier-postgres" id="L105"><a class="n" href="#L105" data-n="105"></a><span class="t"><span class="pl-c">// hay replay cùng key chỉ sửa score về đúng tổng đã trả tiền, không double-boost.</span></span></div>
+<div class="ln code tier-postgres" id="L106"><a class="n" href="#L106" data-n="106"></a><span class="t"><span class="pl-k">const</span> <span class="pl-c1">fresh</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.ticketRepo.<span class="pl-en">findOneByOrFail</span>({ id: ticket.id });</span></div>
+<div class="ln blank" id="L107"><a class="n" href="#L107" data-n="107"></a><span class="t">&nbsp;</span></div>
+<div class="ln bandrule tier-redis" id="L108"><a class="n" href="#L108" data-n="108"></a><span class="t"><span class="bx">// ████████████████████████████████████████████████████████████████████████████</span></span></div>
+<div class="ln band tier-redis" id="L109"><a class="n" href="#L109" data-n="109"></a><span class="t"><span class="bx">// ██  </span><b class="bn">REDIS</b><span class="bx">  ·  </span><span class="bs">Đặt lại điểm của vé trong hàng đợi (sorted set)</span></span></div>
+<div class="ln bandref tier-redis" id="L110"><a class="n" href="#L110" data-n="110"></a><span class="t"><span class="bx">// </span><span class="br">▸ matching.service.ts · speedup L467–472</span></span></div>
+<div class="ln bandref tier-redis" id="L111"><a class="n" href="#L111" data-n="111"></a><span class="t"><span class="bx">// </span><span class="br">▸ matching-redis.provider.ts · matchingShardKey L29 · ticketScore L49–51</span></span></div>
+<div class="ln bandref tier-redis" id="L112"><a class="n" href="#L112" data-n="112"></a><span class="t"><span class="bx">// </span><span class="br">▸ redis-matching-queue.adapter.ts · enqueue L18</span></span></div>
+<div class="ln code tier-redis" id="L113"><a class="n" href="#L113" data-n="113"></a><span class="t"><span class="pl-c">// ZADD XX chỉ cập nhật member đang có: vé đã rời hàng đợi (ghép hoặc hủy) thì bỏ qua,</span></span></div>
+<div class="ln code tier-redis" id="L114"><a class="n" href="#L114" data-n="114"></a><span class="t"><span class="pl-c">// không bị thêm lại. Lúc vào hàng đợi thì ngược lại, dùng NX để không đè score đã</span></span></div>
+<div class="ln code tier-redis" id="L115"><a class="n" href="#L115" data-n="115"></a><span class="t"><span class="pl-c">// boost.</span></span></div>
+<div class="ln code tier-redis" id="L116"><a class="n" href="#L116" data-n="116"></a><span class="t"><span class="pl-k">await</span> <span class="pl-c1">this</span>.queue.<span class="pl-en">enqueue</span>(</span></div>
+<div class="ln code tier-redis" id="L117"><a class="n" href="#L117" data-n="117"></a><span class="t">  <span class="pl-en">shardKeyOfTicket</span>(fresh),</span></div>
+<div class="ln code tier-redis" id="L118"><a class="n" href="#L118" data-n="118"></a><span class="t">  <span class="pl-en">String</span>(<span class="pl-en">ticketScore</span>(fresh)),</span></div>
+<div class="ln code tier-redis" id="L119"><a class="n" href="#L119" data-n="119"></a><span class="t">  fresh.id,</span></div>
+<div class="ln code tier-redis" id="L120"><a class="n" href="#L120" data-n="120"></a><span class="t">  <span class="pl-s">'XX'</span>,</span></div>
+<div class="ln code tier-redis" id="L121"><a class="n" href="#L121" data-n="121"></a><span class="t">);</span></div>
+<div class="ln code tier-redis" id="L122"><a class="n" href="#L122" data-n="122"></a><span class="t">&nbsp;</span></div>
+<div class="ln chunkref tier-redis" id="L123"><a class="n" href="#L123" data-n="123"></a><span class="t"><span class="cl">// ▸ shardKeyOfTicket(fresh)</span></span></div>
+<div class="ln code tier-redis" id="L124"><a class="n" href="#L124" data-n="124"></a><span class="t"><span class="pl-k">return</span> <span class="pl-s">`matching:queue:${</span>matchType<span class="pl-s">}:${</span>region<span class="pl-s">}:${</span>ageBand<span class="pl-s">}`</span>;</span></div>
+<div class="ln code tier-redis" id="L125"><a class="n" href="#L125" data-n="125"></a><span class="t">&nbsp;</span></div>
+<div class="ln chunkref tier-redis" id="L126"><a class="n" href="#L126" data-n="126"></a><span class="t"><span class="cl">// ▸ ticketScore(fresh)</span></span></div>
+<div class="ln code tier-redis" id="L127"><a class="n" href="#L127" data-n="127"></a><span class="t"><span class="pl-c">// Điểm nhỏ ghép trước: speed-up trừ boost khỏi điểm nên vé nhảy lên đầu hàng.</span></span></div>
+<div class="ln code tier-redis" id="L128"><a class="n" href="#L128" data-n="128"></a><span class="t"><span class="pl-c">// trustPenaltyMs là phần cộng thêm để hạ ưu tiên.</span></span></div>
+<div class="ln code tier-redis" id="L129"><a class="n" href="#L129" data-n="129"></a><span class="t"><span class="pl-k">return</span> (</span></div>
+<div class="ln code tier-redis" id="L130"><a class="n" href="#L130" data-n="130"></a><span class="t">  ticket.enqueuedAt.<span class="pl-en">getTime</span>() + ticket.trustPenaltyMs - ticket.priorityBoostMs</span></div>
+<div class="ln code tier-redis" id="L131"><a class="n" href="#L131" data-n="131"></a><span class="t">);</span></div>
+<div class="ln code tier-redis" id="L132"><a class="n" href="#L132" data-n="132"></a><span class="t">&nbsp;</span></div>
+<div class="ln chunkref tier-redis" id="L133"><a class="n" href="#L133" data-n="133"></a><span class="t"><span class="cl">// ▸ RedisMatchingQueue.enqueue(shard, score, ticketId, mode)</span></span></div>
+<div class="ln code tier-redis" id="L134"><a class="n" href="#L134" data-n="134"></a><span class="t"><span class="pl-k">await</span> <span class="pl-c1">this</span>.redis.<span class="pl-en">zadd</span>(shard, mode, score, ticketId);</span></div>
+<div class="ln blank" id="L135"><a class="n" href="#L135" data-n="135"></a><span class="t">&nbsp;</span></div>
+<div class="ln bandrule tier-controller" id="L136"><a class="n" href="#L136" data-n="136"></a><span class="t"><span class="bx">// ████████████████████████████████████████████████████████████████████████████</span></span></div>
+<div class="ln band tier-controller" id="L137"><a class="n" href="#L137" data-n="137"></a><span class="t"><span class="bx">// ██  </span><b class="bn">CONTROLLER</b><span class="bx">  ·  </span><span class="bs">Trả kết quả kèm giá speed-up hiện hành</span></span></div>
+<div class="ln bandref tier-controller" id="L138"><a class="n" href="#L138" data-n="138"></a><span class="t"><span class="bx">// </span><span class="br">▸ matching.controller.ts · speedup L148–153</span></span></div>
+<div class="ln code tier-controller" id="L139"><a class="n" href="#L139" data-n="139"></a><span class="t"><span class="pl-k">return</span> SpeedupResultDto.<span class="pl-en">from</span>(</span></div>
+<div class="ln code tier-controller" id="L140"><a class="n" href="#L140" data-n="140"></a><span class="t">  result.transactionId,</span></div>
+<div class="ln code tier-controller" id="L141"><a class="n" href="#L141" data-n="141"></a><span class="t">  result.replayed,</span></div>
+<div class="ln code tier-controller" id="L142"><a class="n" href="#L142" data-n="142"></a><span class="t">  result.ticket,</span></div>
+<div class="ln code tier-controller" id="L143"><a class="n" href="#L143" data-n="143"></a><span class="t">  <span class="pl-k">await</span> <span class="pl-c1">this</span>.matchingService.<span class="pl-en">getSpeedupPriceDiamondForUser</span>(user.userId),</span></div>
+<div class="ln code tier-controller" id="L144"><a class="n" href="#L144" data-n="144"></a><span class="t">);</span></div>
   </div>
 </div>
 </main>
