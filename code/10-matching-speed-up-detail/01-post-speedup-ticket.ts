@@ -31,6 +31,11 @@
 //               idempotent theo key; getActiveVipTier: đọc hạng VIP để tính giá.
 //             Matching worker — bước kế tiếp: matcher ZPOPMIN lấy vé điểm thấp nhất nên
 //               vé đã boost được ghép trước (xem luồng vào hàng đợi Voice Match).
+//  Cách đọc   Một file, đi theo thứ tự chạy: hàm được gọi thụt vào ngay dưới dòng gọi
+//             nó, không chép class hay khai báo hàm (tên hàm nằm ở dòng tiêu đề //
+//             [TẦNG]). Các dòng const ở đầu mỗi khối là tham số truyền vào, do công cụ
+//             gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức được thay thẳng vào giá
+//             trị); mọi dòng còn lại là code nguyên văn trong repo.
 
 // [CONTROLLER] nhận request  ·  matching.controller.ts L42–43, L134–154
 @Controller('matching')
@@ -44,121 +49,75 @@ export class MatchingController {
   ): Promise<SpeedupResultDto> {
     const result = await this.matchingService.speedup(user, id, idempotencyKey);
 
-      // [SERVICE] trừ Diamond, cộng boost, đặt lại điểm  ·  matching.service.ts L66–67, L424–479
-      @Injectable()
-      export class MatchingService {
-        async speedup(
-          user: AuthenticatedUser,
-          ticketId: string,
-          idempotencyKey: string,
-        ): Promise<{
-          transactionId: string;
-          replayed: boolean;
-          ticket: MatchTicket;
-        }> {
-          const ticket = await this.getTicket(user, ticketId);
-          if (ticket.status !== MatchTicketStatus.Queued) {
-            throw new DomainException(
-              MatchingErrors.TICKET_INVALID_TRANSITION,
-              `Ticket đang '${ticket.status}', chỉ speed-up được khi đang 'queued'`,
-              HttpStatus.CONFLICT,
-            );
-          }
-
-          // Giá do server tính ngay trước khi trừ (theo hạng VIP hiện tại): client không tự
-          // gửi giá và không được hard-code.
-          const price = await this.getSpeedupPriceDiamondForUser(user.userId);
-          const boostMs = this.config.getOrThrow('MATCHING_PRIORITY_BOOST_MS', {
-            infer: true,
-          });
-          // Key = (user, Idempotency-Key của client). Economy dùng nguyên chuỗi này làm key
-          // giao dịch, nên bấm lại cùng key chỉ trừ tiền một lần.
-          const prefixedKey = speedupIdempotencyKey(user.userId, idempotencyKey);
-
-          // [POSTGRES] Trừ Diamond TRƯỚC khi đụng vào hàng đợi: Economy tự khóa ví, kiểm số
-          // dư và ghi sổ idempotent. Bước sau lỗi thì tiền đã trừ, nhưng retry cùng key không
-          // trừ lại.
-          const spend = await this.economy.spendDiamond(
-            user.userId,
-            TransactionType.MatchingSpeedup,
-            price,
-            prefixedKey,
-            { ticketId, priceDiamond: price },
-          );
-          // [POSTGRES] Replay cùng key không cộng boost lần nữa (tránh double-boost);
-          // increment nguyên tử, chỉ khi vé còn queued. Đánh đổi: trừ tiền và increment là 2
-          // bước riêng, process chết giữa chừng thì retry không cộng lại boost.
-          if (!spend.replayed) {
-            await this.ticketRepo.increment(
-              { id: ticket.id, status: MatchTicketStatus.Queued },
-              'priorityBoostMs',
-              boostMs,
-            );
-          }
-
-          // Đọc lại tổng boost từ DB để tính score TUYỆT ĐỐI. Boost cộng dồn trong DB nên
-          // retry hay replay cùng key chỉ sửa score về đúng tổng đã trả tiền, không
-          // double-boost.
-          const fresh = await this.ticketRepo.findOneByOrFail({ id: ticket.id });
-          // [REDIS] ZADD XX chỉ cập nhật member đang có: vé đã rời hàng đợi (ghép hoặc hủy)
-          // thì bỏ qua, không bị thêm lại. Lúc vào hàng đợi thì ngược lại, dùng NX để không
-          // đè score đã boost.
-          await this.queue.enqueue(
-            shardKeyOfTicket(fresh),
-            String(ticketScore(fresh)),
-            fresh.id,
-            'XX',
-          );
-
-            // [REDIS] chọn shard của vé  ·  matching-redis.provider.ts L32–36
-            export function shardKeyOfTicket(
-              ticket: Pick<MatchTicket, 'matchType' | 'region' | 'ageBand'>,
-            ): string {
-              return matchingShardKey(ticket.matchType, ticket.region, ticket.ageBand);
-
-                // [REDIS] tên shard  ·  matching-redis.provider.ts L24–30
-                export function matchingShardKey(
-                  matchType: string,
-                  region: string,
-                  ageBand: number,
-                ): string {
-                  return `matching:queue:${matchType}:${region}:${ageBand}`;
-                }
-            }
-
-            // [REDIS] điểm của vé (nhỏ ghép trước)  ·  matching-redis.provider.ts L43–52
-            export function ticketScore(
-              ticket: Pick<
-                MatchTicket,
-                'enqueuedAt' | 'priorityBoostMs' | 'trustPenaltyMs'
-              >,
-            ): number {
-              // Điểm nhỏ ghép trước: speed-up trừ boost khỏi điểm nên vé nhảy lên đầu hàng.
-              // trustPenaltyMs là phần cộng thêm để hạ ưu tiên.
-              return (
-                ticket.enqueuedAt.getTime() + ticket.trustPenaltyMs - ticket.priorityBoostMs
-              );
-            }
-
-            // [REDIS] ZADD vào sorted set  ·  redis-matching-queue.adapter.ts L6, L12–19
-            export class RedisMatchingQueue implements MatchingQueuePort {
-              async enqueue(
-                shard: string,
-                score: string,
-                ticketId: string,
-                mode: 'NX' | 'XX',
-              ): Promise<void> {
-                await this.redis.zadd(shard, mode, score, ticketId);
-              }
-            }
-
-          return {
-            transactionId: spend.transactionId,
-            replayed: spend.replayed,
-            ticket: fresh,
-          };
-        }
+      // [SERVICE] MatchingService.speedup: trừ Diamond, cộng boost, đặt lại điểm  ·  matching.service.ts L424–479
+      const ticketId = id;
+      const ticket = await this.getTicket(user, ticketId);
+      if (ticket.status !== MatchTicketStatus.Queued) {
+        throw new DomainException(
+          MatchingErrors.TICKET_INVALID_TRANSITION,
+          `Ticket đang '${ticket.status}', chỉ speed-up được khi đang 'queued'`,
+          HttpStatus.CONFLICT,
+        );
       }
+
+      // Giá do server tính ngay trước khi trừ (theo hạng VIP hiện tại): client không tự gửi
+      // giá và không được hard-code.
+      const price = await this.getSpeedupPriceDiamondForUser(user.userId);
+      const boostMs = this.config.getOrThrow('MATCHING_PRIORITY_BOOST_MS', {
+        infer: true,
+      });
+      // Key = (user, Idempotency-Key của client). Economy dùng nguyên chuỗi này làm key giao
+      // dịch, nên bấm lại cùng key chỉ trừ tiền một lần.
+      const prefixedKey = speedupIdempotencyKey(user.userId, idempotencyKey);
+
+      // [POSTGRES] Trừ Diamond TRƯỚC khi đụng vào hàng đợi: Economy tự khóa ví, kiểm số dư và
+      // ghi sổ idempotent. Bước sau lỗi thì tiền đã trừ, nhưng retry cùng key không trừ lại.
+      const spend = await this.economy.spendDiamond(
+        user.userId,
+        TransactionType.MatchingSpeedup,
+        price,
+        prefixedKey,
+        { ticketId, priceDiamond: price },
+      );
+      // [POSTGRES] Replay cùng key không cộng boost lần nữa (tránh double-boost); increment
+      // nguyên tử, chỉ khi vé còn queued. Đánh đổi: trừ tiền và increment là 2 bước riêng,
+      // process chết giữa chừng thì retry không cộng lại boost.
+      if (!spend.replayed) {
+        await this.ticketRepo.increment(
+          { id: ticket.id, status: MatchTicketStatus.Queued },
+          'priorityBoostMs',
+          boostMs,
+        );
+      }
+
+      // Đọc lại tổng boost từ DB để tính score TUYỆT ĐỐI. Boost cộng dồn trong DB nên retry
+      // hay replay cùng key chỉ sửa score về đúng tổng đã trả tiền, không double-boost.
+      const fresh = await this.ticketRepo.findOneByOrFail({ id: ticket.id });
+      await this.queue.enqueue(
+        shardKeyOfTicket(fresh),
+        String(ticketScore(fresh)),
+        fresh.id,
+        'XX',
+      );
+
+        // [REDIS] RedisMatchingQueue.enqueue: ZADD vào sorted set  ·  redis-matching-queue.adapter.ts L12–19
+        const shard = `matching:queue:${fresh.matchType}:${fresh.region}:${fresh.ageBand}`;
+        const score = String(
+          fresh.enqueuedAt.getTime() + fresh.trustPenaltyMs - fresh.priorityBoostMs,
+        );
+        const ticketId = fresh.id;
+        const mode = 'XX';
+        // Mỗi shard (loại ghép + vùng + nhóm tuổi) là một sorted set riêng, điểm nhỏ ghép
+        // trước: matcher lấy từng shard bằng ZPOPMIN 2 (atomic nên 2 matcher không lấy trùng
+        // vé), nên speed-up chỉ cần hạ điểm của vé ngay trong set này. XX: vé đã rời hàng (ghép
+        // hoặc hủy) thì không bị thêm lại.
+        await this.redis.zadd(shard, mode, score, ticketId);
+
+      return {
+        transactionId: spend.transactionId,
+        replayed: spend.replayed,
+        ticket: fresh,
+      };
 
     return SpeedupResultDto.from(
       result.transactionId,
