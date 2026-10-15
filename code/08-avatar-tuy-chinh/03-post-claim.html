@@ -46,7 +46,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 <main>
 <div class="box">
   <div class="bar">
-    <div class="path"><a href="https://github.com/ducmanh001/litmatch-feature-flows">litmatch-feature-flows</a> / <a href="https://github.com/ducmanh001/litmatch-feature-flows/tree/main/code/08-avatar-tuy-chinh">08-avatar-tuy-chinh</a> / <b>03-post-claim.ts</b><span class="meta">128 dòng · 83 dòng code</span></div>
+    <div class="path"><a href="https://github.com/ducmanh001/litmatch-feature-flows">litmatch-feature-flows</a> / <a href="https://github.com/ducmanh001/litmatch-feature-flows/tree/main/code/08-avatar-tuy-chinh">08-avatar-tuy-chinh</a> / <b>03-post-claim.ts</b><span class="meta">58 dòng · 43 dòng code</span></div>
     <div class="actions">
       <a class="btn" href="index.html">Các endpoint</a>
       <a class="btn" href="../../index.html#08-avatar-tuy-chinh">Sơ đồ luồng</a>
@@ -62,130 +62,60 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 <div class="ln sec" id="L2"><a class="n" href="#L2" data-n="2"></a><span class="t"><span class="pl-c">//  POST /api/v1/avatar/items/:assetId/claim</span></span></div>
 <div class="ln sec" id="L3"><a class="n" href="#L3" data-n="3"></a><span class="t"><span class="pl-c">//  Nhận item miễn phí (giá 0).</span></span></div>
 <div class="ln rule" id="L4"><a class="n" href="#L4" data-n="4"></a><span class="t"><span class="pl-c">// ════════════════════════════════════════════════════════════════════════════</span></span></div>
-<div class="ln head" id="L5"><a class="n" href="#L5" data-n="5"></a><span class="t"><span class="pl-c">//  Luồng      api.ts → avatar.controller.ts → avatar.service.ts</span></span></div>
+<div class="ln head" id="L5"><a class="n" href="#L5" data-n="5"></a><span class="t"><span class="pl-c">//  Luồng      client → avatar.controller.ts → avatar.service.ts → PostgreSQL</span></span></div>
 <div class="ln head" id="L6"><a class="n" href="#L6" data-n="6"></a><span class="t"><span class="pl-c">//  Bảng       avatar_assets, user_avatar_items</span></span></div>
-<div class="ln head" id="L7"><a class="n" href="#L7" data-n="7"></a><span class="t"><span class="pl-c">//  Nguồn      litmatch @ d3cb28c · 2026-10-15. Code trích nguyên văn, đã lược import,</span></span></div>
-<div class="ln head" id="L8"><a class="n" href="#L8" data-n="8"></a><span class="t"><span class="pl-c">//             comment cũ và decorator Swagger.</span></span></div>
-<div class="ln blank" id="L9"><a class="n" href="#L9" data-n="9"></a><span class="t">&nbsp;</span></div>
-<div class="ln tag" id="L10"><a class="n" href="#L10" data-n="10"></a><span class="t"><span class="pl-c">// api.ts · useClaimAvatarItem · L55–57</span></span></div>
-<div class="ln code" id="L11"><a class="n" href="#L11" data-n="11"></a><span class="t"><span class="pl-k">await</span> apiClient.<span class="pl-en">POST</span>(<span class="pl-s">'/api/v1/avatar/items/{assetId}/claim'</span>, {</span></div>
-<div class="ln code" id="L12"><a class="n" href="#L12" data-n="12"></a><span class="t">  params: { path: { assetId } },</span></div>
-<div class="ln code" id="L13"><a class="n" href="#L13" data-n="13"></a><span class="t">});</span></div>
-<div class="ln blank" id="L14"><a class="n" href="#L14" data-n="14"></a><span class="t">&nbsp;</span></div>
-<div class="ln tag" id="L15"><a class="n" href="#L15" data-n="15"></a><span class="t"><span class="pl-c">// avatar.controller.ts · L45–47, L73–81</span></span></div>
-<div class="ln code" id="L16"><a class="n" href="#L16" data-n="16"></a><span class="t">@<span class="pl-en">Controller</span>(<span class="pl-s">'avatar'</span>)</span></div>
-<div class="ln code" id="L17"><a class="n" href="#L17" data-n="17"></a><span class="t"><span class="pl-k">export</span> <span class="pl-k">class</span> <span class="pl-en">AvatarController</span> {</span></div>
-<div class="ln code" id="L18"><a class="n" href="#L18" data-n="18"></a><span class="t">  <span class="pl-en">constructor</span>(<span class="pl-k">private</span> <span class="pl-k">readonly</span> avatarService: <span class="pl-en">AvatarService</span>) {}</span></div>
-<div class="ln code" id="L19"><a class="n" href="#L19" data-n="19"></a><span class="t">&nbsp;</span></div>
-<div class="ln code" id="L20"><a class="n" href="#L20" data-n="20"></a><span class="t">  <span class="pl-c">/**</span></span></div>
-<div class="ln code" id="L21"><a class="n" href="#L21" data-n="21"></a><span class="t"><span class="pl-c">   * Nhận item miễn phí.</span></span></div>
-<div class="ln code" id="L22"><a class="n" href="#L22" data-n="22"></a><span class="t"><span class="pl-c">   * In:    user từ JWT, assetId (UUID)</span></span></div>
-<div class="ln code" id="L23"><a class="n" href="#L23" data-n="23"></a><span class="t"><span class="pl-c">   * Out:   204, không có nội dung</span></span></div>
-<div class="ln code" id="L24"><a class="n" href="#L24" data-n="24"></a><span class="t"><span class="pl-c">   */</span></span></div>
-<div class="ln code" id="L25"><a class="n" href="#L25" data-n="25"></a><span class="t">  @<span class="pl-en">Post</span>(<span class="pl-s">'items/:assetId/claim'</span>)</span></div>
-<div class="ln code" id="L26"><a class="n" href="#L26" data-n="26"></a><span class="t">  @<span class="pl-en">HttpCode</span>(HttpStatus.<span class="pl-c1">NO_CONTENT</span>)</span></div>
-<div class="ln code" id="L27"><a class="n" href="#L27" data-n="27"></a><span class="t">  <span class="pl-k">async</span> <span class="pl-en">claim</span>(</span></div>
-<div class="ln code" id="L28"><a class="n" href="#L28" data-n="28"></a><span class="t">    @<span class="pl-en">CurrentUser</span>() user: <span class="pl-en">AuthenticatedUser</span>,</span></div>
-<div class="ln code" id="L29"><a class="n" href="#L29" data-n="29"></a><span class="t">    @<span class="pl-en">Param</span>(<span class="pl-s">'assetId'</span>, <span class="pl-en">ParseUUIDPipe</span>) assetId: <span class="pl-c1">string</span>,</span></div>
-<div class="ln code" id="L30"><a class="n" href="#L30" data-n="30"></a><span class="t">  ): <span class="pl-en">Promise</span>&lt;<span class="pl-c1">void</span>&gt; {</span></div>
-<div class="ln code" id="L31"><a class="n" href="#L31" data-n="31"></a><span class="t">    <span class="pl-k">await</span> <span class="pl-c1">this</span>.avatarService.<span class="pl-en">claim</span>(user.userId, assetId);</span></div>
-<div class="ln code" id="L32"><a class="n" href="#L32" data-n="32"></a><span class="t">  }</span></div>
-<div class="ln code" id="L33"><a class="n" href="#L33" data-n="33"></a><span class="t">}</span></div>
-<div class="ln blank" id="L34"><a class="n" href="#L34" data-n="34"></a><span class="t">&nbsp;</span></div>
-<div class="ln tag" id="L35"><a class="n" href="#L35" data-n="35"></a><span class="t"><span class="pl-c">// avatar.service.ts · L25–27, L29–32, L36, L55–65, L159–169, L171–183</span></span></div>
-<div class="ln code" id="L36"><a class="n" href="#L36" data-n="36"></a><span class="t">@<span class="pl-en">Injectable</span>()</span></div>
-<div class="ln code" id="L37"><a class="n" href="#L37" data-n="37"></a><span class="t"><span class="pl-k">export</span> <span class="pl-k">class</span> <span class="pl-en">AvatarService</span> {</span></div>
-<div class="ln code" id="L38"><a class="n" href="#L38" data-n="38"></a><span class="t">  <span class="pl-en">constructor</span>(</span></div>
-<div class="ln code" id="L39"><a class="n" href="#L39" data-n="39"></a><span class="t">    <span class="pl-c">// …</span></span></div>
-<div class="ln code" id="L40"><a class="n" href="#L40" data-n="40"></a><span class="t">    @<span class="pl-en">InjectRepository</span>(<span class="pl-en">AvatarAsset</span>)</span></div>
-<div class="ln code" id="L41"><a class="n" href="#L41" data-n="41"></a><span class="t">    <span class="pl-k">private</span> <span class="pl-k">readonly</span> assetRepo: <span class="pl-en">Repository</span>&lt;<span class="pl-en">AvatarAsset</span>&gt;,</span></div>
-<div class="ln code" id="L42"><a class="n" href="#L42" data-n="42"></a><span class="t">    @<span class="pl-en">InjectRepository</span>(<span class="pl-en">UserAvatarItem</span>)</span></div>
-<div class="ln code" id="L43"><a class="n" href="#L43" data-n="43"></a><span class="t">    <span class="pl-k">private</span> <span class="pl-k">readonly</span> itemRepo: <span class="pl-en">Repository</span>&lt;<span class="pl-en">UserAvatarItem</span>&gt;,</span></div>
-<div class="ln code" id="L44"><a class="n" href="#L44" data-n="44"></a><span class="t">    <span class="pl-c">// …</span></span></div>
-<div class="ln code" id="L45"><a class="n" href="#L45" data-n="45"></a><span class="t">  ) {}</span></div>
-<div class="ln code" id="L46"><a class="n" href="#L46" data-n="46"></a><span class="t">&nbsp;</span></div>
-<div class="ln code" id="L47"><a class="n" href="#L47" data-n="47"></a><span class="t">  <span class="pl-c">/**</span></span></div>
-<div class="ln code" id="L48"><a class="n" href="#L48" data-n="48"></a><span class="t"><span class="pl-c">   * Nhận item miễn phí (priceDiamond = 0). Gọi lại nhiều lần vẫn an toàn.</span></span></div>
-<div class="ln code" id="L49"><a class="n" href="#L49" data-n="49"></a><span class="t"><span class="pl-c">   * In:    userId, assetId</span></span></div>
-<div class="ln code" id="L50"><a class="n" href="#L50" data-n="50"></a><span class="t"><span class="pl-c">   * Out:   void</span></span></div>
-<div class="ln code" id="L51"><a class="n" href="#L51" data-n="51"></a><span class="t"><span class="pl-c">   * Lỗi:   404 item không có hoặc đã tắt · 400 item có giá (phải mua)</span></span></div>
-<div class="ln code" id="L52"><a class="n" href="#L52" data-n="52"></a><span class="t"><span class="pl-c">   */</span></span></div>
-<div class="ln code" id="L53"><a class="n" href="#L53" data-n="53"></a><span class="t">  <span class="pl-k">async</span> <span class="pl-en">claim</span>(userId: <span class="pl-c1">string</span>, assetId: <span class="pl-c1">string</span>): <span class="pl-en">Promise</span>&lt;<span class="pl-c1">void</span>&gt; {</span></div>
-<div class="ln code" id="L54"><a class="n" href="#L54" data-n="54"></a><span class="t">    <span class="pl-k">const</span> <span class="pl-c1">asset</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.<span class="pl-en">getAssetOrThrow</span>(assetId);</span></div>
-<div class="ln code" id="L55"><a class="n" href="#L55" data-n="55"></a><span class="t">    <span class="pl-k">if</span> (asset.priceDiamond !== <span class="pl-c1">0</span>) {</span></div>
-<div class="ln code" id="L56"><a class="n" href="#L56" data-n="56"></a><span class="t">      <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
-<div class="ln code" id="L57"><a class="n" href="#L57" data-n="57"></a><span class="t">        AvatarErrors.<span class="pl-c1">ASSET_REQUIRES_PURCHASE</span>,</span></div>
-<div class="ln code" id="L58"><a class="n" href="#L58" data-n="58"></a><span class="t">        <span class="pl-s">'Item này phải mua — dùng buy(), không claim() được'</span>,</span></div>
-<div class="ln code" id="L59"><a class="n" href="#L59" data-n="59"></a><span class="t">        HttpStatus.<span class="pl-c1">BAD_REQUEST</span>,</span></div>
-<div class="ln code" id="L60"><a class="n" href="#L60" data-n="60"></a><span class="t">      );</span></div>
-<div class="ln code" id="L61"><a class="n" href="#L61" data-n="61"></a><span class="t">    }</span></div>
-<div class="ln code" id="L62"><a class="n" href="#L62" data-n="62"></a><span class="t">    <span class="pl-k">await</span> <span class="pl-c1">this</span>.<span class="pl-en">grantOwnership</span>(<span class="pl-c1">this</span>.itemRepo.manager, userId, assetId);</span></div>
-<div class="ln code" id="L63"><a class="n" href="#L63" data-n="63"></a><span class="t">  }</span></div>
-<div class="ln code" id="L64"><a class="n" href="#L64" data-n="64"></a><span class="t">&nbsp;</span></div>
-<div class="ln code" id="L65"><a class="n" href="#L65" data-n="65"></a><span class="t">  <span class="pl-c">/**</span></span></div>
-<div class="ln code" id="L66"><a class="n" href="#L66" data-n="66"></a><span class="t"><span class="pl-c">   * Lấy item đang bật theo id.</span></span></div>
-<div class="ln code" id="L67"><a class="n" href="#L67" data-n="67"></a><span class="t"><span class="pl-c">   * In:    assetId</span></span></div>
-<div class="ln code" id="L68"><a class="n" href="#L68" data-n="68"></a><span class="t"><span class="pl-c">   * Out:   AvatarAsset</span></span></div>
-<div class="ln code" id="L69"><a class="n" href="#L69" data-n="69"></a><span class="t"><span class="pl-c">   * Lỗi:   404 không có hoặc đã tắt</span></span></div>
-<div class="ln code" id="L70"><a class="n" href="#L70" data-n="70"></a><span class="t"><span class="pl-c">   */</span></span></div>
-<div class="ln code" id="L71"><a class="n" href="#L71" data-n="71"></a><span class="t">  <span class="pl-k">private</span> <span class="pl-k">async</span> <span class="pl-en">getAssetOrThrow</span>(assetId: <span class="pl-c1">string</span>): <span class="pl-en">Promise</span>&lt;<span class="pl-en">AvatarAsset</span>&gt; {</span></div>
-<div class="ln code" id="L72"><a class="n" href="#L72" data-n="72"></a><span class="t">    <span class="pl-k">const</span> <span class="pl-c1">asset</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.assetRepo.<span class="pl-en">findOneBy</span>({ id: assetId, active: <span class="pl-c1">true</span> });</span></div>
-<div class="ln code" id="L73"><a class="n" href="#L73" data-n="73"></a><span class="t">    <span class="pl-k">if</span> (!asset) {</span></div>
-<div class="ln code" id="L74"><a class="n" href="#L74" data-n="74"></a><span class="t">      <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
-<div class="ln code" id="L75"><a class="n" href="#L75" data-n="75"></a><span class="t">        AvatarErrors.<span class="pl-c1">ASSET_NOT_FOUND</span>,</span></div>
-<div class="ln code" id="L76"><a class="n" href="#L76" data-n="76"></a><span class="t">        <span class="pl-s">'Không tìm thấy item avatar'</span>,</span></div>
-<div class="ln code" id="L77"><a class="n" href="#L77" data-n="77"></a><span class="t">        HttpStatus.<span class="pl-c1">NOT_FOUND</span>,</span></div>
-<div class="ln code" id="L78"><a class="n" href="#L78" data-n="78"></a><span class="t">      );</span></div>
-<div class="ln code" id="L79"><a class="n" href="#L79" data-n="79"></a><span class="t">    }</span></div>
-<div class="ln code" id="L80"><a class="n" href="#L80" data-n="80"></a><span class="t">    <span class="pl-k">return</span> asset;</span></div>
-<div class="ln code" id="L81"><a class="n" href="#L81" data-n="81"></a><span class="t">  }</span></div>
-<div class="ln code" id="L82"><a class="n" href="#L82" data-n="82"></a><span class="t">&nbsp;</span></div>
-<div class="ln code" id="L83"><a class="n" href="#L83" data-n="83"></a><span class="t">  <span class="pl-c">/**</span></span></div>
-<div class="ln code" id="L84"><a class="n" href="#L84" data-n="84"></a><span class="t"><span class="pl-c">   * Ghi "user sở hữu item"; đã có thì bỏ qua (ON CONFLICT DO NOTHING).</span></span></div>
-<div class="ln code" id="L85"><a class="n" href="#L85" data-n="85"></a><span class="t"><span class="pl-c">   * In:    manager (EntityManager), userId, assetId</span></span></div>
-<div class="ln code" id="L86"><a class="n" href="#L86" data-n="86"></a><span class="t"><span class="pl-c">   * Out:   void</span></span></div>
-<div class="ln code" id="L87"><a class="n" href="#L87" data-n="87"></a><span class="t"><span class="pl-c">   */</span></span></div>
-<div class="ln code" id="L88"><a class="n" href="#L88" data-n="88"></a><span class="t">  <span class="pl-k">private</span> <span class="pl-k">async</span> <span class="pl-en">grantOwnership</span>(</span></div>
-<div class="ln code" id="L89"><a class="n" href="#L89" data-n="89"></a><span class="t">    manager: <span class="pl-en">DataSource</span>[<span class="pl-s">'manager'</span>],</span></div>
-<div class="ln code" id="L90"><a class="n" href="#L90" data-n="90"></a><span class="t">    userId: <span class="pl-c1">string</span>,</span></div>
-<div class="ln code" id="L91"><a class="n" href="#L91" data-n="91"></a><span class="t">    assetId: <span class="pl-c1">string</span>,</span></div>
-<div class="ln code" id="L92"><a class="n" href="#L92" data-n="92"></a><span class="t">  ): <span class="pl-en">Promise</span>&lt;<span class="pl-c1">void</span>&gt; {</span></div>
-<div class="ln code" id="L93"><a class="n" href="#L93" data-n="93"></a><span class="t">    <span class="pl-k">await</span> manager</span></div>
-<div class="ln code" id="L94"><a class="n" href="#L94" data-n="94"></a><span class="t">      .<span class="pl-en">createQueryBuilder</span>()</span></div>
-<div class="ln code" id="L95"><a class="n" href="#L95" data-n="95"></a><span class="t">      .<span class="pl-en">insert</span>()</span></div>
-<div class="ln code" id="L96"><a class="n" href="#L96" data-n="96"></a><span class="t">      .<span class="pl-en">into</span>(<span class="pl-en">UserAvatarItem</span>)</span></div>
-<div class="ln code" id="L97"><a class="n" href="#L97" data-n="97"></a><span class="t">      .<span class="pl-en">values</span>({ userId, avatarAssetId: assetId })</span></div>
-<div class="ln code" id="L98"><a class="n" href="#L98" data-n="98"></a><span class="t">      .<span class="pl-en">orIgnore</span>()</span></div>
-<div class="ln code" id="L99"><a class="n" href="#L99" data-n="99"></a><span class="t">      .<span class="pl-en">execute</span>();</span></div>
-<div class="ln code" id="L100"><a class="n" href="#L100" data-n="100"></a><span class="t">  }</span></div>
-<div class="ln code" id="L101"><a class="n" href="#L101" data-n="101"></a><span class="t">}</span></div>
-<div class="ln blank" id="L102"><a class="n" href="#L102" data-n="102"></a><span class="t">&nbsp;</span></div>
-<div class="ln tag" id="L103"><a class="n" href="#L103" data-n="103"></a><span class="t"><span class="pl-c">// 1753100000000-avatar.ts · L12–26, L31–39</span></span></div>
-<div class="ln code" id="L104"><a class="n" href="#L104" data-n="104"></a><span class="t"><span class="pl-k">await</span> queryRunner.<span class="pl-en">query</span>(<span class="pl-s">`</span></span></div>
-<div class="ln code" id="L105"><a class="n" href="#L105" data-n="105"></a><span class="t"><span class="pl-s">  CREATE TABLE avatar_assets (</span></span></div>
-<div class="ln code" id="L106"><a class="n" href="#L106" data-n="106"></a><span class="t"><span class="pl-s">    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),</span></span></div>
-<div class="ln code" id="L107"><a class="n" href="#L107" data-n="107"></a><span class="t"><span class="pl-s">    slot          varchar(16)   NOT NULL,</span></span></div>
-<div class="ln code" id="L108"><a class="n" href="#L108" data-n="108"></a><span class="t"><span class="pl-s">    code          varchar(64)   NOT NULL,</span></span></div>
-<div class="ln code" id="L109"><a class="n" href="#L109" data-n="109"></a><span class="t"><span class="pl-s">    name          varchar(128)  NOT NULL,</span></span></div>
-<div class="ln code" id="L110"><a class="n" href="#L110" data-n="110"></a><span class="t"><span class="pl-s">    image_url     varchar(2048) NOT NULL,</span></span></div>
-<div class="ln code" id="L111"><a class="n" href="#L111" data-n="111"></a><span class="t"><span class="pl-s">    z_index       int           NOT NULL,</span></span></div>
-<div class="ln code" id="L112"><a class="n" href="#L112" data-n="112"></a><span class="t"><span class="pl-s">    price_diamond int           NOT NULL DEFAULT 0,</span></span></div>
-<div class="ln code" id="L113"><a class="n" href="#L113" data-n="113"></a><span class="t"><span class="pl-s">    active        boolean       NOT NULL DEFAULT true,</span></span></div>
-<div class="ln code" id="L114"><a class="n" href="#L114" data-n="114"></a><span class="t"><span class="pl-s">    sort_order    int           NOT NULL DEFAULT 0,</span></span></div>
-<div class="ln code" id="L115"><a class="n" href="#L115" data-n="115"></a><span class="t"><span class="pl-s">    CONSTRAINT uq_avatar_assets_code UNIQUE (code),</span></span></div>
-<div class="ln code" id="L116"><a class="n" href="#L116" data-n="116"></a><span class="t"><span class="pl-s">    CONSTRAINT chk_avatar_assets_price_nonneg CHECK (price_diamond &gt;= 0)</span></span></div>
-<div class="ln code" id="L117"><a class="n" href="#L117" data-n="117"></a><span class="t"><span class="pl-s">  )</span></span></div>
-<div class="ln code" id="L118"><a class="n" href="#L118" data-n="118"></a><span class="t"><span class="pl-s">`</span>);</span></div>
-<div class="ln code" id="L119"><a class="n" href="#L119" data-n="119"></a><span class="t">&nbsp;</span></div>
-<div class="ln code" id="L120"><a class="n" href="#L120" data-n="120"></a><span class="t"><span class="pl-k">await</span> queryRunner.<span class="pl-en">query</span>(<span class="pl-s">`</span></span></div>
-<div class="ln code" id="L121"><a class="n" href="#L121" data-n="121"></a><span class="t"><span class="pl-s">  CREATE TABLE user_avatar_items (</span></span></div>
-<div class="ln code" id="L122"><a class="n" href="#L122" data-n="122"></a><span class="t"><span class="pl-s">    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),</span></span></div>
-<div class="ln code" id="L123"><a class="n" href="#L123" data-n="123"></a><span class="t"><span class="pl-s">    user_id         uuid        NOT NULL REFERENCES users(id),</span></span></div>
-<div class="ln code" id="L124"><a class="n" href="#L124" data-n="124"></a><span class="t"><span class="pl-s">    avatar_asset_id uuid        NOT NULL REFERENCES avatar_assets(id),</span></span></div>
-<div class="ln code" id="L125"><a class="n" href="#L125" data-n="125"></a><span class="t"><span class="pl-s">    acquired_at     timestamptz NOT NULL DEFAULT now(),</span></span></div>
-<div class="ln code" id="L126"><a class="n" href="#L126" data-n="126"></a><span class="t"><span class="pl-s">    CONSTRAINT uq_user_avatar_items_pair UNIQUE (user_id, avatar_asset_id)</span></span></div>
-<div class="ln code" id="L127"><a class="n" href="#L127" data-n="127"></a><span class="t"><span class="pl-s">  )</span></span></div>
-<div class="ln code" id="L128"><a class="n" href="#L128" data-n="128"></a><span class="t"><span class="pl-s">`</span>);</span></div>
+<div class="ln head" id="L7"><a class="n" href="#L7" data-n="7"></a><span class="t"><span class="pl-c">//  Nguồn      litmatch @ d3cb28c · 2026-10-15</span></span></div>
+<div class="ln blank" id="L8"><a class="n" href="#L8" data-n="8"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag" id="L9"><a class="n" href="#L9" data-n="9"></a><span class="t"><span class="pl-c">// avatar.controller.ts · L73–81</span></span></div>
+<div class="ln code" id="L10"><a class="n" href="#L10" data-n="10"></a><span class="t"><span class="pl-c">/** In: user từ JWT, assetId → Out: 204, không có nội dung */</span></span></div>
+<div class="ln code" id="L11"><a class="n" href="#L11" data-n="11"></a><span class="t">@<span class="pl-en">Post</span>(<span class="pl-s">'items/:assetId/claim'</span>)</span></div>
+<div class="ln code" id="L12"><a class="n" href="#L12" data-n="12"></a><span class="t">@<span class="pl-en">HttpCode</span>(HttpStatus.<span class="pl-c1">NO_CONTENT</span>)</span></div>
+<div class="ln code" id="L13"><a class="n" href="#L13" data-n="13"></a><span class="t"><span class="pl-k">async</span> <span class="pl-en">claim</span>(</span></div>
+<div class="ln code" id="L14"><a class="n" href="#L14" data-n="14"></a><span class="t">  @<span class="pl-en">CurrentUser</span>() user: <span class="pl-en">AuthenticatedUser</span>,</span></div>
+<div class="ln code" id="L15"><a class="n" href="#L15" data-n="15"></a><span class="t">  @<span class="pl-en">Param</span>(<span class="pl-s">'assetId'</span>, <span class="pl-en">ParseUUIDPipe</span>) assetId: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L16"><a class="n" href="#L16" data-n="16"></a><span class="t">): <span class="pl-en">Promise</span>&lt;<span class="pl-c1">void</span>&gt; {</span></div>
+<div class="ln code" id="L17"><a class="n" href="#L17" data-n="17"></a><span class="t">  <span class="pl-k">await</span> <span class="pl-c1">this</span>.avatarService.<span class="pl-en">claim</span>(user.userId, assetId);</span></div>
+<div class="ln code" id="L18"><a class="n" href="#L18" data-n="18"></a><span class="t">}</span></div>
+<div class="ln blank" id="L19"><a class="n" href="#L19" data-n="19"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag" id="L20"><a class="n" href="#L20" data-n="20"></a><span class="t"><span class="pl-c">// avatar.service.ts · L55–65, L159–169, L171–183</span></span></div>
+<div class="ln code" id="L21"><a class="n" href="#L21" data-n="21"></a><span class="t"><span class="pl-c">/** In: userId, assetId → Out: void (gọi lại nhiều lần vẫn an toàn) */</span></span></div>
+<div class="ln code" id="L22"><a class="n" href="#L22" data-n="22"></a><span class="t"><span class="pl-k">async</span> <span class="pl-en">claim</span>(userId: <span class="pl-c1">string</span>, assetId: <span class="pl-c1">string</span>): <span class="pl-en">Promise</span>&lt;<span class="pl-c1">void</span>&gt; {</span></div>
+<div class="ln code" id="L23"><a class="n" href="#L23" data-n="23"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">asset</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.<span class="pl-en">getAssetOrThrow</span>(assetId);</span></div>
+<div class="ln code" id="L24"><a class="n" href="#L24" data-n="24"></a><span class="t">  <span class="pl-k">if</span> (asset.priceDiamond !== <span class="pl-c1">0</span>) {</span></div>
+<div class="ln code" id="L25"><a class="n" href="#L25" data-n="25"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
+<div class="ln code" id="L26"><a class="n" href="#L26" data-n="26"></a><span class="t">      AvatarErrors.<span class="pl-c1">ASSET_REQUIRES_PURCHASE</span>,</span></div>
+<div class="ln code" id="L27"><a class="n" href="#L27" data-n="27"></a><span class="t">      <span class="pl-s">'Item này phải mua — dùng buy(), không claim() được'</span>,</span></div>
+<div class="ln code" id="L28"><a class="n" href="#L28" data-n="28"></a><span class="t">      HttpStatus.<span class="pl-c1">BAD_REQUEST</span>,</span></div>
+<div class="ln code" id="L29"><a class="n" href="#L29" data-n="29"></a><span class="t">    );</span></div>
+<div class="ln code" id="L30"><a class="n" href="#L30" data-n="30"></a><span class="t">  }</span></div>
+<div class="ln code" id="L31"><a class="n" href="#L31" data-n="31"></a><span class="t">  <span class="pl-k">await</span> <span class="pl-c1">this</span>.<span class="pl-en">grantOwnership</span>(<span class="pl-c1">this</span>.itemRepo.manager, userId, assetId);</span></div>
+<div class="ln code" id="L32"><a class="n" href="#L32" data-n="32"></a><span class="t">}</span></div>
+<div class="ln code" id="L33"><a class="n" href="#L33" data-n="33"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L34"><a class="n" href="#L34" data-n="34"></a><span class="t"><span class="pl-k">private</span> <span class="pl-k">async</span> <span class="pl-en">getAssetOrThrow</span>(assetId: <span class="pl-c1">string</span>): <span class="pl-en">Promise</span>&lt;<span class="pl-en">AvatarAsset</span>&gt; {</span></div>
+<div class="ln code" id="L35"><a class="n" href="#L35" data-n="35"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">asset</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.assetRepo.<span class="pl-en">findOneBy</span>({ id: assetId, active: <span class="pl-c1">true</span> });</span></div>
+<div class="ln code" id="L36"><a class="n" href="#L36" data-n="36"></a><span class="t">  <span class="pl-k">if</span> (!asset) {</span></div>
+<div class="ln code" id="L37"><a class="n" href="#L37" data-n="37"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
+<div class="ln code" id="L38"><a class="n" href="#L38" data-n="38"></a><span class="t">      AvatarErrors.<span class="pl-c1">ASSET_NOT_FOUND</span>,</span></div>
+<div class="ln code" id="L39"><a class="n" href="#L39" data-n="39"></a><span class="t">      <span class="pl-s">'Không tìm thấy item avatar'</span>,</span></div>
+<div class="ln code" id="L40"><a class="n" href="#L40" data-n="40"></a><span class="t">      HttpStatus.<span class="pl-c1">NOT_FOUND</span>,</span></div>
+<div class="ln code" id="L41"><a class="n" href="#L41" data-n="41"></a><span class="t">    );</span></div>
+<div class="ln code" id="L42"><a class="n" href="#L42" data-n="42"></a><span class="t">  }</span></div>
+<div class="ln code" id="L43"><a class="n" href="#L43" data-n="43"></a><span class="t">  <span class="pl-k">return</span> asset;</span></div>
+<div class="ln code" id="L44"><a class="n" href="#L44" data-n="44"></a><span class="t">}</span></div>
+<div class="ln code" id="L45"><a class="n" href="#L45" data-n="45"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L46"><a class="n" href="#L46" data-n="46"></a><span class="t"><span class="pl-k">private</span> <span class="pl-k">async</span> <span class="pl-en">grantOwnership</span>(</span></div>
+<div class="ln code" id="L47"><a class="n" href="#L47" data-n="47"></a><span class="t">  manager: <span class="pl-en">DataSource</span>[<span class="pl-s">'manager'</span>],</span></div>
+<div class="ln code" id="L48"><a class="n" href="#L48" data-n="48"></a><span class="t">  userId: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L49"><a class="n" href="#L49" data-n="49"></a><span class="t">  assetId: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L50"><a class="n" href="#L50" data-n="50"></a><span class="t">): <span class="pl-en">Promise</span>&lt;<span class="pl-c1">void</span>&gt; {</span></div>
+<div class="ln code" id="L51"><a class="n" href="#L51" data-n="51"></a><span class="t">  <span class="pl-k">await</span> manager</span></div>
+<div class="ln code" id="L52"><a class="n" href="#L52" data-n="52"></a><span class="t">    .<span class="pl-en">createQueryBuilder</span>()</span></div>
+<div class="ln code" id="L53"><a class="n" href="#L53" data-n="53"></a><span class="t">    .<span class="pl-en">insert</span>()</span></div>
+<div class="ln code" id="L54"><a class="n" href="#L54" data-n="54"></a><span class="t">    .<span class="pl-en">into</span>(<span class="pl-en">UserAvatarItem</span>)</span></div>
+<div class="ln code" id="L55"><a class="n" href="#L55" data-n="55"></a><span class="t">    .<span class="pl-en">values</span>({ userId, avatarAssetId: assetId })</span></div>
+<div class="ln code" id="L56"><a class="n" href="#L56" data-n="56"></a><span class="t">    .<span class="pl-en">orIgnore</span>()</span></div>
+<div class="ln code" id="L57"><a class="n" href="#L57" data-n="57"></a><span class="t">    .<span class="pl-en">execute</span>();</span></div>
+<div class="ln code" id="L58"><a class="n" href="#L58" data-n="58"></a><span class="t">}</span></div>
   </div>
 </div>
 </main>

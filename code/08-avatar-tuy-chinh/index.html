@@ -51,7 +51,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
   </div>
   <div class="idx">
     <h1>Avatar tùy chỉnh: code theo từng endpoint</h1>
-    <p>Mỗi endpoint là một file, đọc từ trên xuống theo luồng: client, controller, service, bảng. Phần dùng chung không chép (middleware, guard, interceptor, pipe toàn cục, exception filter).</p>
+    <p>Mỗi endpoint là một file: client → controller → service → DB, chỉ giữ luồng xử lý chính. Không chép DTO, interface, schema và phần dùng chung (middleware, guard, interceptor, pipe toàn cục, exception filter).</p>
     <table class="tbl"><thead><tr><th>#</th><th>Endpoint</th><th>Làm gì</th><th>Bảng</th><th></th></tr></thead><tbody>
 <tr><td class="num">01</td><td class="ep"><span class="m m-get">GET</span> <code>/api/v1/avatar/catalog</code></td><td>Danh sách item avatar đang bán, lọc được theo slot.</td><td class="tb">avatar_assets</td><td class="lk"><a href="01-get-catalog.html">Xem</a> · <a href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/08-avatar-tuy-chinh/01-get-catalog.ts">GitHub</a></td></tr>
 <tr><td class="num">02</td><td class="ep"><span class="m m-get">GET</span> <code>/api/v1/avatar/me/items</code></td><td>Danh sách item avatar mình đang sở hữu.</td><td class="tb">user_avatar_items, avatar_assets</td><td class="lk"><a href="02-get-me-items.html">Xem</a> · <a href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/08-avatar-tuy-chinh/02-get-me-items.ts">GitHub</a></td></tr>

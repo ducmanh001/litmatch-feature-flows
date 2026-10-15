@@ -1,8 +1,8 @@
 # Avatar tùy chỉnh: code theo từng endpoint
 
-Mỗi file là **một endpoint**, đọc từ trên xuống theo luồng: client, controller, service, bảng.
-Code trích nguyên văn từ repo (số dòng gốc ghi ở đầu mỗi đoạn); comment chỉ là khối ghi đầu hàm (mục đích, input, output).
-Phần dùng chung không chép: middleware, guard, interceptor, pipe toàn cục, exception filter.
+Mỗi file là **một endpoint**: client → controller → service → DB, chỉ giữ luồng xử lý chính.
+Code trích nguyên văn từ repo (số dòng gốc ở đầu mỗi đoạn), đã lược import, comment cũ, decorator Swagger và thụt lề của class. Comment chỉ là khối ghi đầu hàm: input, output và chỗ logic khó hiểu.
+Không chép: DTO, interface, schema, phần dùng chung (middleware, guard, interceptor, pipe toàn cục, exception filter).
 
 | # | Endpoint | Làm gì | Bảng | File |
 |---|----------|--------|------|------|
