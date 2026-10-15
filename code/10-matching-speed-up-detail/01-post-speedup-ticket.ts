@@ -33,12 +33,13 @@
 //               vé đã boost được ghép trước (xem luồng vào hàng đợi Voice Match).
 //  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
 //             thụt vào ngay dưới dòng gọi nó, không chép class hay chữ ký hàm (tên hàm
-//             nằm ở dòng tiêu đề // [TẦNG]). Đầu mỗi khối có constructor chỉ gồm các
-//             dependency khối đó dùng (this.xxx), rồi các dòng const là tham số truyền
-//             vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức được
-//             thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong repo.
+//             nằm ở dòng tiêu đề // [TẦNG]). Constructor gom ở đầu khối service, chỉ
+//             gồm các dependency mà code bên dưới dùng (this.xxx); các dòng const là
+//             tham số truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một
+//             biểu thức được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên
+//             văn trong repo.
 
-// [CONTROLLER] MatchingController.speedup  ·  matching.controller.ts L42–44, L134–154
+// [CONTROLLER] MatchingController.speedup  ·  matching.controller.ts L42–43, L134–154
 @Controller('matching')
 export class MatchingController {
   constructor(private readonly matchingService: MatchingService) {}
@@ -53,13 +54,15 @@ export class MatchingController {
   ): Promise<SpeedupResultDto> {
     const result = await this.matchingService.speedup(user, id, idempotencyKey);
 
-      // [SERVICE] MatchingService.speedup: trừ Diamond, cộng boost, đặt lại điểm  ·  matching.service.ts L70–83, L424–479
+      // [SERVICE] MatchingService.speedup  ·  matching.service.ts L424–479
       constructor(
         @InjectRepository(MatchTicket)
         private readonly ticketRepo: Repository<MatchTicket>,
         private readonly economy: EconomyService,
         private readonly config: ConfigService<CoreApiEnv, true>,
         @Inject(MATCHING_QUEUE) private readonly queue: MatchingQueuePort,
+        // RedisMatchingQueue
+        private readonly redis: Redis,
       ) {}
 
       const ticketId = id;
@@ -75,8 +78,8 @@ export class MatchingController {
       }
 
       // Step 3: Tính giá speed-up và tạo key idempotent
-      // Giá do server tính ngay trước khi trừ (theo hạng VIP hiện tại): client không tự gửi
-      // giá và không được hard-code.
+      // Giá do server tính ngay trước khi trừ (theo hạng VIP hiện tại): client không tự gửi giá
+      // và không được hard-code.
       const price = await this.getSpeedupPriceDiamondForUser(user.userId);
       const boostMs = this.config.getOrThrow('MATCHING_PRIORITY_BOOST_MS', {
         infer: true,
@@ -86,8 +89,8 @@ export class MatchingController {
       const prefixedKey = speedupIdempotencyKey(user.userId, idempotencyKey);
 
       // Step 4: Trừ Diamond qua Economy
-      // [POSTGRES] Trừ Diamond TRƯỚC khi đụng vào hàng đợi: Economy tự khóa ví, kiểm số dư và
-      // ghi sổ idempotent. Bước sau lỗi thì tiền đã trừ, nhưng retry cùng key không trừ lại.
+      // [POSTGRES] Trừ Diamond TRƯỚC khi đụng vào hàng đợi: Economy tự khóa ví, kiểm số dư và ghi
+      // sổ idempotent. Bước sau lỗi thì tiền đã trừ, nhưng retry cùng key không trừ lại.
       const spend = await this.economy.spendDiamond(
         user.userId,
         TransactionType.MatchingSpeedup,
@@ -109,8 +112,8 @@ export class MatchingController {
       }
 
       // Step 6: Đọc lại tổng boost, rồi đặt lại điểm của vé trong Redis
-      // Đọc lại tổng boost từ DB để tính score TUYỆT ĐỐI. Boost cộng dồn trong DB nên retry
-      // hay replay cùng key chỉ sửa score về đúng tổng đã trả tiền, không double-boost.
+      // Đọc lại tổng boost từ DB để tính score TUYỆT ĐỐI. Boost cộng dồn trong DB nên retry hay
+      // replay cùng key chỉ sửa score về đúng tổng đã trả tiền, không double-boost.
       const fresh = await this.ticketRepo.findOneByOrFail({ id: ticket.id });
       await this.queue.enqueue(
         shardKeyOfTicket(fresh),
@@ -119,11 +122,7 @@ export class MatchingController {
         'XX',
       );
 
-        // [REDIS] RedisMatchingQueue.enqueue: ZADD vào sorted set  ·  redis-matching-queue.adapter.ts L7–10, L12–19
-        constructor(
-          private readonly redis: Redis,
-        ) {}
-
+        // [REDIS] RedisMatchingQueue.enqueue  ·  redis-matching-queue.adapter.ts L12–19
         // Step 7: Ghi điểm mới của vé vào sorted set của shard
         const shard = `matching:queue:${fresh.matchType}:${fresh.region}:${fresh.ageBand}`;
         const score = String(
@@ -131,10 +130,10 @@ export class MatchingController {
         );
         const ticketId = fresh.id;
         const mode = 'XX';
-        // Mỗi shard (loại ghép + vùng + nhóm tuổi) là một sorted set riêng, điểm nhỏ ghép
-        // trước: matcher lấy từng shard bằng ZPOPMIN 2 (atomic nên 2 matcher không lấy trùng
-        // vé), nên speed-up chỉ cần hạ điểm của vé ngay trong set này. XX: vé đã rời hàng (ghép
-        // hoặc hủy) thì không bị thêm lại.
+        // Mỗi shard (loại ghép + vùng + nhóm tuổi) là một sorted set riêng, điểm nhỏ ghép trước:
+        // matcher lấy từng shard bằng ZPOPMIN 2 (atomic nên 2 matcher không lấy trùng vé), nên
+        // speed-up chỉ cần hạ điểm của vé ngay trong set này. XX: vé đã rời hàng (ghép hoặc hủy)
+        // thì không bị thêm lại.
         await this.redis.zadd(shard, mode, score, ticketId);
 
       // Step 8: Service trả kết quả về controller
