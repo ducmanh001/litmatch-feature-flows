@@ -1,0 +1,1086 @@
+{
+  "id": "18-discovery-nearby-va-direct-invite/01-post-accept-invite",
+  "featureId": "18-discovery-nearby-va-direct-invite",
+  "feature": "Discovery, Nearby và Direct Invite",
+  "summary": "Duyệt người dùng quanh mình (Nearby) rồi mời ghép Voice/Soul Match trực tiếp, bỏ qua hàng đợi khi người kia chấp nhận.",
+  "name": "Chấp nhận lời mời ghép trực tiếp",
+  "title": "Người được mời chấp nhận: tạo thẳng 2 ticket và 1 session đã confirmed, bỏ qua hàng đợi, idempotent theo (lời mời, vai trò).",
+  "method": "POST",
+  "route": "/api/v1/matching/invites/:id/accept",
+  "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts",
+  "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/18-discovery-nearby-va-direct-invite/01-post-accept-invite.json",
+  "diagramUrl": "https://ducmanh001.github.io/litmatch-feature-flows/#18-discovery-nearby-va-direct-invite",
+  "catalog": "annotated-18-discovery-nearby-va-direct-invite.mjs",
+  "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [SERVICE] → [POSTGRES] → [REDIS]",
+  "roles": [
+    [
+      "CONTROLLER",
+      "Nhận accept của người được mời, lấy thêm hồ sơ người mời để dựng response gồm lời mời, session và inviteeTicketId."
+    ],
+    [
+      "SERVICE",
+      "Precheck trong transaction riêng (khóa lời mời, kiểm hạn và chuyển trạng thái, kiểm canPair), rồi transaction chính tạo 2 ticket + session confirmed và đổi lời mời sang accepted; bắn realtime sau commit."
+    ],
+    [
+      "POSTGRES",
+      "Khóa dòng lời mời (FOR UPDATE); unique index chặn user đang bận; unique idempotency_key chặn ticket đôi; mọi ghi nằm trong 1 transaction."
+    ],
+    [
+      "REDIS",
+      "Pub/sub báo match.confirmed cho cả 2 bên để vào phòng ngay."
+    ]
+  ],
+  "tables": [
+    [
+      "match_invites",
+      "1 dòng cho mỗi lời mời: trạng thái (pending → accepted, declined, expired, cancelled), hạn expires_at, session_id khi đã accept; bị khóa FOR UPDATE."
+    ],
+    [
+      "match_tickets",
+      "2 dòng mới (người mời, người được mời) với idempotency_key theo (lời mời, vai trò); unique index \"1 user 1 ticket đang hoạt động\" chặn user đang bận."
+    ],
+    [
+      "match_sessions",
+      "1 dòng cho cặp vừa ghép, trạng thái confirmed, trỏ tới 2 ticket."
+    ],
+    [
+      "users",
+      "đọc 2 user để kiểm còn Active và lấy vùng, nhóm tuổi, trust score cho ticket."
+    ]
+  ],
+  "redis": [
+    [
+      "realtime:user:{userId}",
+      "publish match.confirmed ({ ticketId, sessionId }) cho cả 2 bên; signaling-gateway đẩy xuống socket."
+    ]
+  ],
+  "related": [
+    [
+      "Safety",
+      "canPair (qua MATCH_INTERACTION_POLICY): từ chối nếu hai người block hoặc report nhau (không chép)."
+    ],
+    [
+      "createInvite",
+      "bước trước: tạo lời mời pending, giới hạn số lời mời mỗi giờ bằng Redis, unique 1 lời mời pending cho mỗi cặp (chưa chép)."
+    ],
+    [
+      "signaling-gateway",
+      "subscribe pub/sub và đẩy match.confirmed xuống socket của 2 bên."
+    ],
+    [
+      "Soul Match / Calling",
+      "bước kế tiếp: từ đây luồng y hệt auto-match, client vào phòng ngay (chưa chép)."
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "text": "Nhận accept của người được mời (user từ JWT, id lời mời từ URL)",
+      "line": 33,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L33",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L33"
+    },
+    {
+      "number": 2,
+      "text": "Precheck trong transaction riêng, commit xong mới throw",
+      "line": 45,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L45",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L45"
+    },
+    {
+      "number": 3,
+      "text": "Khóa dòng lời mời (FOR UPDATE), kiểm đúng người được mời",
+      "line": 54,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L54",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L54"
+    },
+    {
+      "number": 4,
+      "text": "Kiểm lại block/report, không ghép được thì ghi Declined",
+      "line": 100,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L100",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L100"
+    },
+    {
+      "number": 5,
+      "text": "Precheck thấy đã accept thì trả lại ticket và session cũ",
+      "line": 118,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L118",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L118"
+    },
+    {
+      "number": 6,
+      "text": "Mở transaction chính: tạo ticket, session, đổi lời mời",
+      "line": 141,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L141",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L141"
+    },
+    {
+      "number": 7,
+      "text": "Khóa lại dòng lời mời; replay giữa chừng thì trả session cũ",
+      "line": 146,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L146",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L146"
+    },
+    {
+      "number": 8,
+      "text": "Tạo 2 ticket matched, unique chặn user đang bận và ticket đôi",
+      "line": 193,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L193",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L193"
+    },
+    {
+      "number": 9,
+      "text": "Tạo session confirmed, chuyển 2 ticket sang confirmed",
+      "line": 274,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L274",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L274"
+    },
+    {
+      "number": 10,
+      "text": "Đổi lời mời sang accepted, lưu session_id",
+      "line": 294,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L294",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L294"
+    },
+    {
+      "number": 11,
+      "text": "Sau commit, phát match.confirmed cho cả 2 bên qua Redis",
+      "line": 315,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L315",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L315"
+    },
+    {
+      "number": 12,
+      "text": "Controller trả lời mời, session và inviteeTicketId",
+      "line": 341,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L341",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L341"
+    }
+  ],
+  "declaredSteps": [
+    {
+      "at": "@Post(':id/accept')",
+      "text": "Nhận accept của người được mời (user từ JWT, id lời mời từ URL)"
+    },
+    {
+      "at": "const precheck = await this.precheckAccept(user, inviteId);",
+      "text": "Precheck trong transaction riêng, commit xong mới throw"
+    },
+    {
+      "at": "const invite = await this.lockInvite(manager, inviteId);",
+      "in": "InviteService.precheckAccept",
+      "text": "Khóa dòng lời mời (FOR UPDATE), kiểm đúng người được mời"
+    },
+    {
+      "at": "const canPair = await this.interactionPolicy.canPair(",
+      "text": "Kiểm lại block/report, không ghép được thì ghi Declined"
+    },
+    {
+      "at": "if (precheck.kind === 'already_accepted') {",
+      "text": "Precheck thấy đã accept thì trả lại ticket và session cũ"
+    },
+    {
+      "at": "const result = await this.dataSource.transaction(async (manager) => {",
+      "text": "Mở transaction chính: tạo ticket, session, đổi lời mời"
+    },
+    {
+      "at": "const invite = await this.lockInvite(manager, inviteId);",
+      "in": "InviteService.acceptInvite",
+      "text": "Khóa lại dòng lời mời; replay giữa chừng thì trả session cũ"
+    },
+    {
+      "at": "const [ticketInviter, ticketInvitee] = await this.createMatchedTickets(",
+      "text": "Tạo 2 ticket matched, unique chặn user đang bận và ticket đôi"
+    },
+    {
+      "at": "const confirmedAt = new Date();",
+      "text": "Tạo session confirmed, chuyển 2 ticket sang confirmed"
+    },
+    {
+      "at": "invite.status = MatchInviteStatus.Accepted;",
+      "text": "Đổi lời mời sang accepted, lưu session_id"
+    },
+    {
+      "at": "if (matchedPair) {",
+      "text": "Sau commit, phát match.confirmed cho cả 2 bên qua Redis"
+    },
+    {
+      "at": "return MatchInviteAcceptedDto.from(",
+      "text": "Controller trả lời mời, session và inviteeTicketId"
+    }
+  ],
+  "whyComments": [
+    {
+      "at": "const precheck = await this.precheckAccept(user, inviteId);",
+      "text": [
+        "Precheck chạy ở transaction RIÊNG và COMMIT xong mới throw: canPair fail thì lời mời phải ghi Declined, nhưng throw trong CÙNG transaction sẽ rollback luôn phần Declined vừa ghi (bắt được qua test thật)."
+      ],
+      "src": "comment gốc invite.service.ts L287-289 + docs/services/matching-service.md mục 9.2",
+      "file": "apps/core-api/src/modules/matching/services/invite.service.ts"
+    },
+    {
+      "at": "if (precheck.kind === 'already_accepted') {",
+      "text": [
+        "Accept lặp lại (retry mạng) trả lại đúng ticket và session cũ, không lỗi, không tạo đôi."
+      ],
+      "src": "doc acceptInvite invite.service.ts L275-277",
+      "file": "apps/core-api/src/modules/matching/services/invite.service.ts"
+    },
+    {
+      "at": "const result = await this.dataSource.transaction(async (manager) => {",
+      "text": [
+        "[POSTGRES] Tạo ticket, session và đổi lời mời sang accepted trong 1 transaction: lỗi ở đâu cũng rollback hết, lời mời còn pending để thử lại."
+      ],
+      "src": "docs/services/matching-service.md mục 9.2 (\"rollback toàn bộ, invite giữ nguyên pending\")",
+      "file": "apps/core-api/src/modules/matching/services/invite.service.ts"
+    },
+    {
+      "at": "const invite = await this.lockInvite(manager, inviteId);",
+      "text": [
+        "Khóa dòng lời mời (FOR UPDATE) trước khi đổi gì: 2 accept đồng thời xếp hàng, bên sau thấy lời mời đã accepted và trả sớm ở nhánh dưới, nên không bao giờ insert ticket lần 2."
+      ],
+      "src": "doc createMatchedTickets invite.service.ts L495-502",
+      "file": "apps/core-api/src/modules/matching/services/invite.service.ts"
+    },
+    {
+      "at": "if (invite.status === MatchInviteStatus.Accepted && invite.sessionId) {",
+      "text": [
+        "Replay xảy ra giữa lúc precheck và đây: trả lại session cũ."
+      ],
+      "src": "comment gốc invite.service.ts L322",
+      "file": "apps/core-api/src/modules/matching/services/invite.service.ts"
+    },
+    {
+      "at": "const users = await manager.find(User, {",
+      "text": [
+        "Chỉ kiểm 2 bên còn Active, KHÔNG kiểm gender preference như auto-match: người được mời đã chủ động chấp nhận đúng người này (consent trực tiếp)."
+      ],
+      "src": "doc class invite.service.ts L69-72 + docs/services/matching-service.md mục 9.2",
+      "file": "apps/core-api/src/modules/matching/services/invite.service.ts"
+    },
+    {
+      "at": "if (matchedPair) {",
+      "text": [
+        "[REDIS] Bắn SAU commit cùng event match.confirmed mà auto-match dùng; 2 bên refetch rồi vào phòng ngay."
+      ],
+      "src": "comment gốc invite.service.ts L402",
+      "file": "apps/core-api/src/modules/matching/services/invite.service.ts"
+    },
+    {
+      "at": "this.assertNotExpired(invite);",
+      "text": [
+        "Lazy-expire: sweeper có thể chưa kịp chạy, nên kiểm lại hạn TẠI THỜI ĐIỂM hành động."
+      ],
+      "src": "doc assertNotExpired invite.service.ts L619 (comment gốc của hàm được gọi ở dòng này)",
+      "file": "apps/core-api/src/modules/matching/services/invite.service.ts"
+    },
+    {
+      "at": "const canPair = await this.interactionPolicy.canPair(",
+      "text": [
+        "Kiểm lại block/report TẠI THỜI ĐIỂM accept, không chỉ lúc mời: block có thể phát sinh SAU khi mời, TRƯỚC khi accept."
+      ],
+      "src": "docs/services/matching-service.md mục 9.2 + doc precheckAccept invite.service.ts L429-432",
+      "file": "apps/core-api/src/modules/matching/services/invite.service.ts"
+    },
+    {
+      "at": "invite.status = MatchInviteStatus.Declined;",
+      "text": [
+        "Không ghép được thì lời mời tự chuyển declined: ghi và COMMIT ngay ở đây, trả \"blocked\" để tầng gọi throw NGOÀI transaction."
+      ],
+      "src": "doc precheckAccept invite.service.ts L429-432",
+      "file": "apps/core-api/src/modules/matching/services/invite.service.ts"
+    },
+    {
+      "at": "lock: { mode: 'pessimistic_write' },",
+      "text": [
+        "[POSTGRES] FOR UPDATE: mọi thao tác trên 1 lời mời (accept, decline, cancel) xếp hàng qua đúng dòng này."
+      ],
+      "src": "suy ra từ code (lockInvite dùng chung cho accept, decline, cancel) + docs/services/matching-service.md mục 9.1",
+      "file": "apps/core-api/src/modules/matching/services/invite.service.ts"
+    },
+    {
+      "at": "export const MATCH_INVITE_TRANSITIONS",
+      "text": [
+        "Bảng chuyển trạng thái duy nhất: mọi thay đổi phải đi qua đây, không tin client gửi trạng thái đích. Chỉ pending mới đi tiếp được."
+      ],
+      "src": "doc entity match-invite.entity.ts L15-16",
+      "file": "apps/core-api/src/modules/matching/entities/match-invite.entity.ts"
+    },
+    {
+      "at": "const [ticketInviter, ticketInvitee] = await manager.save([",
+      "text": [
+        "Insert cả 2 ticket trong CÙNG transaction: vi phạm uq_match_tickets_active_user (1 trong 2 bên đang bận queue hoặc session khác) rollback tất cả, lời mời giữ nguyên pending."
+      ],
+      "src": "doc createMatchedTickets invite.service.ts L490-493 + docs/services/matching-service.md mục 9.2",
+      "file": "apps/core-api/src/modules/matching/services/invite.service.ts"
+    },
+    {
+      "at": "if (!isUniqueViolation(err)) throw err;",
+      "text": [
+        "Unique ở idempotency_key = replay accept cũ: đọc lại 2 ticket đã tạo. Nhánh này thực tế không chạy tới (lời mời đã khóa nên accept thứ 2 trả sớm); nếu bỏ khóa thì phải tách sang transaction riêng, vì Postgres hủy cả transaction khi 1 câu lỗi."
+      ],
+      "src": "doc createMatchedTickets invite.service.ts L495-502",
+      "file": "apps/core-api/src/modules/matching/services/invite.service.ts"
+    },
+    {
+      "at": "status: MatchTicketStatus.Matched,",
+      "text": [
+        "Tạo ở trạng thái matched để rơi vào phạm vi unique index (queued, matched): user đang bận thì insert lỗi; chỉ sau khi có session mới chuyển sang confirmed."
+      ],
+      "src": "suy ra từ code (status Matched, uq_match_tickets_active_user WHERE status IN queued, matched, rồi status = Confirmed trong acceptInvite) + docs/services/matching-service.md mục 9.2",
+      "file": "apps/core-api/src/modules/matching/services/invite.service.ts"
+    },
+    {
+      "at": "idempotencyKey: inviteAcceptIdempotencyKey(invite.id, role),",
+      "text": [
+        "Key theo (lời mời, vai trò): accept lặp lại ra đúng 2 key cũ, unique DB chặn tạo ticket đôi."
+      ],
+      "src": "docs/services/matching-service.md mục 9.2 (\"Idempotent qua inviteAcceptIdempotencyKey\") + doc matching.constants.ts L55-57",
+      "file": "apps/core-api/src/modules/matching/services/invite.service.ts"
+    }
+  ],
+  "sources": [
+    "apps/core-api/src/database/migrations/1752200000000-matching-core.ts",
+    "apps/core-api/src/modules/matching/controllers/invite.controller.ts",
+    "apps/core-api/src/modules/matching/entities/match-invite.entity.ts",
+    "apps/core-api/src/modules/matching/services/invite.service.ts"
+  ],
+  "sourceContext": {
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/matching/controllers/invite.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post(':id/accept')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/matching/services/invite.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async acceptInvite(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const precheck = await this.precheckAccept(user, inviteId);",
+            "text": [
+              "Precheck chạy ở transaction RIÊNG và COMMIT xong mới throw: canPair fail thì lời mời phải ghi Declined, nhưng throw trong CÙNG transaction sẽ rollback luôn phần Declined vừa ghi (bắt được qua test thật)."
+            ],
+            "src": "comment gốc invite.service.ts L287-289 + docs/services/matching-service.md mục 9.2"
+          },
+          {
+            "at": "if (precheck.kind === 'already_accepted') {",
+            "text": [
+              "Accept lặp lại (retry mạng) trả lại đúng ticket và session cũ, không lỗi, không tạo đôi."
+            ],
+            "src": "doc acceptInvite invite.service.ts L275-277"
+          },
+          {
+            "at": "const result = await this.dataSource.transaction(async (manager) => {",
+            "text": [
+              "[POSTGRES] Tạo ticket, session và đổi lời mời sang accepted trong 1 transaction: lỗi ở đâu cũng rollback hết, lời mời còn pending để thử lại."
+            ],
+            "src": "docs/services/matching-service.md mục 9.2 (\"rollback toàn bộ, invite giữ nguyên pending\")"
+          },
+          {
+            "at": "const invite = await this.lockInvite(manager, inviteId);",
+            "text": [
+              "Khóa dòng lời mời (FOR UPDATE) trước khi đổi gì: 2 accept đồng thời xếp hàng, bên sau thấy lời mời đã accepted và trả sớm ở nhánh dưới, nên không bao giờ insert ticket lần 2."
+            ],
+            "src": "doc createMatchedTickets invite.service.ts L495-502"
+          },
+          {
+            "at": "if (invite.status === MatchInviteStatus.Accepted && invite.sessionId) {",
+            "text": [
+              "Replay xảy ra giữa lúc precheck và đây: trả lại session cũ."
+            ],
+            "src": "comment gốc invite.service.ts L322"
+          },
+          {
+            "at": "const users = await manager.find(User, {",
+            "text": [
+              "Chỉ kiểm 2 bên còn Active, KHÔNG kiểm gender preference như auto-match: người được mời đã chủ động chấp nhận đúng người này (consent trực tiếp)."
+            ],
+            "src": "doc class invite.service.ts L69-72 + docs/services/matching-service.md mục 9.2"
+          },
+          {
+            "at": "if (matchedPair) {",
+            "text": [
+              "[REDIS] Bắn SAU commit cùng event match.confirmed mà auto-match dùng; 2 bên refetch rồi vào phòng ngay."
+            ],
+            "src": "comment gốc invite.service.ts L402"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/matching/services/invite.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async precheckAccept(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "this.assertNotExpired(invite);",
+            "text": [
+              "Lazy-expire: sweeper có thể chưa kịp chạy, nên kiểm lại hạn TẠI THỜI ĐIỂM hành động."
+            ],
+            "src": "doc assertNotExpired invite.service.ts L619 (comment gốc của hàm được gọi ở dòng này)"
+          },
+          {
+            "at": "const canPair = await this.interactionPolicy.canPair(",
+            "text": [
+              "Kiểm lại block/report TẠI THỜI ĐIỂM accept, không chỉ lúc mời: block có thể phát sinh SAU khi mời, TRƯỚC khi accept."
+            ],
+            "src": "docs/services/matching-service.md mục 9.2 + doc precheckAccept invite.service.ts L429-432"
+          },
+          {
+            "at": "invite.status = MatchInviteStatus.Declined;",
+            "text": [
+              "Không ghép được thì lời mời tự chuyển declined: ghi và COMMIT ngay ở đây, trả \"blocked\" để tầng gọi throw NGOÀI transaction."
+            ],
+            "src": "doc precheckAccept invite.service.ts L429-432"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/matching/services/invite.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async lockInvite(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "lock: { mode: 'pessimistic_write' },",
+            "text": [
+              "[POSTGRES] FOR UPDATE: mọi thao tác trên 1 lời mời (accept, decline, cancel) xếp hàng qua đúng dòng này."
+            ],
+            "src": "suy ra từ code (lockInvite dùng chung cho accept, decline, cancel) + docs/services/matching-service.md mục 9.1"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/matching/services/invite.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private assertNotExpired(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private assertTransition(",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/matching/entities/match-invite.entity.ts",
+        "ranges": [
+          {
+            "at": "export const MATCH_INVITE_TRANSITIONS",
+            "to": "^}"
+          }
+        ],
+        "inline": [
+          {
+            "at": "export const MATCH_INVITE_TRANSITIONS",
+            "text": [
+              "Bảng chuyển trạng thái duy nhất: mọi thay đổi phải đi qua đây, không tin client gửi trạng thái đích. Chỉ pending mới đi tiếp được."
+            ],
+            "src": "doc entity match-invite.entity.ts L15-16"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/matching/services/invite.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async createMatchedTickets(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const [ticketInviter, ticketInvitee] = await manager.save([",
+            "text": [
+              "Insert cả 2 ticket trong CÙNG transaction: vi phạm uq_match_tickets_active_user (1 trong 2 bên đang bận queue hoặc session khác) rollback tất cả, lời mời giữ nguyên pending."
+            ],
+            "src": "doc createMatchedTickets invite.service.ts L490-493 + docs/services/matching-service.md mục 9.2"
+          },
+          {
+            "at": "if (!isUniqueViolation(err)) throw err;",
+            "text": [
+              "Unique ở idempotency_key = replay accept cũ: đọc lại 2 ticket đã tạo. Nhánh này thực tế không chạy tới (lời mời đã khóa nên accept thứ 2 trả sớm); nếu bỏ khóa thì phải tách sang transaction riêng, vì Postgres hủy cả transaction khi 1 câu lỗi."
+            ],
+            "src": "doc createMatchedTickets invite.service.ts L495-502"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/matching/services/invite.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private draftMatchedTicket(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "status: MatchTicketStatus.Matched,",
+            "text": [
+              "Tạo ở trạng thái matched để rơi vào phạm vi unique index (queued, matched): user đang bận thì insert lỗi; chỉ sau khi có session mới chuyển sang confirmed."
+            ],
+            "src": "suy ra từ code (status Matched, uq_match_tickets_active_user WHERE status IN queued, matched, rồi status = Confirmed trong acceptInvite) + docs/services/matching-service.md mục 9.2"
+          },
+          {
+            "at": "idempotencyKey: inviteAcceptIdempotencyKey(invite.id, role),",
+            "text": [
+              "Key theo (lời mời, vai trò): accept lặp lại ra đúng 2 key cũ, unique DB chặn tạo ticket đôi."
+            ],
+            "src": "docs/services/matching-service.md mục 9.2 (\"Idempotent qua inviteAcceptIdempotencyKey\") + doc matching.constants.ts L55-57"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752200000000-matching-core.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE UNIQUE INDEX uq_match_tickets_active_user",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      }
+    ],
+    "ranges": [
+      {
+        "file": "apps/core-api/src/modules/matching/controllers/invite.controller.ts",
+        "range": {
+          "at": "@Post(':id/accept')",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/matching/services/invite.service.ts",
+        "range": {
+          "at": "async acceptInvite(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/matching/services/invite.service.ts",
+        "range": {
+          "at": "private async precheckAccept(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/matching/services/invite.service.ts",
+        "range": {
+          "at": "private async lockInvite(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/matching/services/invite.service.ts",
+        "range": {
+          "at": "private assertNotExpired(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/matching/services/invite.service.ts",
+        "range": {
+          "at": "private assertTransition(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/matching/entities/match-invite.entity.ts",
+        "range": {
+          "at": "export const MATCH_INVITE_TRANSITIONS",
+          "to": "^}"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/matching/services/invite.service.ts",
+        "range": {
+          "at": "private async createMatchedTickets(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/matching/services/invite.service.ts",
+        "range": {
+          "at": "private draftMatchedTicket(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/database/migrations/1752200000000-matching-core.ts",
+        "range": {
+          "at": "CREATE UNIQUE INDEX uq_match_tickets_active_user",
+          "to": "^    `\\);$",
+          "pad": [
+            1,
+            0
+          ]
+        }
+      }
+    ],
+    "helpers": [],
+    "skip": [
+      "assertNotExpired",
+      "assertTransition"
+    ],
+    "attach": {},
+    "nested": true
+  },
+  "omittedContext": {
+    "note": "Curated source selection; unlisted call bodies, shared request infrastructure, DTOs and other context may be omitted. skip names stay unexpanded; helpers may be substituted; attach controls placement. Flattened scopes are not executable code.",
+    "skip": [
+      "assertNotExpired",
+      "assertTransition"
+    ],
+    "attach": {},
+    "helpers": []
+  },
+  "featureMetadata": {
+    "id": "18-discovery-nearby-va-direct-invite",
+    "short": "Discovery, Nearby và Direct Invite",
+    "title": "Discovery, Nearby và Direct Invite",
+    "summary": "Duyệt người dùng quanh mình (Nearby) rồi mời ghép Voice/Soul Match trực tiếp, bỏ qua hàng đợi khi người kia chấp nhận.",
+    "diagramAnchor": "18-discovery-nearby-va-direct-invite"
+  },
+  "endpointCatalog": {
+    "n": "01",
+    "slug": "post-accept-invite",
+    "method": "POST",
+    "short": "/matching/invites/:id/accept",
+    "route": "/api/v1/matching/invites/:id/accept",
+    "name": "Chấp nhận lời mời ghép trực tiếp",
+    "title": "Người được mời chấp nhận: tạo thẳng 2 ticket và 1 session đã confirmed, bỏ qua hàng đợi, idempotent theo (lời mời, vai trò).",
+    "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [SERVICE] → [POSTGRES] → [REDIS]",
+    "roles": [
+      [
+        "CONTROLLER",
+        "Nhận accept của người được mời, lấy thêm hồ sơ người mời để dựng response gồm lời mời, session và inviteeTicketId."
+      ],
+      [
+        "SERVICE",
+        "Precheck trong transaction riêng (khóa lời mời, kiểm hạn và chuyển trạng thái, kiểm canPair), rồi transaction chính tạo 2 ticket + session confirmed và đổi lời mời sang accepted; bắn realtime sau commit."
+      ],
+      [
+        "POSTGRES",
+        "Khóa dòng lời mời (FOR UPDATE); unique index chặn user đang bận; unique idempotency_key chặn ticket đôi; mọi ghi nằm trong 1 transaction."
+      ],
+      [
+        "REDIS",
+        "Pub/sub báo match.confirmed cho cả 2 bên để vào phòng ngay."
+      ]
+    ],
+    "tables": [
+      [
+        "match_invites",
+        "1 dòng cho mỗi lời mời: trạng thái (pending → accepted, declined, expired, cancelled), hạn expires_at, session_id khi đã accept; bị khóa FOR UPDATE."
+      ],
+      [
+        "match_tickets",
+        "2 dòng mới (người mời, người được mời) với idempotency_key theo (lời mời, vai trò); unique index \"1 user 1 ticket đang hoạt động\" chặn user đang bận."
+      ],
+      [
+        "match_sessions",
+        "1 dòng cho cặp vừa ghép, trạng thái confirmed, trỏ tới 2 ticket."
+      ],
+      [
+        "users",
+        "đọc 2 user để kiểm còn Active và lấy vùng, nhóm tuổi, trust score cho ticket."
+      ]
+    ],
+    "redis": [
+      [
+        "realtime:user:{userId}",
+        "publish match.confirmed ({ ticketId, sessionId }) cho cả 2 bên; signaling-gateway đẩy xuống socket."
+      ]
+    ],
+    "related": [
+      [
+        "Safety",
+        "canPair (qua MATCH_INTERACTION_POLICY): từ chối nếu hai người block hoặc report nhau (không chép)."
+      ],
+      [
+        "createInvite",
+        "bước trước: tạo lời mời pending, giới hạn số lời mời mỗi giờ bằng Redis, unique 1 lời mời pending cho mỗi cặp (chưa chép)."
+      ],
+      [
+        "signaling-gateway",
+        "subscribe pub/sub và đẩy match.confirmed xuống socket của 2 bên."
+      ],
+      [
+        "Soul Match / Calling",
+        "bước kế tiếp: từ đây luồng y hệt auto-match, client vào phòng ngay (chưa chép)."
+      ]
+    ],
+    "nested": true,
+    "skip": [
+      "assertNotExpired",
+      "assertTransition"
+    ],
+    "steps": [
+      {
+        "at": "@Post(':id/accept')",
+        "text": "Nhận accept của người được mời (user từ JWT, id lời mời từ URL)"
+      },
+      {
+        "at": "const precheck = await this.precheckAccept(user, inviteId);",
+        "text": "Precheck trong transaction riêng, commit xong mới throw"
+      },
+      {
+        "at": "const invite = await this.lockInvite(manager, inviteId);",
+        "in": "InviteService.precheckAccept",
+        "text": "Khóa dòng lời mời (FOR UPDATE), kiểm đúng người được mời"
+      },
+      {
+        "at": "const canPair = await this.interactionPolicy.canPair(",
+        "text": "Kiểm lại block/report, không ghép được thì ghi Declined"
+      },
+      {
+        "at": "if (precheck.kind === 'already_accepted') {",
+        "text": "Precheck thấy đã accept thì trả lại ticket và session cũ"
+      },
+      {
+        "at": "const result = await this.dataSource.transaction(async (manager) => {",
+        "text": "Mở transaction chính: tạo ticket, session, đổi lời mời"
+      },
+      {
+        "at": "const invite = await this.lockInvite(manager, inviteId);",
+        "in": "InviteService.acceptInvite",
+        "text": "Khóa lại dòng lời mời; replay giữa chừng thì trả session cũ"
+      },
+      {
+        "at": "const [ticketInviter, ticketInvitee] = await this.createMatchedTickets(",
+        "text": "Tạo 2 ticket matched, unique chặn user đang bận và ticket đôi"
+      },
+      {
+        "at": "const confirmedAt = new Date();",
+        "text": "Tạo session confirmed, chuyển 2 ticket sang confirmed"
+      },
+      {
+        "at": "invite.status = MatchInviteStatus.Accepted;",
+        "text": "Đổi lời mời sang accepted, lưu session_id"
+      },
+      {
+        "at": "if (matchedPair) {",
+        "text": "Sau commit, phát match.confirmed cho cả 2 bên qua Redis"
+      },
+      {
+        "at": "return MatchInviteAcceptedDto.from(",
+        "text": "Controller trả lời mời, session và inviteeTicketId"
+      }
+    ],
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/matching/controllers/invite.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post(':id/accept')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/matching/services/invite.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async acceptInvite(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const precheck = await this.precheckAccept(user, inviteId);",
+            "text": [
+              "Precheck chạy ở transaction RIÊNG và COMMIT xong mới throw: canPair fail thì lời mời phải ghi Declined, nhưng throw trong CÙNG transaction sẽ rollback luôn phần Declined vừa ghi (bắt được qua test thật)."
+            ],
+            "src": "comment gốc invite.service.ts L287-289 + docs/services/matching-service.md mục 9.2"
+          },
+          {
+            "at": "if (precheck.kind === 'already_accepted') {",
+            "text": [
+              "Accept lặp lại (retry mạng) trả lại đúng ticket và session cũ, không lỗi, không tạo đôi."
+            ],
+            "src": "doc acceptInvite invite.service.ts L275-277"
+          },
+          {
+            "at": "const result = await this.dataSource.transaction(async (manager) => {",
+            "text": [
+              "[POSTGRES] Tạo ticket, session và đổi lời mời sang accepted trong 1 transaction: lỗi ở đâu cũng rollback hết, lời mời còn pending để thử lại."
+            ],
+            "src": "docs/services/matching-service.md mục 9.2 (\"rollback toàn bộ, invite giữ nguyên pending\")"
+          },
+          {
+            "at": "const invite = await this.lockInvite(manager, inviteId);",
+            "text": [
+              "Khóa dòng lời mời (FOR UPDATE) trước khi đổi gì: 2 accept đồng thời xếp hàng, bên sau thấy lời mời đã accepted và trả sớm ở nhánh dưới, nên không bao giờ insert ticket lần 2."
+            ],
+            "src": "doc createMatchedTickets invite.service.ts L495-502"
+          },
+          {
+            "at": "if (invite.status === MatchInviteStatus.Accepted && invite.sessionId) {",
+            "text": [
+              "Replay xảy ra giữa lúc precheck và đây: trả lại session cũ."
+            ],
+            "src": "comment gốc invite.service.ts L322"
+          },
+          {
+            "at": "const users = await manager.find(User, {",
+            "text": [
+              "Chỉ kiểm 2 bên còn Active, KHÔNG kiểm gender preference như auto-match: người được mời đã chủ động chấp nhận đúng người này (consent trực tiếp)."
+            ],
+            "src": "doc class invite.service.ts L69-72 + docs/services/matching-service.md mục 9.2"
+          },
+          {
+            "at": "if (matchedPair) {",
+            "text": [
+              "[REDIS] Bắn SAU commit cùng event match.confirmed mà auto-match dùng; 2 bên refetch rồi vào phòng ngay."
+            ],
+            "src": "comment gốc invite.service.ts L402"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/matching/services/invite.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async precheckAccept(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "this.assertNotExpired(invite);",
+            "text": [
+              "Lazy-expire: sweeper có thể chưa kịp chạy, nên kiểm lại hạn TẠI THỜI ĐIỂM hành động."
+            ],
+            "src": "doc assertNotExpired invite.service.ts L619 (comment gốc của hàm được gọi ở dòng này)"
+          },
+          {
+            "at": "const canPair = await this.interactionPolicy.canPair(",
+            "text": [
+              "Kiểm lại block/report TẠI THỜI ĐIỂM accept, không chỉ lúc mời: block có thể phát sinh SAU khi mời, TRƯỚC khi accept."
+            ],
+            "src": "docs/services/matching-service.md mục 9.2 + doc precheckAccept invite.service.ts L429-432"
+          },
+          {
+            "at": "invite.status = MatchInviteStatus.Declined;",
+            "text": [
+              "Không ghép được thì lời mời tự chuyển declined: ghi và COMMIT ngay ở đây, trả \"blocked\" để tầng gọi throw NGOÀI transaction."
+            ],
+            "src": "doc precheckAccept invite.service.ts L429-432"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/matching/services/invite.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async lockInvite(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "lock: { mode: 'pessimistic_write' },",
+            "text": [
+              "[POSTGRES] FOR UPDATE: mọi thao tác trên 1 lời mời (accept, decline, cancel) xếp hàng qua đúng dòng này."
+            ],
+            "src": "suy ra từ code (lockInvite dùng chung cho accept, decline, cancel) + docs/services/matching-service.md mục 9.1"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/matching/services/invite.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private assertNotExpired(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private assertTransition(",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/matching/entities/match-invite.entity.ts",
+        "ranges": [
+          {
+            "at": "export const MATCH_INVITE_TRANSITIONS",
+            "to": "^}"
+          }
+        ],
+        "inline": [
+          {
+            "at": "export const MATCH_INVITE_TRANSITIONS",
+            "text": [
+              "Bảng chuyển trạng thái duy nhất: mọi thay đổi phải đi qua đây, không tin client gửi trạng thái đích. Chỉ pending mới đi tiếp được."
+            ],
+            "src": "doc entity match-invite.entity.ts L15-16"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/matching/services/invite.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async createMatchedTickets(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const [ticketInviter, ticketInvitee] = await manager.save([",
+            "text": [
+              "Insert cả 2 ticket trong CÙNG transaction: vi phạm uq_match_tickets_active_user (1 trong 2 bên đang bận queue hoặc session khác) rollback tất cả, lời mời giữ nguyên pending."
+            ],
+            "src": "doc createMatchedTickets invite.service.ts L490-493 + docs/services/matching-service.md mục 9.2"
+          },
+          {
+            "at": "if (!isUniqueViolation(err)) throw err;",
+            "text": [
+              "Unique ở idempotency_key = replay accept cũ: đọc lại 2 ticket đã tạo. Nhánh này thực tế không chạy tới (lời mời đã khóa nên accept thứ 2 trả sớm); nếu bỏ khóa thì phải tách sang transaction riêng, vì Postgres hủy cả transaction khi 1 câu lỗi."
+            ],
+            "src": "doc createMatchedTickets invite.service.ts L495-502"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/matching/services/invite.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private draftMatchedTicket(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "status: MatchTicketStatus.Matched,",
+            "text": [
+              "Tạo ở trạng thái matched để rơi vào phạm vi unique index (queued, matched): user đang bận thì insert lỗi; chỉ sau khi có session mới chuyển sang confirmed."
+            ],
+            "src": "suy ra từ code (status Matched, uq_match_tickets_active_user WHERE status IN queued, matched, rồi status = Confirmed trong acceptInvite) + docs/services/matching-service.md mục 9.2"
+          },
+          {
+            "at": "idempotencyKey: inviteAcceptIdempotencyKey(invite.id, role),",
+            "text": [
+              "Key theo (lời mời, vai trò): accept lặp lại ra đúng 2 key cũ, unique DB chặn tạo ticket đôi."
+            ],
+            "src": "docs/services/matching-service.md mục 9.2 (\"Idempotent qua inviteAcceptIdempotencyKey\") + doc matching.constants.ts L55-57"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1752200000000-matching-core.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE UNIQUE INDEX uq_match_tickets_active_user",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "sourceManifest": {
+    "verifiedCodeSha256": true,
+    "mode": "published-presentation",
+    "baselineCommit": "cb30743143bd8f6576b154db4b606380c365c674",
+    "sourceCommit": "d3cb28c",
+    "sources": [
+      "apps/core-api/src/database/migrations/1752200000000-matching-core.ts",
+      "apps/core-api/src/modules/matching/controllers/invite.controller.ts",
+      "apps/core-api/src/modules/matching/entities/match-invite.entity.ts",
+      "apps/core-api/src/modules/matching/services/invite.service.ts"
+    ],
+    "steps": [
+      "Step 1: Nhận accept của người được mời (user từ JWT, id lời mời từ URL)",
+      "Step 2: Precheck trong transaction riêng, commit xong mới throw",
+      "Step 3: Khóa dòng lời mời (FOR UPDATE), kiểm đúng người được mời",
+      "Step 4: Kiểm lại block/report, không ghép được thì ghi Declined",
+      "Step 5: Precheck thấy đã accept thì trả lại ticket và session cũ",
+      "Step 6: Mở transaction chính: tạo ticket, session, đổi lời mời",
+      "Step 7: Khóa lại dòng lời mời; replay giữa chừng thì trả session cũ",
+      "Step 8: Tạo 2 ticket matched, unique chặn user đang bận và ticket đôi",
+      "Step 9: Tạo session confirmed, chuyển 2 ticket sang confirmed",
+      "Step 10: Đổi lời mời sang accepted, lưu session_id",
+      "Step 11: Sau commit, phát match.confirmed cho cả 2 bên qua Redis",
+      "Step 12: Controller trả lời mời, session và inviteeTicketId"
+    ],
+    "removedOverview": "// ════════════════════════════════════════════════════════════════════════════\n//  POST /api/v1/matching/invites/:id/accept\n//  Người được mời chấp nhận: tạo thẳng 2 ticket và 1 session đã confirmed, bỏ qua hàng đợi, idempotent theo (lời mời, vai trò).\n// ════════════════════════════════════════════════════════════════════════════\n//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [SERVICE] → [POSTGRES] → [REDIS]\n//\n//  Vai trò từng tầng\n//    [CONTROLLER] Nhận accept của người được mời, lấy thêm hồ sơ người mời để dựng\n//                 response gồm lời mời, session và inviteeTicketId.\n//    [SERVICE]    Precheck trong transaction riêng (khóa lời mời, kiểm hạn và chuyển\n//                 trạng thái, kiểm canPair), rồi transaction chính tạo 2 ticket +\n//                 session confirmed và đổi lời mời sang accepted; bắn realtime sau\n//                 commit.\n//    [POSTGRES]   Khóa dòng lời mời (FOR UPDATE); unique index chặn user đang bận;\n//                 unique idempotency_key chặn ticket đôi; mọi ghi nằm trong 1\n//                 transaction.\n//    [REDIS]      Pub/sub báo match.confirmed cho cả 2 bên để vào phòng ngay.\n//\n//  Bảng       match_invites — 1 dòng cho mỗi lời mời: trạng thái (pending → accepted,\n//               declined, expired, cancelled), hạn expires_at, session_id khi đã\n//               accept; bị khóa FOR UPDATE.\n//             match_tickets — 2 dòng mới (người mời, người được mời) với\n//               idempotency_key theo (lời mời, vai trò); unique index \"1 user 1 ticket\n//               đang hoạt động\" chặn user đang bận.\n//             match_sessions — 1 dòng cho cặp vừa ghép, trạng thái confirmed, trỏ tới 2\n//               ticket.\n//             users — đọc 2 user để kiểm còn Active và lấy vùng, nhóm tuổi, trust score\n//               cho ticket.\n//  Redis      realtime:user:{userId} — publish match.confirmed ({ ticketId, sessionId\n//               }) cho cả 2 bên; signaling-gateway đẩy xuống socket.\n//  Liên quan  Safety — canPair (qua MATCH_INTERACTION_POLICY): từ chối nếu hai người\n//               block hoặc report nhau (không chép).\n//             createInvite — bước trước: tạo lời mời pending, giới hạn số lời mời mỗi\n//               giờ bằng Redis, unique 1 lời mời pending cho mỗi cặp (chưa chép).\n//             signaling-gateway — subscribe pub/sub và đẩy match.confirmed xuống socket\n//               của 2 bên.\n//             Soul Match / Calling — bước kế tiếp: từ đây luồng y hệt auto-match,\n//               client vào phòng ngay (chưa chép).\n//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi\n//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới\n//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //\n//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các\n//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số\n//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức\n//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong\n//             repo.\n",
+    "baselineBodySha256": "0e9f5e24522ce513893bd335ff93a69fc15207d339ec3575bccbbcd19a3051e8",
+    "bodySha256": "0e9f5e24522ce513893bd335ff93a69fc15207d339ec3575bccbbcd19a3051e8",
+    "rawSha256": "be3a073fbf9b8e5f7c2c99b7ba41ca47e472d0e33576e757241f2d4ff167a01c",
+    "codeSha256": "be3a073fbf9b8e5f7c2c99b7ba41ca47e472d0e33576e757241f2d4ff167a01c"
+  },
+  "code": {
+    "path": "code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts",
+    "sha256": "be3a073fbf9b8e5f7c2c99b7ba41ca47e472d0e33576e757241f2d4ff167a01c",
+    "hashAlgorithm": "sha256",
+    "content": "//  POST /api/v1/matching/invites/:id/accept\n//  Người được mời chấp nhận: tạo thẳng 2 ticket và 1 session đã confirmed, bỏ qua hàng đợi, idempotent theo (lời mời, vai trò).\n//  Step 1: Nhận accept của người được mời (user từ JWT, id lời mời từ URL)\n//  Step 2: Precheck trong transaction riêng, commit xong mới throw\n//  Step 3: Khóa dòng lời mời (FOR UPDATE), kiểm đúng người được mời\n//  Step 4: Kiểm lại block/report, không ghép được thì ghi Declined\n//  Step 5: Precheck thấy đã accept thì trả lại ticket và session cũ\n//  Step 6: Mở transaction chính: tạo ticket, session, đổi lời mời\n//  Step 7: Khóa lại dòng lời mời; replay giữa chừng thì trả session cũ\n//  Step 8: Tạo 2 ticket matched, unique chặn user đang bận và ticket đôi\n//  Step 9: Tạo session confirmed, chuyển 2 ticket sang confirmed\n//  Step 10: Đổi lời mời sang accepted, lưu session_id\n//  Step 11: Sau commit, phát match.confirmed cho cả 2 bên qua Redis\n//  Step 12: Controller trả lời mời, session và inviteeTicketId\n\n// [CONTROLLER] InviteController.accept  ·  invite.controller.ts L45–46, L93–109\n@Controller('matching/invites')\nexport class InviteController {\n  // InviteService\n  private readonly logger = new Logger(InviteService.name);\n  constructor(\n    private readonly inviteService: InviteService,\n    private readonly userService: UserService,\n    // InviteService\n    @InjectDataSource() private readonly dataSource: DataSource,\n    @Inject(MATCH_INTERACTION_POLICY)\n    private readonly interactionPolicy: MatchInteractionPolicy,\n    @Inject(MATCHING_REALTIME)\n    private readonly realtime: RealtimePublisherPort,\n    private readonly config: ConfigService<CoreApiEnv, true>,\n  ) {}\n\n  // Step 1: Nhận accept của người được mời (user từ JWT, id lời mời từ URL)\n  @Post(':id/accept')\n  @HttpCode(HttpStatus.OK)\n  async accept(\n    @CurrentUser() user: AuthenticatedUser,\n    @Param('id', ParseUUIDPipe) id: string,\n  ): Promise<MatchInviteAcceptedDto> {\n    const result = await this.inviteService.acceptInvite(user, id);\n\n    // [SERVICE] InviteService.acceptInvite  ·  invite.service.ts L279–424\n    const inviteId = id;\n\n    // Step 2: Precheck trong transaction riêng, commit xong mới throw\n    // Precheck chạy ở transaction RIÊNG và COMMIT xong mới throw: canPair fail thì lời mời phải\n    // ghi Declined, nhưng throw trong CÙNG transaction sẽ rollback luôn phần Declined vừa ghi\n    // (bắt được qua test thật).\n    const precheck = await this.precheckAccept(user, inviteId);\n\n    // [SERVICE] InviteService.precheckAccept  ·  invite.service.ts L434–487\n    return this.dataSource.transaction(async (manager) => {\n\n      // Step 3: Khóa dòng lời mời (FOR UPDATE), kiểm đúng người được mời\n      const invite = await this.lockInvite(manager, inviteId);\n\n      // [SERVICE] InviteService.lockInvite  ·  invite.service.ts L601–617\n      const invite = await manager.findOne(MatchInvite, {\n        where: { id: inviteId },\n        // [POSTGRES] FOR UPDATE: mọi thao tác trên 1 lời mời (accept, decline, cancel) xếp hàng\n        // qua đúng dòng này.\n        lock: { mode: 'pessimistic_write' },\n      });\n      if (!invite) {\n        throw new DomainException(\n          MatchingErrors.INVITE_NOT_FOUND,\n          'Không tìm thấy lời mời',\n          HttpStatus.NOT_FOUND,\n        );\n      }\n      return invite;\n\n      if (invite.inviteeUserId !== user.userId) {\n        throw new DomainException(\n          MatchingErrors.INVITE_FORBIDDEN,\n          'Lời mời không thuộc về bạn',\n          HttpStatus.FORBIDDEN,\n        );\n      }\n\n      if (invite.status === MatchInviteStatus.Accepted && invite.sessionId) {\n        const session = await manager.findOneByOrFail(MatchSession, {\n          id: invite.sessionId,\n        });\n        const inviteeTicket = await manager.findOneByOrFail(MatchTicket, {\n          idempotencyKey: inviteAcceptIdempotencyKey(invite.id, 'invitee'),\n        });\n        return {\n          kind: 'already_accepted' as const,\n          invite,\n          session,\n          inviteeTicketId: inviteeTicket.id,\n        };\n      }\n\n      // Lazy-expire: sweeper có thể chưa kịp chạy, nên kiểm lại hạn TẠI THỜI ĐIỂM hành động.\n      this.assertNotExpired(invite);\n      this.assertTransition(invite, MatchInviteStatus.Accepted);\n\n      // Step 4: Kiểm lại block/report, không ghép được thì ghi Declined\n      // Kiểm lại block/report TẠI THỜI ĐIỂM accept, không chỉ lúc mời: block có thể phát sinh SAU\n      // khi mời, TRƯỚC khi accept.\n      const canPair = await this.interactionPolicy.canPair(\n        invite.inviterUserId,\n        invite.inviteeUserId,\n      );\n      if (!canPair) {\n        // Không ghép được thì lời mời tự chuyển declined: ghi và COMMIT ngay ở đây, trả \"blocked\"\n        // để tầng gọi throw NGOÀI transaction.\n        invite.status = MatchInviteStatus.Declined;\n        invite.respondedAt = new Date();\n        await manager.save(invite);\n        return { kind: 'blocked' as const };\n      }\n      return { kind: 'proceed' as const };\n    });\n\n    // Step 5: Precheck thấy đã accept thì trả lại ticket và session cũ\n    // Accept lặp lại (retry mạng) trả lại đúng ticket và session cũ, không lỗi, không tạo đôi.\n    if (precheck.kind === 'already_accepted') {\n      return {\n        invite: precheck.invite,\n        session: precheck.session,\n        inviteeTicketId: precheck.inviteeTicketId,\n      };\n    }\n    if (precheck.kind === 'blocked') {\n      throw new DomainException(\n        MatchingErrors.INVITE_TARGET_UNAVAILABLE,\n        'Không thể ghép với người này',\n        HttpStatus.FORBIDDEN,\n      );\n    }\n\n    let matchedPair: Array<{\n      userId: string;\n      ticketId: string;\n      sessionId: string;\n    }> | null = null;\n\n    // Step 6: Mở transaction chính: tạo ticket, session, đổi lời mời\n    // [POSTGRES] Tạo ticket, session và đổi lời mời sang accepted trong 1 transaction: lỗi ở đâu\n    // cũng rollback hết, lời mời còn pending để thử lại.\n    const result = await this.dataSource.transaction(async (manager) => {\n\n      // Step 7: Khóa lại dòng lời mời; replay giữa chừng thì trả session cũ\n      // Khóa dòng lời mời (FOR UPDATE) trước khi đổi gì: 2 accept đồng thời xếp hàng, bên sau\n      // thấy lời mời đã accepted và trả sớm ở nhánh dưới, nên không bao giờ insert ticket lần 2.\n      const invite = await this.lockInvite(manager, inviteId);\n      if (invite.inviteeUserId !== user.userId) {\n        throw new DomainException(\n          MatchingErrors.INVITE_FORBIDDEN,\n          'Lời mời không thuộc về bạn',\n          HttpStatus.FORBIDDEN,\n        );\n      }\n\n      // Replay xảy ra giữa lúc precheck và đây: trả lại session cũ.\n      if (invite.status === MatchInviteStatus.Accepted && invite.sessionId) {\n        const session = await manager.findOneByOrFail(MatchSession, {\n          id: invite.sessionId,\n        });\n        const inviteeTicket = await manager.findOneByOrFail(MatchTicket, {\n          idempotencyKey: inviteAcceptIdempotencyKey(invite.id, 'invitee'),\n        });\n        return { invite, session, inviteeTicketId: inviteeTicket.id };\n      }\n\n      this.assertNotExpired(invite);\n      this.assertTransition(invite, MatchInviteStatus.Accepted);\n\n      // Chỉ kiểm 2 bên còn Active, KHÔNG kiểm gender preference như auto-match: người được mời đã\n      // chủ động chấp nhận đúng người này (consent trực tiếp).\n      const users = await manager.find(User, {\n        where: { id: In([invite.inviterUserId, invite.inviteeUserId]) },\n      });\n      const userById = new Map(users.map((u) => [u.id, u]));\n      const inviter = userById.get(invite.inviterUserId);\n      const invitee = userById.get(invite.inviteeUserId);\n      if (\n        !inviter ||\n        !invitee ||\n        inviter.status !== UserStatus.Active ||\n        invitee.status !== UserStatus.Active\n      ) {\n        throw new DomainException(\n          MatchingErrors.USER_BANNED,\n          'Một trong hai bên không còn khả dụng để ghép',\n          HttpStatus.CONFLICT,\n        );\n      }\n\n      // Step 8: Tạo 2 ticket matched, unique chặn user đang bận và ticket đôi\n      const [ticketInviter, ticketInvitee] = await this.createMatchedTickets(\n        manager,\n        invite,\n        inviter,\n        invitee,\n      );\n\n      // [SERVICE] InviteService.createMatchedTickets  ·  invite.service.ts L504–544\n      try {\n        // Insert cả 2 ticket trong CÙNG transaction: vi phạm uq_match_tickets_active_user (1\n        // trong 2 bên đang bận queue hoặc session khác) rollback tất cả, lời mời giữ nguyên\n        // pending.\n        const [ticketInviter, ticketInvitee] = await manager.save([\n          this.draftMatchedTicket(manager, invite, inviter, 'inviter'),\n          this.draftMatchedTicket(manager, invite, invitee, 'invitee'),\n        ]);\n\n        // [SERVICE] InviteService.draftMatchedTicket  ·  invite.service.ts L546–574\n        const profile = inviter;\n        const role = 'inviter';\n        const bandSize = this.config.getOrThrow('MATCHING_AGE_BAND_SIZE', {\n          infer: true,\n        });\n        const perPoint = this.config.getOrThrow(\n          'MATCHING_TRUST_PENALTY_MS_PER_POINT',\n          { infer: true },\n        );\n        const maxMs = this.config.getOrThrow('MATCHING_TRUST_PENALTY_MAX_MS', {\n          infer: true,\n        });\n        return manager.create(MatchTicket, {\n          userId: profile.id,\n          matchType: invite.matchType,\n          region: profile.region ?? 'GLOBAL',\n          ageBand: ageBandOf(profile.birthDate, bandSize),\n          // Tạo ở trạng thái matched để rơi vào phạm vi unique index (queued, matched): user đang\n          // bận thì insert lỗi; chỉ sau khi có session mới chuyển sang confirmed.\n          status: MatchTicketStatus.Matched,\n          enqueuedAt: new Date(),\n          priorityBoostMs: 0,\n          trustPenaltyMs: trustPenaltyMsOf(profile.trustScore, perPoint, maxMs),\n          sessionId: null,\n          // Key theo (lời mời, vai trò): accept lặp lại ra đúng 2 key cũ, unique DB chặn tạo\n          // ticket đôi.\n          idempotencyKey: inviteAcceptIdempotencyKey(invite.id, role),\n        });\n\n        return [ticketInviter, ticketInvitee];\n      } catch (err) {\n        if (violatedConstraint(err, 'uq_match_tickets_active_user')) {\n          throw new DomainException(\n            MatchingErrors.INVITE_ACCEPT_USER_BUSY,\n            'Một trong hai bên đang ở trong hàng đợi/phiên ghép khác',\n            HttpStatus.CONFLICT,\n          );\n        }\n        // Unique ở idempotency_key = replay accept cũ: đọc lại 2 ticket đã tạo. Nhánh này thực tế\n        // không chạy tới (lời mời đã khóa nên accept thứ 2 trả sớm); nếu bỏ khóa thì phải tách\n        // sang transaction riêng, vì Postgres hủy cả transaction khi 1 câu lỗi.\n        if (!isUniqueViolation(err)) throw err;\n\n        const existing = await manager.find(MatchTicket, {\n          where: {\n            idempotencyKey: In([\n              inviteAcceptIdempotencyKey(invite.id, 'inviter'),\n              inviteAcceptIdempotencyKey(invite.id, 'invitee'),\n            ]),\n          },\n        });\n        const byKey = new Map(existing.map((t) => [t.idempotencyKey, t]));\n        const ticketInviter = byKey.get(\n          inviteAcceptIdempotencyKey(invite.id, 'inviter'),\n        );\n        const ticketInvitee = byKey.get(\n          inviteAcceptIdempotencyKey(invite.id, 'invitee'),\n        );\n        if (!ticketInviter || !ticketInvitee) throw err;\n        return [ticketInviter, ticketInvitee];\n      }\n\n      // Step 9: Tạo session confirmed, chuyển 2 ticket sang confirmed\n      const confirmedAt = new Date();\n      const session = await manager.save(\n        manager.create(MatchSession, {\n          matchType: invite.matchType,\n          userAId: invite.inviterUserId,\n          userBId: invite.inviteeUserId,\n          ticketAId: ticketInviter.id,\n          ticketBId: ticketInvitee.id,\n          status: MatchSessionStatus.Confirmed,\n          confirmedAAt: confirmedAt,\n          confirmedBAt: confirmedAt,\n        }),\n      );\n      ticketInviter.sessionId = session.id;\n      ticketInvitee.sessionId = session.id;\n      ticketInviter.status = MatchTicketStatus.Confirmed;\n      ticketInvitee.status = MatchTicketStatus.Confirmed;\n      await manager.save([ticketInviter, ticketInvitee]);\n\n      // Step 10: Đổi lời mời sang accepted, lưu session_id\n      invite.status = MatchInviteStatus.Accepted;\n      invite.respondedAt = new Date();\n      invite.sessionId = session.id;\n      await manager.save(invite);\n\n      matchedPair = [\n        {\n          userId: inviter.id,\n          ticketId: ticketInviter.id,\n          sessionId: session.id,\n        },\n        {\n          userId: invitee.id,\n          ticketId: ticketInvitee.id,\n          sessionId: session.id,\n        },\n      ];\n      return { invite, session, inviteeTicketId: ticketInvitee.id };\n    });\n\n    // Step 11: Sau commit, phát match.confirmed cho cả 2 bên qua Redis\n    // [REDIS] Bắn SAU commit cùng event match.confirmed mà auto-match dùng; 2 bên refetch rồi vào\n    // phòng ngay.\n    if (matchedPair) {\n      const pair = matchedPair as Array<{\n        userId: string;\n        ticketId: string;\n        sessionId: string;\n      }>;\n      await Promise.all(\n        pair.map(({ userId, ticketId, sessionId }) => {\n          const envelope: RealtimeEnvelope<MatchConfirmedEventData> = {\n            event: RealtimeEvents.MatchConfirmed,\n            data: { ticketId, sessionId },\n          };\n          return publishRealtimeEvent(\n            this.realtime,\n            this.logger,\n            userId,\n            envelope,\n          );\n        }),\n      );\n    }\n    return result;\n\n    // Step 12: Controller trả lời mời, session và inviteeTicketId\n    return MatchInviteAcceptedDto.from(\n      result,\n      await this.userService.getByIdOrThrow(result.invite.inviterUserId),\n    );\n  }\n}\n\n// [SERVICE] match-invite.entity.ts  ·  match-invite.entity.ts L18–31\n// Bảng chuyển trạng thái duy nhất: mọi thay đổi phải đi qua đây, không tin client gửi trạng thái\n// đích. Chỉ pending mới đi tiếp được.\nexport const MATCH_INVITE_TRANSITIONS: Readonly<\n  Record<MatchInviteStatus, readonly MatchInviteStatus[]>\n> = {\n  [MatchInviteStatus.Pending]: [\n    MatchInviteStatus.Accepted,\n    MatchInviteStatus.Declined,\n    MatchInviteStatus.Expired,\n    MatchInviteStatus.Cancelled,\n  ],\n  [MatchInviteStatus.Accepted]: [],\n  [MatchInviteStatus.Declined]: [],\n  [MatchInviteStatus.Expired]: [],\n  [MatchInviteStatus.Cancelled]: [],\n};\n\n// [POSTGRES] CREATE UNIQUE INDEX uq_match_tickets_active_user  ·  1752200000000-matching-core.ts L34–38\nawait queryRunner.query(`\n  CREATE UNIQUE INDEX uq_match_tickets_active_user\n    ON match_tickets(user_id)\n    WHERE status IN ('queued','matched')\n`);\n"
+  },
+  "provenance": {
+    "catalog": {
+      "path": "annotated-18-discovery-nearby-va-direct-invite.mjs",
+      "sha256": "d96424558572ff9c940af2464d8b3bad6bbf3e91fe8877f4bdab7f3d2e151233"
+    },
+    "displayedCodeSha256": "be3a073fbf9b8e5f7c2c99b7ba41ca47e472d0e33576e757241f2d4ff167a01c"
+  }
+}

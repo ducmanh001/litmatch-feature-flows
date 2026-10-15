@@ -1,0 +1,910 @@
+{
+  "id": "18-discovery-nearby-va-direct-invite/02-get-nearby",
+  "featureId": "18-discovery-nearby-va-direct-invite",
+  "feature": "Discovery, Nearby và Direct Invite",
+  "summary": "Duyệt người dùng quanh mình (Nearby) rồi mời ghép Voice/Soul Match trực tiếp, bỏ qua hàng đợi khi người kia chấp nhận.",
+  "name": "Duyệt người dùng gần mình (Nearby)",
+  "title": "Trả danh sách người gần vị trí của mình dưới dạng nhóm khoảng cách, có 3 lớp chống dò vị trí.",
+  "method": "GET",
+  "route": "/api/v1/discovery/nearby",
+  "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts",
+  "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/18-discovery-nearby-va-direct-invite/02-get-nearby.json",
+  "diagramUrl": "https://ducmanh001.github.io/litmatch-feature-flows/#18-discovery-nearby-va-direct-invite",
+  "catalog": "annotated-18-discovery-nearby-va-direct-invite.mjs",
+  "flow": "[CONTROLLER] → [SERVICE] → [REDIS] → [POSTGRES] → [SERVICE]",
+  "roles": [
+    [
+      "CONTROLLER",
+      "Nhận bộ lọc (giới tính, tuổi) và cursor, trả trang thẻ người dùng kèm nhóm khoảng cách."
+    ],
+    [
+      "SERVICE",
+      "Kiểm hạn mức, opt-in và độ tươi của vị trí; lấy ứng viên, tính khoảng cách haversine cộng jitter, sắp xếp và phân trang bằng keyset cursor ngay ở app."
+    ],
+    [
+      "REDIS",
+      "Bộ đếm hạn mức truy vấn nearby theo user (Lua nguyên tử), chống dò quét bằng nhiều truy vấn."
+    ],
+    [
+      "POSTGRES",
+      "Lọc hộp giới hạn bằng btree (lat, lon) cùng các điều kiện hiển thị trong 1 câu SELECT; vị trí chỉ lưu dạng đã làm tròn."
+    ]
+  ],
+  "tables": [
+    [
+      "user_locations",
+      "vị trí đã làm tròn của từng user (PK user_id) cùng updated_at để biết còn tươi; index btree (lat, lon) phục vụ lọc hộp giới hạn."
+    ],
+    [
+      "discovery_settings",
+      "cờ nearby_visible: opt-in của chính mình (điều kiện để được xem người khác) và của ứng viên (điều kiện để được thấy)."
+    ],
+    [
+      "user_privacy_settings",
+      "cột hide_profile: người ẩn hồ sơ bị loại khỏi ứng viên."
+    ],
+    [
+      "users",
+      "đọc hồ sơ ứng viên còn active, lọc theo giới tính, tuổi, guest."
+    ]
+  ],
+  "redis": [
+    [
+      "discovery:nearby-query:count:{userId}",
+      "bộ đếm số truy vấn nearby của user trong cửa sổ 1 giờ; vượt hạn mức thì trả 429."
+    ]
+  ],
+  "related": [
+    [
+      "Safety",
+      "getHiddenUserIds: tập user bị ẩn vì block (2 chiều) hoặc từng report (vĩnh viễn) (không chép)."
+    ],
+    [
+      "User",
+      "findActiveByIds lọc ứng viên còn active theo giới tính, tuổi, guest; PrivacySettings cho cờ showDistance (không chép)."
+    ],
+    [
+      "common/redis rate-limit",
+      "script Lua INCR + EXPIRE nguyên tử, dùng chung với Matching speed-up và Invite (không chép)."
+    ],
+    [
+      "PUT /discovery/nearby/location",
+      "lớp 1 chống trilateration: làm tròn tọa độ ~500m ngay khi ghi, nên user_locations không chứa tọa độ thô (chưa chép)."
+    ],
+    [
+      "PUT /discovery/nearby/visible",
+      "bật/tắt opt-in; tắt thì xóa dòng vị trí cùng transaction (chưa chép)."
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "text": "Nhận bộ lọc (giới tính, tuổi) và cursor từ query",
+      "line": 30,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html#L30",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts#L30"
+    },
+    {
+      "number": 2,
+      "text": "Kiểm hạn mức truy vấn nearby của user qua Redis (429 nếu vượt)",
+      "line": 41,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html#L41",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts#L41"
+    },
+    {
+      "number": 3,
+      "text": "Kiểm user đã bật hiển thị Nearby (opt-in)",
+      "line": 60,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html#L60",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts#L60"
+    },
+    {
+      "number": 4,
+      "text": "Lấy vị trí của mình, vị trí quá hạn coi như chưa có",
+      "line": 74,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html#L74",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts#L74"
+    },
+    {
+      "number": 5,
+      "text": "Lấy tập người cần ẩn (block 2 chiều, report)",
+      "line": 97,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html#L97",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts#L97"
+    },
+    {
+      "number": 6,
+      "text": "Lấy ứng viên: lọc hộp giới hạn trong SQL, haversine ở app",
+      "line": 104,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html#L104",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts#L104"
+    },
+    {
+      "number": 7,
+      "text": "Mỗi ứng viên: haversine + jitter, rồi sắp xếp và lọc theo cursor",
+      "line": 216,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html#L216",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts#L216"
+    },
+    {
+      "number": 8,
+      "text": "Cắt trang theo limit và dựng nextCursor",
+      "line": 271,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html#L271",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts#L271"
+    },
+    {
+      "number": 9,
+      "text": "Trả trang thẻ người dùng kèm nhóm khoảng cách, không trả km hay tọa độ",
+      "line": 277,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html#L277",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts#L277"
+    }
+  ],
+  "declaredSteps": [
+    {
+      "at": "@Get('nearby')",
+      "text": "Nhận bộ lọc (giới tính, tuổi) và cursor từ query"
+    },
+    {
+      "at": "const allowed = await checkRateLimit(",
+      "text": "Kiểm hạn mức truy vấn nearby của user qua Redis (429 nếu vượt)"
+    },
+    {
+      "at": "const mySetting = await this.settingRepo.findOne({",
+      "text": "Kiểm user đã bật hiển thị Nearby (opt-in)"
+    },
+    {
+      "at": "const myLocation = await this.locationRepo.findOne({",
+      "text": "Lấy vị trí của mình, vị trí quá hạn coi như chưa có"
+    },
+    {
+      "at": "const hiddenUserIds = await this.safetyService.getHiddenUserIds(",
+      "text": "Lấy tập người cần ẩn (block 2 chiều, report)"
+    },
+    {
+      "at": "const candidates = await this.queryCandidates(",
+      "text": "Lấy ứng viên: lọc hộp giới hạn trong SQL, haversine ở app"
+    },
+    {
+      "at": "const rows = candidates",
+      "text": "Mỗi ứng viên: haversine + jitter, rồi sắp xếp và lọc theo cursor"
+    },
+    {
+      "at": "const page = buildCursorPage(",
+      "text": "Cắt trang theo limit và dựng nextCursor"
+    },
+    {
+      "at": "return {",
+      "in": "NearbyService.listNearby",
+      "nth": 2,
+      "text": "Trả trang thẻ người dùng kèm nhóm khoảng cách, không trả km hay tọa độ"
+    }
+  ],
+  "whyComments": [
+    {
+      "at": "const allowed = await checkRateLimit(",
+      "text": [
+        "[REDIS] Hạn mức truy vấn nearby theo user (lớp 3 chống trilateration): chặn dò quét vị trí bằng nhiều truy vấn."
+      ],
+      "src": "doc discovery-redis.provider.ts L15 + doc class nearby.service.ts L42",
+      "file": "apps/core-api/src/modules/discovery/nearby.service.ts"
+    },
+    {
+      "at": "if (!mySetting?.nearbyVisible) {",
+      "text": [
+        "Có đi có lại (reciprocity): chưa bật hiển thị Nearby của chính mình thì không được xem người khác."
+      ],
+      "src": "doc class nearby.service.ts L43",
+      "file": "apps/core-api/src/modules/discovery/nearby.service.ts"
+    },
+    {
+      "at": "if (!myLocation || !this.isFresh(myLocation.updatedAt, freshnessHours)) {",
+      "text": [
+        "Vị trí quá hạn coi như không có: vị trí cũ tự biến mất khỏi kết quả, không cần cron dọn bảng."
+      ],
+      "src": "doc entity user-location.entity.ts L9-10",
+      "file": "apps/core-api/src/modules/discovery/nearby.service.ts"
+    },
+    {
+      "at": "const hiddenUserIds = await this.safetyService.getHiddenUserIds(",
+      "text": [
+        "Loại người đã block hoặc report với mình (2 chiều); report ẩn vĩnh viễn vì bảng reports là append-only."
+      ],
+      "src": "doc getHiddenUserIds safety.service.ts L260-266",
+      "file": "apps/core-api/src/modules/discovery/nearby.service.ts"
+    },
+    {
+      "at": "const candidates = await this.queryCandidates(",
+      "text": [
+        "Spatial MVP: lọc hộp giới hạn bằng btree rồi haversine ở app (không PostGIS), tối đa DISCOVERY_NEARBY_CANDIDATE_CAP ứng viên; sort và cursor cũng làm ở app."
+      ],
+      "src": "doc class nearby.service.ts L44-46",
+      "file": "apps/core-api/src/modules/discovery/nearby.service.ts"
+    },
+    {
+      "at": "const jitter = nearbyJitterKm(",
+      "text": [
+        "Lớp 2 chống trilateration: cộng jitter tất định theo cặp và ngày vào khoảng cách trước khi tính nhóm."
+      ],
+      "src": "doc class nearby.service.ts L41 + doc nearbyJitterKm nearby.constants.ts L27-32",
+      "file": "apps/core-api/src/modules/discovery/nearby.service.ts"
+    },
+    {
+      "at": ".filter((r) => !cursor || this.isAfterCursor(r, cursor));",
+      "text": [
+        "Cursor giữ khoảng cách đã jitter; nhờ jitter cố định theo cặp-theo-ngày nên thứ tự giữa các trang không bị xáo."
+      ],
+      "src": "suy ra từ code (buildCursorPage lưu jitteredDistanceKm; nearbyJitterKm tất định theo cặp-theo-ngày)",
+      "file": "apps/core-api/src/modules/discovery/nearby.service.ts"
+    },
+    {
+      "at": "distanceBucket: r.showDistance",
+      "text": [
+        "Chỉ trả nhóm khoảng cách, không bao giờ trả km hay tọa độ chính xác; người tắt showDistance thì null."
+      ],
+      "src": "doc computeDistanceBucket nearby.constants.ts L48-49 + discovery.controller.ts L77-79 (summary GET nearby)",
+      "file": "apps/core-api/src/modules/discovery/nearby.service.ts"
+    },
+    {
+      "at": "const latDeltaDeg = radiusKm / 111.32;",
+      "text": [
+        "[POSTGRES] Hộp giới hạn xấp xỉ từ bán kính km (1 độ vĩ ≈ 111.32 km, độ kinh co lại theo cos vĩ độ) chỉ là prefilter; khoảng cách thật tính lại bằng haversine ở bước lọc cuối."
+      ],
+      "src": "doc queryCandidates nearby.service.ts L293 (\"Bounding-box prefilter (MVP, không PostGIS)\") + suy ra từ code (.filter haversine <= radiusKm)",
+      "file": "apps/core-api/src/modules/discovery/nearby.service.ts"
+    },
+    {
+      "at": "const seed = fnv1aHash(",
+      "text": [
+        "Seed theo cặp (canonical) và ngày UTC: cùng cặp cùng ngày luôn cùng jitter, nên truy vấn lặp trong ngày không lộ thêm; sang ngày khác đổi, nên không cộng dồn nhiều ngày để suy ra vị trí thật."
+      ],
+      "src": "doc nearbyJitterKm nearby.constants.ts L27-32",
+      "file": "apps/core-api/src/modules/discovery/nearby.constants.ts"
+    }
+  ],
+  "sources": [
+    "apps/core-api/src/database/migrations/1754600000000-discovery-nearby.ts",
+    "apps/core-api/src/modules/discovery/discovery.controller.ts",
+    "apps/core-api/src/modules/discovery/nearby.constants.ts",
+    "apps/core-api/src/modules/discovery/nearby.service.ts",
+    "apps/core-api/src/modules/discovery/redis/discovery-redis.provider.ts"
+  ],
+  "sourceContext": {
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/discovery/discovery.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Get('nearby')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/discovery/nearby.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async listNearby(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const allowed = await checkRateLimit(",
+            "text": [
+              "[REDIS] Hạn mức truy vấn nearby theo user (lớp 3 chống trilateration): chặn dò quét vị trí bằng nhiều truy vấn."
+            ],
+            "src": "doc discovery-redis.provider.ts L15 + doc class nearby.service.ts L42"
+          },
+          {
+            "at": "if (!mySetting?.nearbyVisible) {",
+            "text": [
+              "Có đi có lại (reciprocity): chưa bật hiển thị Nearby của chính mình thì không được xem người khác."
+            ],
+            "src": "doc class nearby.service.ts L43"
+          },
+          {
+            "at": "if (!myLocation || !this.isFresh(myLocation.updatedAt, freshnessHours)) {",
+            "text": [
+              "Vị trí quá hạn coi như không có: vị trí cũ tự biến mất khỏi kết quả, không cần cron dọn bảng."
+            ],
+            "src": "doc entity user-location.entity.ts L9-10"
+          },
+          {
+            "at": "const hiddenUserIds = await this.safetyService.getHiddenUserIds(",
+            "text": [
+              "Loại người đã block hoặc report với mình (2 chiều); report ẩn vĩnh viễn vì bảng reports là append-only."
+            ],
+            "src": "doc getHiddenUserIds safety.service.ts L260-266"
+          },
+          {
+            "at": "const candidates = await this.queryCandidates(",
+            "text": [
+              "Spatial MVP: lọc hộp giới hạn bằng btree rồi haversine ở app (không PostGIS), tối đa DISCOVERY_NEARBY_CANDIDATE_CAP ứng viên; sort và cursor cũng làm ở app."
+            ],
+            "src": "doc class nearby.service.ts L44-46"
+          },
+          {
+            "at": "const jitter = nearbyJitterKm(",
+            "text": [
+              "Lớp 2 chống trilateration: cộng jitter tất định theo cặp và ngày vào khoảng cách trước khi tính nhóm."
+            ],
+            "src": "doc class nearby.service.ts L41 + doc nearbyJitterKm nearby.constants.ts L27-32"
+          },
+          {
+            "at": ".filter((r) => !cursor || this.isAfterCursor(r, cursor));",
+            "text": [
+              "Cursor giữ khoảng cách đã jitter; nhờ jitter cố định theo cặp-theo-ngày nên thứ tự giữa các trang không bị xáo."
+            ],
+            "src": "suy ra từ code (buildCursorPage lưu jitteredDistanceKm; nearbyJitterKm tất định theo cặp-theo-ngày)"
+          },
+          {
+            "at": "distanceBucket: r.showDistance",
+            "text": [
+              "Chỉ trả nhóm khoảng cách, không bao giờ trả km hay tọa độ chính xác; người tắt showDistance thì null."
+            ],
+            "src": "doc computeDistanceBucket nearby.constants.ts L48-49 + discovery.controller.ts L77-79 (summary GET nearby)"
+          }
+        ]
+      },
+      {
+        "tag": "REDIS",
+        "file": "apps/core-api/src/modules/discovery/redis/discovery-redis.provider.ts",
+        "ranges": [
+          {
+            "at": "export function nearbyQueryCountKey(",
+            "to": "^}"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/discovery/nearby.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async queryCandidates(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const latDeltaDeg = radiusKm / 111.32;",
+            "text": [
+              "[POSTGRES] Hộp giới hạn xấp xỉ từ bán kính km (1 độ vĩ ≈ 111.32 km, độ kinh co lại theo cos vĩ độ) chỉ là prefilter; khoảng cách thật tính lại bằng haversine ở bước lọc cuối."
+            ],
+            "src": "doc queryCandidates nearby.service.ts L293 (\"Bounding-box prefilter (MVP, không PostGIS)\") + suy ra từ code (.filter haversine <= radiusKm)"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1754600000000-discovery-nearby.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE user_locations (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          },
+          {
+            "at": "CREATE INDEX idx_user_locations_lat_lon",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/discovery/nearby.constants.ts",
+        "ranges": [
+          {
+            "at": "export function haversineDistanceKm(",
+            "to": "^}"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/discovery/nearby.constants.ts",
+        "ranges": [
+          {
+            "at": "export function nearbyJitterKm(",
+            "to": "^}"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const seed = fnv1aHash(",
+            "text": [
+              "Seed theo cặp (canonical) và ngày UTC: cùng cặp cùng ngày luôn cùng jitter, nên truy vấn lặp trong ngày không lộ thêm; sang ngày khác đổi, nên không cộng dồn nhiều ngày để suy ra vị trí thật."
+            ],
+            "src": "doc nearbyJitterKm nearby.constants.ts L27-32"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/discovery/nearby.constants.ts",
+        "ranges": [
+          {
+            "at": "export function computeDistanceBucket(",
+            "to": "^}"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/discovery/nearby.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private isAfterCursor(",
+            "to": "^  }$"
+          }
+        ]
+      }
+    ],
+    "ranges": [
+      {
+        "file": "apps/core-api/src/modules/discovery/discovery.controller.ts",
+        "range": {
+          "at": "@Get('nearby')",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/discovery/nearby.service.ts",
+        "range": {
+          "at": "async listNearby(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/discovery/redis/discovery-redis.provider.ts",
+        "range": {
+          "at": "export function nearbyQueryCountKey(",
+          "to": "^}"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/discovery/nearby.service.ts",
+        "range": {
+          "at": "private async queryCandidates(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/database/migrations/1754600000000-discovery-nearby.ts",
+        "range": {
+          "at": "CREATE TABLE user_locations (",
+          "to": "^    `\\);$",
+          "pad": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "file": "apps/core-api/src/database/migrations/1754600000000-discovery-nearby.ts",
+        "range": {
+          "at": "CREATE INDEX idx_user_locations_lat_lon",
+          "to": "^    `\\);$",
+          "pad": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/discovery/nearby.constants.ts",
+        "range": {
+          "at": "export function haversineDistanceKm(",
+          "to": "^}"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/discovery/nearby.constants.ts",
+        "range": {
+          "at": "export function nearbyJitterKm(",
+          "to": "^}"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/discovery/nearby.constants.ts",
+        "range": {
+          "at": "export function computeDistanceBucket(",
+          "to": "^}"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/discovery/nearby.service.ts",
+        "range": {
+          "at": "private isAfterCursor(",
+          "to": "^  }$"
+        }
+      }
+    ],
+    "helpers": [],
+    "skip": [
+      "nearbyQueryCountKey",
+      "computeDistanceBucket"
+    ],
+    "attach": {},
+    "nested": true
+  },
+  "omittedContext": {
+    "note": "Curated source selection; unlisted call bodies, shared request infrastructure, DTOs and other context may be omitted. skip names stay unexpanded; helpers may be substituted; attach controls placement. Flattened scopes are not executable code.",
+    "skip": [
+      "nearbyQueryCountKey",
+      "computeDistanceBucket"
+    ],
+    "attach": {},
+    "helpers": []
+  },
+  "featureMetadata": {
+    "id": "18-discovery-nearby-va-direct-invite",
+    "short": "Discovery, Nearby và Direct Invite",
+    "title": "Discovery, Nearby và Direct Invite",
+    "summary": "Duyệt người dùng quanh mình (Nearby) rồi mời ghép Voice/Soul Match trực tiếp, bỏ qua hàng đợi khi người kia chấp nhận.",
+    "diagramAnchor": "18-discovery-nearby-va-direct-invite"
+  },
+  "endpointCatalog": {
+    "n": "02",
+    "slug": "get-nearby",
+    "method": "GET",
+    "short": "/discovery/nearby",
+    "route": "/api/v1/discovery/nearby",
+    "name": "Duyệt người dùng gần mình (Nearby)",
+    "title": "Trả danh sách người gần vị trí của mình dưới dạng nhóm khoảng cách, có 3 lớp chống dò vị trí.",
+    "flow": "[CONTROLLER] → [SERVICE] → [REDIS] → [POSTGRES] → [SERVICE]",
+    "roles": [
+      [
+        "CONTROLLER",
+        "Nhận bộ lọc (giới tính, tuổi) và cursor, trả trang thẻ người dùng kèm nhóm khoảng cách."
+      ],
+      [
+        "SERVICE",
+        "Kiểm hạn mức, opt-in và độ tươi của vị trí; lấy ứng viên, tính khoảng cách haversine cộng jitter, sắp xếp và phân trang bằng keyset cursor ngay ở app."
+      ],
+      [
+        "REDIS",
+        "Bộ đếm hạn mức truy vấn nearby theo user (Lua nguyên tử), chống dò quét bằng nhiều truy vấn."
+      ],
+      [
+        "POSTGRES",
+        "Lọc hộp giới hạn bằng btree (lat, lon) cùng các điều kiện hiển thị trong 1 câu SELECT; vị trí chỉ lưu dạng đã làm tròn."
+      ]
+    ],
+    "tables": [
+      [
+        "user_locations",
+        "vị trí đã làm tròn của từng user (PK user_id) cùng updated_at để biết còn tươi; index btree (lat, lon) phục vụ lọc hộp giới hạn."
+      ],
+      [
+        "discovery_settings",
+        "cờ nearby_visible: opt-in của chính mình (điều kiện để được xem người khác) và của ứng viên (điều kiện để được thấy)."
+      ],
+      [
+        "user_privacy_settings",
+        "cột hide_profile: người ẩn hồ sơ bị loại khỏi ứng viên."
+      ],
+      [
+        "users",
+        "đọc hồ sơ ứng viên còn active, lọc theo giới tính, tuổi, guest."
+      ]
+    ],
+    "redis": [
+      [
+        "discovery:nearby-query:count:{userId}",
+        "bộ đếm số truy vấn nearby của user trong cửa sổ 1 giờ; vượt hạn mức thì trả 429."
+      ]
+    ],
+    "related": [
+      [
+        "Safety",
+        "getHiddenUserIds: tập user bị ẩn vì block (2 chiều) hoặc từng report (vĩnh viễn) (không chép)."
+      ],
+      [
+        "User",
+        "findActiveByIds lọc ứng viên còn active theo giới tính, tuổi, guest; PrivacySettings cho cờ showDistance (không chép)."
+      ],
+      [
+        "common/redis rate-limit",
+        "script Lua INCR + EXPIRE nguyên tử, dùng chung với Matching speed-up và Invite (không chép)."
+      ],
+      [
+        "PUT /discovery/nearby/location",
+        "lớp 1 chống trilateration: làm tròn tọa độ ~500m ngay khi ghi, nên user_locations không chứa tọa độ thô (chưa chép)."
+      ],
+      [
+        "PUT /discovery/nearby/visible",
+        "bật/tắt opt-in; tắt thì xóa dòng vị trí cùng transaction (chưa chép)."
+      ]
+    ],
+    "nested": true,
+    "skip": [
+      "nearbyQueryCountKey",
+      "computeDistanceBucket"
+    ],
+    "steps": [
+      {
+        "at": "@Get('nearby')",
+        "text": "Nhận bộ lọc (giới tính, tuổi) và cursor từ query"
+      },
+      {
+        "at": "const allowed = await checkRateLimit(",
+        "text": "Kiểm hạn mức truy vấn nearby của user qua Redis (429 nếu vượt)"
+      },
+      {
+        "at": "const mySetting = await this.settingRepo.findOne({",
+        "text": "Kiểm user đã bật hiển thị Nearby (opt-in)"
+      },
+      {
+        "at": "const myLocation = await this.locationRepo.findOne({",
+        "text": "Lấy vị trí của mình, vị trí quá hạn coi như chưa có"
+      },
+      {
+        "at": "const hiddenUserIds = await this.safetyService.getHiddenUserIds(",
+        "text": "Lấy tập người cần ẩn (block 2 chiều, report)"
+      },
+      {
+        "at": "const candidates = await this.queryCandidates(",
+        "text": "Lấy ứng viên: lọc hộp giới hạn trong SQL, haversine ở app"
+      },
+      {
+        "at": "const rows = candidates",
+        "text": "Mỗi ứng viên: haversine + jitter, rồi sắp xếp và lọc theo cursor"
+      },
+      {
+        "at": "const page = buildCursorPage(",
+        "text": "Cắt trang theo limit và dựng nextCursor"
+      },
+      {
+        "at": "return {",
+        "in": "NearbyService.listNearby",
+        "nth": 2,
+        "text": "Trả trang thẻ người dùng kèm nhóm khoảng cách, không trả km hay tọa độ"
+      }
+    ],
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/discovery/discovery.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Get('nearby')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/discovery/nearby.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async listNearby(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const allowed = await checkRateLimit(",
+            "text": [
+              "[REDIS] Hạn mức truy vấn nearby theo user (lớp 3 chống trilateration): chặn dò quét vị trí bằng nhiều truy vấn."
+            ],
+            "src": "doc discovery-redis.provider.ts L15 + doc class nearby.service.ts L42"
+          },
+          {
+            "at": "if (!mySetting?.nearbyVisible) {",
+            "text": [
+              "Có đi có lại (reciprocity): chưa bật hiển thị Nearby của chính mình thì không được xem người khác."
+            ],
+            "src": "doc class nearby.service.ts L43"
+          },
+          {
+            "at": "if (!myLocation || !this.isFresh(myLocation.updatedAt, freshnessHours)) {",
+            "text": [
+              "Vị trí quá hạn coi như không có: vị trí cũ tự biến mất khỏi kết quả, không cần cron dọn bảng."
+            ],
+            "src": "doc entity user-location.entity.ts L9-10"
+          },
+          {
+            "at": "const hiddenUserIds = await this.safetyService.getHiddenUserIds(",
+            "text": [
+              "Loại người đã block hoặc report với mình (2 chiều); report ẩn vĩnh viễn vì bảng reports là append-only."
+            ],
+            "src": "doc getHiddenUserIds safety.service.ts L260-266"
+          },
+          {
+            "at": "const candidates = await this.queryCandidates(",
+            "text": [
+              "Spatial MVP: lọc hộp giới hạn bằng btree rồi haversine ở app (không PostGIS), tối đa DISCOVERY_NEARBY_CANDIDATE_CAP ứng viên; sort và cursor cũng làm ở app."
+            ],
+            "src": "doc class nearby.service.ts L44-46"
+          },
+          {
+            "at": "const jitter = nearbyJitterKm(",
+            "text": [
+              "Lớp 2 chống trilateration: cộng jitter tất định theo cặp và ngày vào khoảng cách trước khi tính nhóm."
+            ],
+            "src": "doc class nearby.service.ts L41 + doc nearbyJitterKm nearby.constants.ts L27-32"
+          },
+          {
+            "at": ".filter((r) => !cursor || this.isAfterCursor(r, cursor));",
+            "text": [
+              "Cursor giữ khoảng cách đã jitter; nhờ jitter cố định theo cặp-theo-ngày nên thứ tự giữa các trang không bị xáo."
+            ],
+            "src": "suy ra từ code (buildCursorPage lưu jitteredDistanceKm; nearbyJitterKm tất định theo cặp-theo-ngày)"
+          },
+          {
+            "at": "distanceBucket: r.showDistance",
+            "text": [
+              "Chỉ trả nhóm khoảng cách, không bao giờ trả km hay tọa độ chính xác; người tắt showDistance thì null."
+            ],
+            "src": "doc computeDistanceBucket nearby.constants.ts L48-49 + discovery.controller.ts L77-79 (summary GET nearby)"
+          }
+        ]
+      },
+      {
+        "tag": "REDIS",
+        "file": "apps/core-api/src/modules/discovery/redis/discovery-redis.provider.ts",
+        "ranges": [
+          {
+            "at": "export function nearbyQueryCountKey(",
+            "to": "^}"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/discovery/nearby.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async queryCandidates(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const latDeltaDeg = radiusKm / 111.32;",
+            "text": [
+              "[POSTGRES] Hộp giới hạn xấp xỉ từ bán kính km (1 độ vĩ ≈ 111.32 km, độ kinh co lại theo cos vĩ độ) chỉ là prefilter; khoảng cách thật tính lại bằng haversine ở bước lọc cuối."
+            ],
+            "src": "doc queryCandidates nearby.service.ts L293 (\"Bounding-box prefilter (MVP, không PostGIS)\") + suy ra từ code (.filter haversine <= radiusKm)"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1754600000000-discovery-nearby.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE user_locations (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          },
+          {
+            "at": "CREATE INDEX idx_user_locations_lat_lon",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/discovery/nearby.constants.ts",
+        "ranges": [
+          {
+            "at": "export function haversineDistanceKm(",
+            "to": "^}"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/discovery/nearby.constants.ts",
+        "ranges": [
+          {
+            "at": "export function nearbyJitterKm(",
+            "to": "^}"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const seed = fnv1aHash(",
+            "text": [
+              "Seed theo cặp (canonical) và ngày UTC: cùng cặp cùng ngày luôn cùng jitter, nên truy vấn lặp trong ngày không lộ thêm; sang ngày khác đổi, nên không cộng dồn nhiều ngày để suy ra vị trí thật."
+            ],
+            "src": "doc nearbyJitterKm nearby.constants.ts L27-32"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/discovery/nearby.constants.ts",
+        "ranges": [
+          {
+            "at": "export function computeDistanceBucket(",
+            "to": "^}"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/discovery/nearby.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private isAfterCursor(",
+            "to": "^  }$"
+          }
+        ]
+      }
+    ]
+  },
+  "sourceManifest": {
+    "verifiedCodeSha256": true,
+    "mode": "published-presentation",
+    "baselineCommit": "cb30743143bd8f6576b154db4b606380c365c674",
+    "sourceCommit": "d3cb28c",
+    "sources": [
+      "apps/core-api/src/database/migrations/1754600000000-discovery-nearby.ts",
+      "apps/core-api/src/modules/discovery/discovery.controller.ts",
+      "apps/core-api/src/modules/discovery/nearby.constants.ts",
+      "apps/core-api/src/modules/discovery/nearby.service.ts",
+      "apps/core-api/src/modules/discovery/redis/discovery-redis.provider.ts"
+    ],
+    "steps": [
+      "Step 1: Nhận bộ lọc (giới tính, tuổi) và cursor từ query",
+      "Step 2: Kiểm hạn mức truy vấn nearby của user qua Redis (429 nếu vượt)",
+      "Step 3: Kiểm user đã bật hiển thị Nearby (opt-in)",
+      "Step 4: Lấy vị trí của mình, vị trí quá hạn coi như chưa có",
+      "Step 5: Lấy tập người cần ẩn (block 2 chiều, report)",
+      "Step 6: Lấy ứng viên: lọc hộp giới hạn trong SQL, haversine ở app",
+      "Step 7: Mỗi ứng viên: haversine + jitter, rồi sắp xếp và lọc theo cursor",
+      "Step 8: Cắt trang theo limit và dựng nextCursor",
+      "Step 9: Trả trang thẻ người dùng kèm nhóm khoảng cách, không trả km hay tọa độ"
+    ],
+    "removedOverview": "// ════════════════════════════════════════════════════════════════════════════\n//  GET /api/v1/discovery/nearby\n//  Trả danh sách người gần vị trí của mình dưới dạng nhóm khoảng cách, có 3 lớp chống dò vị trí.\n// ════════════════════════════════════════════════════════════════════════════\n//  Luồng      [CONTROLLER] → [SERVICE] → [REDIS] → [POSTGRES] → [SERVICE]\n//\n//  Vai trò từng tầng\n//    [CONTROLLER] Nhận bộ lọc (giới tính, tuổi) và cursor, trả trang thẻ người dùng kèm\n//                 nhóm khoảng cách.\n//    [SERVICE]    Kiểm hạn mức, opt-in và độ tươi của vị trí; lấy ứng viên, tính khoảng\n//                 cách haversine cộng jitter, sắp xếp và phân trang bằng keyset cursor\n//                 ngay ở app.\n//    [REDIS]      Bộ đếm hạn mức truy vấn nearby theo user (Lua nguyên tử), chống dò\n//                 quét bằng nhiều truy vấn.\n//    [POSTGRES]   Lọc hộp giới hạn bằng btree (lat, lon) cùng các điều kiện hiển thị\n//                 trong 1 câu SELECT; vị trí chỉ lưu dạng đã làm tròn.\n//\n//  Bảng       user_locations — vị trí đã làm tròn của từng user (PK user_id) cùng\n//               updated_at để biết còn tươi; index btree (lat, lon) phục vụ lọc hộp\n//               giới hạn.\n//             discovery_settings — cờ nearby_visible: opt-in của chính mình (điều kiện\n//               để được xem người khác) và của ứng viên (điều kiện để được thấy).\n//             user_privacy_settings — cột hide_profile: người ẩn hồ sơ bị loại khỏi ứng\n//               viên.\n//             users — đọc hồ sơ ứng viên còn active, lọc theo giới tính, tuổi, guest.\n//  Redis      discovery:nearby-query:count:{userId} — bộ đếm số truy vấn nearby của\n//               user trong cửa sổ 1 giờ; vượt hạn mức thì trả 429.\n//  Liên quan  Safety — getHiddenUserIds: tập user bị ẩn vì block (2 chiều) hoặc từng\n//               report (vĩnh viễn) (không chép).\n//             User — findActiveByIds lọc ứng viên còn active theo giới tính, tuổi,\n//               guest; PrivacySettings cho cờ showDistance (không chép).\n//             common/redis rate-limit — script Lua INCR + EXPIRE nguyên tử, dùng chung\n//               với Matching speed-up và Invite (không chép).\n//             PUT /discovery/nearby/location — lớp 1 chống trilateration: làm tròn tọa\n//               độ ~500m ngay khi ghi, nên user_locations không chứa tọa độ thô (chưa\n//               chép).\n//             PUT /discovery/nearby/visible — bật/tắt opt-in; tắt thì xóa dòng vị trí\n//               cùng transaction (chưa chép).\n//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi\n//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới\n//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //\n//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các\n//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số\n//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức\n//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong\n//             repo.\n",
+    "baselineBodySha256": "17c4aa0b583ae9ce796a862f3d7c1c831f78cd79d3f4c2c3cbde093c96ccf8ba",
+    "bodySha256": "17c4aa0b583ae9ce796a862f3d7c1c831f78cd79d3f4c2c3cbde093c96ccf8ba",
+    "rawSha256": "9a74ef6039ee634b006ab415986ff18b53e9a794a764df256914feffc6a1a65f",
+    "codeSha256": "9a74ef6039ee634b006ab415986ff18b53e9a794a764df256914feffc6a1a65f"
+  },
+  "code": {
+    "path": "code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts",
+    "sha256": "9a74ef6039ee634b006ab415986ff18b53e9a794a764df256914feffc6a1a65f",
+    "hashAlgorithm": "sha256",
+    "content": "//  GET /api/v1/discovery/nearby\n//  Trả danh sách người gần vị trí của mình dưới dạng nhóm khoảng cách, có 3 lớp chống dò vị trí.\n//  Step 1: Nhận bộ lọc (giới tính, tuổi) và cursor từ query\n//  Step 2: Kiểm hạn mức truy vấn nearby của user qua Redis (429 nếu vượt)\n//  Step 3: Kiểm user đã bật hiển thị Nearby (opt-in)\n//  Step 4: Lấy vị trí của mình, vị trí quá hạn coi như chưa có\n//  Step 5: Lấy tập người cần ẩn (block 2 chiều, report)\n//  Step 6: Lấy ứng viên: lọc hộp giới hạn trong SQL, haversine ở app\n//  Step 7: Mỗi ứng viên: haversine + jitter, rồi sắp xếp và lọc theo cursor\n//  Step 8: Cắt trang theo limit và dựng nextCursor\n//  Step 9: Trả trang thẻ người dùng kèm nhóm khoảng cách, không trả km hay tọa độ\n\n// [CONTROLLER] DiscoveryController.nearby  ·  discovery.controller.ts L26–27, L75–89\n@Controller('discovery')\nexport class DiscoveryController {\n  constructor(\n    private readonly nearbyService: NearbyService,\n    // NearbyService\n    @InjectRepository(UserLocation)\n    private readonly locationRepo: Repository<UserLocation>,\n    @InjectRepository(DiscoverySetting)\n    private readonly settingRepo: Repository<DiscoverySetting>,\n    private readonly userService: UserService,\n    private readonly safetyService: SafetyService,\n    private readonly privacySettings: PrivacySettingsService,\n    @Inject(DISCOVERY_REDIS) private readonly redis: Redis,\n    private readonly config: ConfigService<CoreApiEnv, true>,\n  ) {}\n\n  // Step 1: Nhận bộ lọc (giới tính, tuổi) và cursor từ query\n  @Get('nearby')\n  async nearby(\n    @CurrentUser() user: AuthenticatedUser,\n    @Query() query: NearbyQueryDto,\n  ): Promise<NearbyCardsPageDto> {\n    return NearbyCardsPageDto.from(\n      await this.nearbyService.listNearby(user, query),\n    );\n\n    // [SERVICE] NearbyService.listNearby  ·  nearby.service.ts L124–255\n    // Step 2: Kiểm hạn mức truy vấn nearby của user qua Redis (429 nếu vượt)\n    // [REDIS] Hạn mức truy vấn nearby theo user (lớp 3 chống trilateration): chặn dò quét vị trí\n    // bằng nhiều truy vấn.\n    const allowed = await checkRateLimit(\n      this.redis,\n      nearbyQueryCountKey(user.userId),\n      this.config.getOrThrow('DISCOVERY_NEARBY_QUERY_RATE_LIMIT_PER_HOUR', {\n        infer: true,\n      }),\n      RATE_LIMIT_WINDOW_SECONDS,\n    );\n    if (!allowed) {\n      throw new DomainException(\n        DiscoveryErrors.NEARBY_RATE_LIMITED,\n        'Truy vấn nearby quá nhanh, thử lại sau',\n        HttpStatus.TOO_MANY_REQUESTS,\n      );\n    }\n\n    // Step 3: Kiểm user đã bật hiển thị Nearby (opt-in)\n    const mySetting = await this.settingRepo.findOne({\n      where: { userId: user.userId },\n    });\n    // Có đi có lại (reciprocity): chưa bật hiển thị Nearby của chính mình thì không được xem\n    // người khác.\n    if (!mySetting?.nearbyVisible) {\n      throw new DomainException(\n        DiscoveryErrors.NEARBY_NOT_OPTED_IN,\n        'Bạn cần bật hiển thị Nearby trước khi xem người khác',\n        HttpStatus.FORBIDDEN,\n      );\n    }\n\n    // Step 4: Lấy vị trí của mình, vị trí quá hạn coi như chưa có\n    const myLocation = await this.locationRepo.findOne({\n      where: { userId: user.userId },\n    });\n    const freshnessHours = this.config.getOrThrow(\n      'DISCOVERY_LOCATION_FRESHNESS_HOURS',\n      { infer: true },\n    );\n    // Vị trí quá hạn coi như không có: vị trí cũ tự biến mất khỏi kết quả, không cần cron dọn\n    // bảng.\n    if (!myLocation || !this.isFresh(myLocation.updatedAt, freshnessHours)) {\n      throw new DomainException(\n        DiscoveryErrors.NEARBY_LOCATION_MISSING,\n        'Bạn chưa cập nhật vị trí (hoặc vị trí đã quá hạn)',\n        HttpStatus.CONFLICT,\n      );\n    }\n\n    const cursor = this.decodeNearbyCursor(query.cursor);\n    const radiusKm = this.config.getOrThrow('DISCOVERY_NEARBY_RADIUS_KM', {\n      infer: true,\n    });\n\n    // Step 5: Lấy tập người cần ẩn (block 2 chiều, report)\n    // Loại người đã block hoặc report với mình (2 chiều); report ẩn vĩnh viễn vì bảng reports là\n    // append-only.\n    const hiddenUserIds = await this.safetyService.getHiddenUserIds(\n      user.userId,\n    );\n\n    // Step 6: Lấy ứng viên: lọc hộp giới hạn trong SQL, haversine ở app\n    // Spatial MVP: lọc hộp giới hạn bằng btree rồi haversine ở app (không PostGIS), tối đa\n    // DISCOVERY_NEARBY_CANDIDATE_CAP ứng viên; sort và cursor cũng làm ở app.\n    const candidates = await this.queryCandidates(\n      myLocation,\n      radiusKm,\n      [user.userId, ...hiddenUserIds],\n      freshnessHours,\n    );\n\n    // [SERVICE] NearbyService.queryCandidates  ·  nearby.service.ts L294–355\n    const excludeUserIds = [user.userId, ...hiddenUserIds];\n    // [POSTGRES] Hộp giới hạn xấp xỉ từ bán kính km (1 độ vĩ ≈ 111.32 km, độ kinh co lại theo cos\n    // vĩ độ) chỉ là prefilter; khoảng cách thật tính lại bằng haversine ở bước lọc cuối.\n    const latDeltaDeg = radiusKm / 111.32;\n    const lonDeltaDeg =\n      radiusKm /\n      (111.32 *\n        Math.max(0.1, Math.cos((myLocation.latQuantized * Math.PI) / 180)));\n    const cap = this.config.getOrThrow('DISCOVERY_NEARBY_CANDIDATE_CAP', {\n      infer: true,\n    });\n\n    const rows: Array<{\n      user_id: string;\n      lat_quantized: string;\n      lon_quantized: string;\n      updated_at: Date;\n    }> = await this.locationRepo.query(\n      `SELECT ul.user_id, ul.lat_quantized, ul.lon_quantized, ul.updated_at\n       FROM user_locations ul\n       JOIN discovery_settings ds ON ds.user_id = ul.user_id\n       LEFT JOIN user_privacy_settings ups ON ups.user_id = ul.user_id\n       WHERE ds.nearby_visible = true\n         AND COALESCE(ups.hide_profile, false) = false\n         AND ul.updated_at > now() - make_interval(hours => $1::int)\n         AND ul.lat_quantized BETWEEN $2 AND $3\n         AND ul.lon_quantized BETWEEN $4 AND $5\n         AND ul.user_id != ALL($6::uuid[])\n       LIMIT $7`,\n      [\n        freshnessHours,\n        myLocation.latQuantized - latDeltaDeg,\n        myLocation.latQuantized + latDeltaDeg,\n        myLocation.lonQuantized - lonDeltaDeg,\n        myLocation.lonQuantized + lonDeltaDeg,\n        excludeUserIds,\n        cap,\n      ],\n    );\n\n    return rows\n      .map((r) => {\n        const loc = new UserLocation();\n        loc.userId = r.user_id;\n        loc.latQuantized = Number(r.lat_quantized);\n        loc.lonQuantized = Number(r.lon_quantized);\n        loc.updatedAt = r.updated_at;\n        return loc;\n      })\n      .filter(\n        (loc) =>\n          haversineDistanceKm(\n            myLocation.latQuantized,\n            myLocation.lonQuantized,\n            loc.latQuantized,\n            loc.lonQuantized,\n          ) <= radiusKm,\n      );\n\n    // [SERVICE] haversineDistanceKm  ·  nearby.constants.ts L10–25\n    const lat1 = myLocation.latQuantized;\n    const lon1 = myLocation.lonQuantized;\n    const lat2 = loc.latQuantized;\n    const lon2 = loc.lonQuantized;\n    const earthRadiusKm = 6371;\n    const dLat = ((lat2 - lat1) * Math.PI) / 180;\n    const dLon = ((lon2 - lon1) * Math.PI) / 180;\n    const a =\n      Math.sin(dLat / 2) ** 2 +\n      Math.cos((lat1 * Math.PI) / 180) *\n        Math.cos((lat2 * Math.PI) / 180) *\n        Math.sin(dLon / 2) ** 2;\n    return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));\n\n    if (candidates.length === 0) {\n      return { items: [], meta: { nextCursor: null } };\n    }\n\n    const users = await this.userService.findActiveByIds(\n      candidates.map((c) => c.userId),\n      {\n        gender: query.gender,\n        ageMin: query.ageMin,\n        ageMax: query.ageMax,\n        excludeGuests: !this.config.getOrThrow('DISCOVERY_GUEST_VISIBLE', {\n          infer: true,\n        }),\n      },\n    );\n    const userById = new Map(users.map((u) => [u.id, u]));\n    const privacyByUserId = await this.privacySettings.findForUsers(\n      users.map((u) => u.id),\n    );\n\n    const forDate = todayUtc();\n    const distanceBucketsCsv = this.config.getOrThrow(\n      'DISCOVERY_DISTANCE_BUCKETS_KM',\n      { infer: true },\n    );\n    const jitterMaxKm = radiusKm * 0.1;\n\n    // Step 7: Mỗi ứng viên: haversine + jitter, rồi sắp xếp và lọc theo cursor\n    const rows = candidates\n      .filter((c) => userById.has(c.userId))\n      .map((c) => {\n        const rawDistanceKm = haversineDistanceKm(\n          myLocation.latQuantized,\n          myLocation.lonQuantized,\n          c.latQuantized,\n          c.lonQuantized,\n        );\n        // Lớp 2 chống trilateration: cộng jitter tất định theo cặp và ngày vào khoảng cách trước\n        // khi tính nhóm.\n        const jitter = nearbyJitterKm(\n          user.userId,\n          c.userId,\n          forDate,\n          jitterMaxKm,\n        );\n\n        // [SERVICE] nearbyJitterKm  ·  nearby.constants.ts L35–45\n        const userIdA = user.userId;\n        const userIdB = c.userId;\n        const maxJitterKm = jitterMaxKm;\n        const [low, high] = canonicalPair(userIdA, userIdB);\n        // Seed theo cặp (canonical) và ngày UTC: cùng cặp cùng ngày luôn cùng jitter, nên truy\n        // vấn lặp trong ngày không lộ thêm; sang ngày khác đổi, nên không cộng dồn nhiều ngày để\n        // suy ra vị trí thật.\n        const seed = fnv1aHash(`${low}:${high}:${forDate}`);\n        return (seed % 1000) * (maxJitterKm / 1000) - maxJitterKm / 2;\n\n        const jitteredDistanceKm = Math.max(0, rawDistanceKm + jitter);\n        const targetPrivacy = privacyByUserId.get(c.userId);\n        return {\n          userId: c.userId,\n          jitteredDistanceKm,\n          user: userById.get(c.userId) as User,\n          showDistance: targetPrivacy?.showDistance ?? true,\n        };\n      })\n      .sort(\n        (a, b) =>\n          a.jitteredDistanceKm - b.jitteredDistanceKm ||\n          (a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0),\n      )\n      // Cursor giữ khoảng cách đã jitter; nhờ jitter cố định theo cặp-theo-ngày nên thứ tự giữa\n      // các trang không bị xáo.\n      .filter((r) => !cursor || this.isAfterCursor(r, cursor));\n\n    // [SERVICE] NearbyService.isAfterCursor  ·  nearby.service.ts L262–270\n    const row = r;\n    if (row.jitteredDistanceKm !== cursor.distanceKm) {\n      return row.jitteredDistanceKm > cursor.distanceKm;\n    }\n    return row.userId > cursor.userId;\n\n    // Step 8: Cắt trang theo limit và dựng nextCursor\n    const page = buildCursorPage(rows, query.limit, (last) => ({\n      distanceKm: last.jitteredDistanceKm,\n      userId: last.userId,\n    }));\n\n    // Step 9: Trả trang thẻ người dùng kèm nhóm khoảng cách, không trả km hay tọa độ\n    return {\n      items: page.items.map((r) => ({\n        user: r.user,\n        // Chỉ trả nhóm khoảng cách, không bao giờ trả km hay tọa độ chính xác; người tắt\n        // showDistance thì null.\n        distanceBucket: r.showDistance\n          ? computeDistanceBucket(r.jitteredDistanceKm, distanceBucketsCsv)\n          : null,\n      })),\n      meta: page.meta,\n    };\n  }\n}\n\n// [POSTGRES] CREATE TABLE user_locations  ·  1754600000000-discovery-nearby.ts L21–33\nawait queryRunner.query(`\n  CREATE TABLE user_locations (\n    user_id       uuid PRIMARY KEY REFERENCES users(id),\n    lat_quantized double precision NOT NULL,\n    lon_quantized double precision NOT NULL,\n    updated_at    timestamptz NOT NULL DEFAULT now(),\n    CONSTRAINT chk_user_locations_lat CHECK (lat_quantized BETWEEN -90 AND 90),\n    CONSTRAINT chk_user_locations_lon CHECK (lon_quantized BETWEEN -180 AND 180)\n  )\n`);\n\nawait queryRunner.query(`\n  CREATE INDEX idx_user_locations_lat_lon ON user_locations (lat_quantized, lon_quantized)\n`);\n"
+  },
+  "provenance": {
+    "catalog": {
+      "path": "annotated-18-discovery-nearby-va-direct-invite.mjs",
+      "sha256": "d96424558572ff9c940af2464d8b3bad6bbf3e91fe8877f4bdab7f3d2e151233"
+    },
+    "displayedCodeSha256": "9a74ef6039ee634b006ab415986ff18b53e9a794a764df256914feffc6a1a65f"
+  }
+}

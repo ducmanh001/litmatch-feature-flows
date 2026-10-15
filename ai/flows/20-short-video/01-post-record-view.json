@@ -1,0 +1,528 @@
+{
+  "id": "20-short-video/01-post-record-view",
+  "featureId": "20-short-video",
+  "feature": "Short Video",
+  "summary": "Video ngắn: tác giả tải lên, người xem lướt, thả tim, bình luận; lượt xem và thứ hạng được đếm chống trùng.",
+  "name": "Ghi nhận lượt xem video",
+  "title": "Ghi watch-time của người xem và cộng viewCount đúng 1 lần khi xem đủ ngưỡng, kể cả khi nhiều request đến cùng lúc.",
+  "method": "POST",
+  "route": "/api/v1/videos/:id/views",
+  "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.ts",
+  "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/20-short-video/01-post-record-view.json",
+  "diagramUrl": "https://ducmanh001.github.io/litmatch-feature-flows/#20-short-video",
+  "catalog": "annotated-20-short-video.mjs",
+  "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES]",
+  "roles": [
+    [
+      "CONTROLLER",
+      "Nhận watchTimeMs mà client báo, giao cho service và trả 204."
+    ],
+    [
+      "SERVICE",
+      "Kiểm video xem được, bỏ qua tác giả tự xem, so watch-time với ngưỡng \"xem đủ\", cộng viewCount đúng 1 lần."
+    ],
+    [
+      "POSTGRES",
+      "Dòng video_views (unique video, người xem) tạo bằng ON CONFLICT DO NOTHING rồi khóa FOR UPDATE; viewCount cộng nguyên tử trong cùng transaction."
+    ]
+  ],
+  "tables": [
+    [
+      "video_views",
+      "mỗi cặp (video, người xem) 1 dòng: watch_time_ms lớn nhất đã báo và cờ qualified (chỉ chuyển false → true 1 lần); unique (video_id, viewer_id)."
+    ],
+    [
+      "videos",
+      "đọc để kiểm quyền xem (tác giả hoặc đã published); view_count được cộng khi người xem đạt ngưỡng lần đầu."
+    ]
+  ],
+  "redis": [],
+  "related": [
+    [
+      "VideoRankingService",
+      "job nền tính rankScore từ viewCount, likeCount, commentCount, nên đếm đúng 1 lần ảnh hưởng thứ hạng (chưa chép)."
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "text": "Nhận watchTimeMs mà client báo (user từ JWT, id video từ URL), trả 204",
+      "line": 23,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html#L23",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/20-short-video/01-post-record-view.ts#L23"
+    },
+    {
+      "number": 2,
+      "text": "Kiểm video xem được (tác giả hoặc đã published)",
+      "line": 37,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html#L37",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/20-short-video/01-post-record-view.ts#L37"
+    },
+    {
+      "number": 3,
+      "text": "Tác giả tự xem thì không tính lượt xem",
+      "line": 42,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html#L42",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/20-short-video/01-post-record-view.ts#L42"
+    },
+    {
+      "number": 4,
+      "text": "So watch-time với ngưỡng \"xem đủ\"",
+      "line": 50,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html#L50",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/20-short-video/01-post-record-view.ts#L50"
+    },
+    {
+      "number": 5,
+      "text": "Mở transaction DB để đếm đúng 1 lần dưới race",
+      "line": 53,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html#L53",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/20-short-video/01-post-record-view.ts#L53"
+    },
+    {
+      "number": 6,
+      "text": "Tạo dòng video_views nếu chưa có (INSERT ... ON CONFLICT DO NOTHING)",
+      "line": 56,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html#L56",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/20-short-video/01-post-record-view.ts#L56"
+    },
+    {
+      "number": 7,
+      "text": "Khóa dòng (FOR UPDATE) để request song song xếp hàng",
+      "line": 73,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html#L73",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/20-short-video/01-post-record-view.ts#L73"
+    },
+    {
+      "number": 8,
+      "text": "Ghi watch-time lớn nhất và cờ qualified",
+      "line": 84,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html#L84",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/20-short-video/01-post-record-view.ts#L84"
+    },
+    {
+      "number": 9,
+      "text": "Lần đầu đạt ngưỡng thì cộng viewCount nguyên tử",
+      "line": 94,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html#L94",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/20-short-video/01-post-record-view.ts#L94"
+    }
+  ],
+  "declaredSteps": [
+    {
+      "at": "@Post(':id/views')",
+      "text": "Nhận watchTimeMs mà client báo (user từ JWT, id video từ URL), trả 204"
+    },
+    {
+      "at": "const video = await this.getVideoOrThrow(user, videoId);",
+      "text": "Kiểm video xem được (tác giả hoặc đã published)"
+    },
+    {
+      "at": "if (video.authorUserId === user.userId) return;",
+      "text": "Tác giả tự xem thì không tính lượt xem"
+    },
+    {
+      "at": "const nowQualifies = watchTimeMs >= qualifiedMinMs;",
+      "text": "So watch-time với ngưỡng \"xem đủ\""
+    },
+    {
+      "at": "await this.dataSource.transaction(async (manager) => {",
+      "text": "Mở transaction DB để đếm đúng 1 lần dưới race"
+    },
+    {
+      "at": "await manager",
+      "text": "Tạo dòng video_views nếu chưa có (INSERT ... ON CONFLICT DO NOTHING)"
+    },
+    {
+      "at": "const view = await manager.findOneOrFail(VideoView, {",
+      "text": "Khóa dòng (FOR UPDATE) để request song song xếp hàng"
+    },
+    {
+      "at": "await manager.update(",
+      "text": "Ghi watch-time lớn nhất và cờ qualified"
+    },
+    {
+      "at": "if (shouldQualifyNow) {",
+      "text": "Lần đầu đạt ngưỡng thì cộng viewCount nguyên tử"
+    }
+  ],
+  "whyComments": [
+    {
+      "at": "const video = await this.getVideoOrThrow(user, videoId);",
+      "text": [
+        "Không tồn tại, removed, rejected, hoặc chưa published (với người không phải tác giả) đều trả CÙNG mã 404."
+      ],
+      "src": "doc getVideoOrThrow short-video.service.ts L169 (comment gốc của hàm được gọi ở dòng này)",
+      "file": "apps/core-api/src/modules/short-video/short-video.service.ts"
+    },
+    {
+      "at": "await manager",
+      "text": [
+        "[POSTGRES] Tạo dòng bằng INSERT ... ON CONFLICT DO NOTHING: không ném unique violation nên Postgres không hủy transaction (insert lỗi rồi đọc lại trong cùng transaction sẽ dính \"current transaction is aborted\")."
+      ],
+      "src": "comment gốc short-video.service.ts L269-270",
+      "file": "apps/core-api/src/modules/short-video/short-video.service.ts"
+    },
+    {
+      "at": "const view = await manager.findOneOrFail(VideoView, {",
+      "text": [
+        "Rồi KHÓA dòng (FOR UPDATE): 2 request đồng thời của cùng người xem chạy tuần tự, request sau thấy qualified = true của request trước nên không cộng viewCount lần nữa."
+      ],
+      "src": "comment gốc short-video.service.ts L270-271",
+      "file": "apps/core-api/src/modules/short-video/short-video.service.ts"
+    },
+    {
+      "at": "const shouldQualifyNow = nowQualifies && !view.qualified;",
+      "text": [
+        "qualified chỉ chuyển false → true đúng 1 lần; các lần cập nhật watch-time sau không cộng lại (idempotent theo cờ)."
+      ],
+      "src": "doc recordView short-video.service.ts L249-253",
+      "file": "apps/core-api/src/modules/short-video/short-video.service.ts"
+    }
+  ],
+  "sources": [
+    "apps/core-api/src/database/migrations/1754800000000-short-video.ts",
+    "apps/core-api/src/modules/short-video/short-video.controller.ts",
+    "apps/core-api/src/modules/short-video/short-video.service.ts"
+  ],
+  "sourceContext": {
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/short-video/short-video.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post(':id/views')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/short-video/short-video.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async recordView(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const video = await this.getVideoOrThrow(user, videoId);",
+            "text": [
+              "Không tồn tại, removed, rejected, hoặc chưa published (với người không phải tác giả) đều trả CÙNG mã 404."
+            ],
+            "src": "doc getVideoOrThrow short-video.service.ts L169 (comment gốc của hàm được gọi ở dòng này)"
+          },
+          {
+            "at": "await manager",
+            "text": [
+              "[POSTGRES] Tạo dòng bằng INSERT ... ON CONFLICT DO NOTHING: không ném unique violation nên Postgres không hủy transaction (insert lỗi rồi đọc lại trong cùng transaction sẽ dính \"current transaction is aborted\")."
+            ],
+            "src": "comment gốc short-video.service.ts L269-270"
+          },
+          {
+            "at": "const view = await manager.findOneOrFail(VideoView, {",
+            "text": [
+              "Rồi KHÓA dòng (FOR UPDATE): 2 request đồng thời của cùng người xem chạy tuần tự, request sau thấy qualified = true của request trước nên không cộng viewCount lần nữa."
+            ],
+            "src": "comment gốc short-video.service.ts L270-271"
+          },
+          {
+            "at": "const shouldQualifyNow = nowQualifies && !view.qualified;",
+            "text": [
+              "qualified chỉ chuyển false → true đúng 1 lần; các lần cập nhật watch-time sau không cộng lại (idempotent theo cờ)."
+            ],
+            "src": "doc recordView short-video.service.ts L249-253"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/short-video/short-video.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async getVideoOrThrow(",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1754800000000-short-video.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE video_views (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      }
+    ],
+    "ranges": [
+      {
+        "file": "apps/core-api/src/modules/short-video/short-video.controller.ts",
+        "range": {
+          "at": "@Post(':id/views')",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/short-video/short-video.service.ts",
+        "range": {
+          "at": "async recordView(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/short-video/short-video.service.ts",
+        "range": {
+          "at": "async getVideoOrThrow(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/database/migrations/1754800000000-short-video.ts",
+        "range": {
+          "at": "CREATE TABLE video_views (",
+          "to": "^    `\\);$",
+          "pad": [
+            1,
+            0
+          ]
+        }
+      }
+    ],
+    "helpers": [],
+    "skip": [
+      "getVideoOrThrow"
+    ],
+    "attach": {},
+    "nested": true
+  },
+  "omittedContext": {
+    "note": "Curated source selection; unlisted call bodies, shared request infrastructure, DTOs and other context may be omitted. skip names stay unexpanded; helpers may be substituted; attach controls placement. Flattened scopes are not executable code.",
+    "skip": [
+      "getVideoOrThrow"
+    ],
+    "attach": {},
+    "helpers": []
+  },
+  "featureMetadata": {
+    "id": "20-short-video",
+    "short": "Short Video",
+    "title": "Short Video",
+    "summary": "Video ngắn: tác giả tải lên, người xem lướt, thả tim, bình luận; lượt xem và thứ hạng được đếm chống trùng.",
+    "diagramAnchor": "20-short-video"
+  },
+  "endpointCatalog": {
+    "n": "01",
+    "slug": "post-record-view",
+    "method": "POST",
+    "short": "/videos/:id/views",
+    "route": "/api/v1/videos/:id/views",
+    "name": "Ghi nhận lượt xem video",
+    "title": "Ghi watch-time của người xem và cộng viewCount đúng 1 lần khi xem đủ ngưỡng, kể cả khi nhiều request đến cùng lúc.",
+    "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES]",
+    "roles": [
+      [
+        "CONTROLLER",
+        "Nhận watchTimeMs mà client báo, giao cho service và trả 204."
+      ],
+      [
+        "SERVICE",
+        "Kiểm video xem được, bỏ qua tác giả tự xem, so watch-time với ngưỡng \"xem đủ\", cộng viewCount đúng 1 lần."
+      ],
+      [
+        "POSTGRES",
+        "Dòng video_views (unique video, người xem) tạo bằng ON CONFLICT DO NOTHING rồi khóa FOR UPDATE; viewCount cộng nguyên tử trong cùng transaction."
+      ]
+    ],
+    "tables": [
+      [
+        "video_views",
+        "mỗi cặp (video, người xem) 1 dòng: watch_time_ms lớn nhất đã báo và cờ qualified (chỉ chuyển false → true 1 lần); unique (video_id, viewer_id)."
+      ],
+      [
+        "videos",
+        "đọc để kiểm quyền xem (tác giả hoặc đã published); view_count được cộng khi người xem đạt ngưỡng lần đầu."
+      ]
+    ],
+    "related": [
+      [
+        "VideoRankingService",
+        "job nền tính rankScore từ viewCount, likeCount, commentCount, nên đếm đúng 1 lần ảnh hưởng thứ hạng (chưa chép)."
+      ]
+    ],
+    "nested": true,
+    "skip": [
+      "getVideoOrThrow"
+    ],
+    "steps": [
+      {
+        "at": "@Post(':id/views')",
+        "text": "Nhận watchTimeMs mà client báo (user từ JWT, id video từ URL), trả 204"
+      },
+      {
+        "at": "const video = await this.getVideoOrThrow(user, videoId);",
+        "text": "Kiểm video xem được (tác giả hoặc đã published)"
+      },
+      {
+        "at": "if (video.authorUserId === user.userId) return;",
+        "text": "Tác giả tự xem thì không tính lượt xem"
+      },
+      {
+        "at": "const nowQualifies = watchTimeMs >= qualifiedMinMs;",
+        "text": "So watch-time với ngưỡng \"xem đủ\""
+      },
+      {
+        "at": "await this.dataSource.transaction(async (manager) => {",
+        "text": "Mở transaction DB để đếm đúng 1 lần dưới race"
+      },
+      {
+        "at": "await manager",
+        "text": "Tạo dòng video_views nếu chưa có (INSERT ... ON CONFLICT DO NOTHING)"
+      },
+      {
+        "at": "const view = await manager.findOneOrFail(VideoView, {",
+        "text": "Khóa dòng (FOR UPDATE) để request song song xếp hàng"
+      },
+      {
+        "at": "await manager.update(",
+        "text": "Ghi watch-time lớn nhất và cờ qualified"
+      },
+      {
+        "at": "if (shouldQualifyNow) {",
+        "text": "Lần đầu đạt ngưỡng thì cộng viewCount nguyên tử"
+      }
+    ],
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/short-video/short-video.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post(':id/views')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/short-video/short-video.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async recordView(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const video = await this.getVideoOrThrow(user, videoId);",
+            "text": [
+              "Không tồn tại, removed, rejected, hoặc chưa published (với người không phải tác giả) đều trả CÙNG mã 404."
+            ],
+            "src": "doc getVideoOrThrow short-video.service.ts L169 (comment gốc của hàm được gọi ở dòng này)"
+          },
+          {
+            "at": "await manager",
+            "text": [
+              "[POSTGRES] Tạo dòng bằng INSERT ... ON CONFLICT DO NOTHING: không ném unique violation nên Postgres không hủy transaction (insert lỗi rồi đọc lại trong cùng transaction sẽ dính \"current transaction is aborted\")."
+            ],
+            "src": "comment gốc short-video.service.ts L269-270"
+          },
+          {
+            "at": "const view = await manager.findOneOrFail(VideoView, {",
+            "text": [
+              "Rồi KHÓA dòng (FOR UPDATE): 2 request đồng thời của cùng người xem chạy tuần tự, request sau thấy qualified = true của request trước nên không cộng viewCount lần nữa."
+            ],
+            "src": "comment gốc short-video.service.ts L270-271"
+          },
+          {
+            "at": "const shouldQualifyNow = nowQualifies && !view.qualified;",
+            "text": [
+              "qualified chỉ chuyển false → true đúng 1 lần; các lần cập nhật watch-time sau không cộng lại (idempotent theo cờ)."
+            ],
+            "src": "doc recordView short-video.service.ts L249-253"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/short-video/short-video.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async getVideoOrThrow(",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1754800000000-short-video.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE video_views (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "sourceManifest": {
+    "verifiedCodeSha256": true,
+    "mode": "published-presentation",
+    "baselineCommit": "cb30743143bd8f6576b154db4b606380c365c674",
+    "sourceCommit": "d3cb28c",
+    "sources": [
+      "apps/core-api/src/database/migrations/1754800000000-short-video.ts",
+      "apps/core-api/src/modules/short-video/short-video.controller.ts",
+      "apps/core-api/src/modules/short-video/short-video.service.ts"
+    ],
+    "steps": [
+      "Step 1: Nhận watchTimeMs mà client báo (user từ JWT, id video từ URL), trả 204",
+      "Step 2: Kiểm video xem được (tác giả hoặc đã published)",
+      "Step 3: Tác giả tự xem thì không tính lượt xem",
+      "Step 4: So watch-time với ngưỡng \"xem đủ\"",
+      "Step 5: Mở transaction DB để đếm đúng 1 lần dưới race",
+      "Step 6: Tạo dòng video_views nếu chưa có (INSERT ... ON CONFLICT DO NOTHING)",
+      "Step 7: Khóa dòng (FOR UPDATE) để request song song xếp hàng",
+      "Step 8: Ghi watch-time lớn nhất và cờ qualified",
+      "Step 9: Lần đầu đạt ngưỡng thì cộng viewCount nguyên tử"
+    ],
+    "removedOverview": "// ════════════════════════════════════════════════════════════════════════════\n//  POST /api/v1/videos/:id/views\n//  Ghi watch-time của người xem và cộng viewCount đúng 1 lần khi xem đủ ngưỡng, kể cả khi nhiều request đến cùng lúc.\n// ════════════════════════════════════════════════════════════════════════════\n//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES]\n//\n//  Vai trò từng tầng\n//    [CONTROLLER] Nhận watchTimeMs mà client báo, giao cho service và trả 204.\n//    [SERVICE]    Kiểm video xem được, bỏ qua tác giả tự xem, so watch-time với ngưỡng\n//                 \"xem đủ\", cộng viewCount đúng 1 lần.\n//    [POSTGRES]   Dòng video_views (unique video, người xem) tạo bằng ON CONFLICT DO\n//                 NOTHING rồi khóa FOR UPDATE; viewCount cộng nguyên tử trong cùng\n//                 transaction.\n//\n//  Bảng       video_views — mỗi cặp (video, người xem) 1 dòng: watch_time_ms lớn nhất\n//               đã báo và cờ qualified (chỉ chuyển false → true 1 lần); unique\n//               (video_id, viewer_id).\n//             videos — đọc để kiểm quyền xem (tác giả hoặc đã published); view_count\n//               được cộng khi người xem đạt ngưỡng lần đầu.\n//  Liên quan  VideoRankingService — job nền tính rankScore từ viewCount, likeCount,\n//               commentCount, nên đếm đúng 1 lần ảnh hưởng thứ hạng (chưa chép).\n//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi\n//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới\n//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //\n//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các\n//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số\n//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức\n//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong\n//             repo.\n",
+    "baselineBodySha256": "f005619d09149030826f0d482d44b8c46d3e74dfd0f14accf2b8847d2f211acc",
+    "bodySha256": "f005619d09149030826f0d482d44b8c46d3e74dfd0f14accf2b8847d2f211acc",
+    "rawSha256": "46f030fdaf35a4584a51a2780ae4827be07cdac36a5f6d541b2b30b268f88b8a",
+    "codeSha256": "46f030fdaf35a4584a51a2780ae4827be07cdac36a5f6d541b2b30b268f88b8a"
+  },
+  "code": {
+    "path": "code/20-short-video/01-post-record-view.ts",
+    "sha256": "46f030fdaf35a4584a51a2780ae4827be07cdac36a5f6d541b2b30b268f88b8a",
+    "hashAlgorithm": "sha256",
+    "content": "//  POST /api/v1/videos/:id/views\n//  Ghi watch-time của người xem và cộng viewCount đúng 1 lần khi xem đủ ngưỡng, kể cả khi nhiều request đến cùng lúc.\n//  Step 1: Nhận watchTimeMs mà client báo (user từ JWT, id video từ URL), trả 204\n//  Step 2: Kiểm video xem được (tác giả hoặc đã published)\n//  Step 3: Tác giả tự xem thì không tính lượt xem\n//  Step 4: So watch-time với ngưỡng \"xem đủ\"\n//  Step 5: Mở transaction DB để đếm đúng 1 lần dưới race\n//  Step 6: Tạo dòng video_views nếu chưa có (INSERT ... ON CONFLICT DO NOTHING)\n//  Step 7: Khóa dòng (FOR UPDATE) để request song song xếp hàng\n//  Step 8: Ghi watch-time lớn nhất và cờ qualified\n//  Step 9: Lần đầu đạt ngưỡng thì cộng viewCount nguyên tử\n\n// [CONTROLLER] ShortVideoController.recordView  ·  short-video.controller.ts L48–49, L132–141\n@Controller('videos')\nexport class ShortVideoController {\n  constructor(\n    private readonly videoService: ShortVideoService,\n    // ShortVideoService\n    @InjectDataSource() private readonly dataSource: DataSource,\n    private readonly config: ConfigService<CoreApiEnv, true>,\n  ) {}\n\n  // Step 1: Nhận watchTimeMs mà client báo (user từ JWT, id video từ URL), trả 204\n  @Post(':id/views')\n  @HttpCode(HttpStatus.NO_CONTENT)\n  async recordView(\n    @CurrentUser() user: AuthenticatedUser,\n    @Param('id', ParseUUIDPipe) id: string,\n    @Body() dto: RecordViewDto,\n  ): Promise<void> {\n    await this.videoService.recordView(user, id, dto.watchTimeMs);\n\n    // [SERVICE] ShortVideoService.recordView  ·  short-video.service.ts L254–301\n    const videoId = id;\n    const watchTimeMs = dto.watchTimeMs;\n\n    // Step 2: Kiểm video xem được (tác giả hoặc đã published)\n    // Không tồn tại, removed, rejected, hoặc chưa published (với người không phải tác giả) đều\n    // trả CÙNG mã 404.\n    const video = await this.getVideoOrThrow(user, videoId);\n\n    // Step 3: Tác giả tự xem thì không tính lượt xem\n    if (video.authorUserId === user.userId) return;\n\n    const qualifiedMinMs = this.config.getOrThrow(\n      'VIDEO_QUALIFIED_VIEW_MIN_MS',\n      { infer: true },\n    );\n\n    // Step 4: So watch-time với ngưỡng \"xem đủ\"\n    const nowQualifies = watchTimeMs >= qualifiedMinMs;\n\n    // Step 5: Mở transaction DB để đếm đúng 1 lần dưới race\n    await this.dataSource.transaction(async (manager) => {\n\n      // Step 6: Tạo dòng video_views nếu chưa có (INSERT ... ON CONFLICT DO NOTHING)\n      // [POSTGRES] Tạo dòng bằng INSERT ... ON CONFLICT DO NOTHING: không ném unique violation\n      // nên Postgres không hủy transaction (insert lỗi rồi đọc lại trong cùng transaction sẽ dính\n      // \"current transaction is aborted\").\n      await manager\n        .createQueryBuilder()\n        .insert()\n        .into(VideoView)\n        .values({\n          videoId,\n          viewerId: user.userId,\n          watchTimeMs: 0,\n          qualified: false,\n        })\n        .orIgnore()\n        .execute();\n\n      // Step 7: Khóa dòng (FOR UPDATE) để request song song xếp hàng\n      // Rồi KHÓA dòng (FOR UPDATE): 2 request đồng thời của cùng người xem chạy tuần tự, request\n      // sau thấy qualified = true của request trước nên không cộng viewCount lần nữa.\n      const view = await manager.findOneOrFail(VideoView, {\n        where: { videoId, viewerId: user.userId },\n        lock: { mode: 'pessimistic_write' },\n      });\n      // qualified chỉ chuyển false → true đúng 1 lần; các lần cập nhật watch-time sau không cộng\n      // lại (idempotent theo cờ).\n      const shouldQualifyNow = nowQualifies && !view.qualified;\n\n      // Step 8: Ghi watch-time lớn nhất và cờ qualified\n      await manager.update(\n        VideoView,\n        { id: view.id },\n        {\n          watchTimeMs: Math.max(view.watchTimeMs, watchTimeMs),\n          qualified: view.qualified || nowQualifies,\n        },\n      );\n\n      // Step 9: Lần đầu đạt ngưỡng thì cộng viewCount nguyên tử\n      if (shouldQualifyNow) {\n        await manager.increment(Video, { id: videoId }, 'viewCount', 1);\n      }\n    });\n  }\n}\n\n// [POSTGRES] CREATE TABLE video_views  ·  1754800000000-short-video.ts L41–51\nawait queryRunner.query(`\n  CREATE TABLE video_views (\n    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n    video_id      uuid NOT NULL REFERENCES videos(id) ON DELETE CASCADE,\n    viewer_id     uuid NOT NULL REFERENCES users(id),\n    watch_time_ms int NOT NULL DEFAULT 0,\n    qualified     boolean NOT NULL DEFAULT false,\n    created_at    timestamptz NOT NULL DEFAULT now(),\n    CONSTRAINT uq_video_views_video_viewer UNIQUE (video_id, viewer_id)\n  )\n`);\n"
+  },
+  "provenance": {
+    "catalog": {
+      "path": "annotated-20-short-video.mjs",
+      "sha256": "3368e583bba75429bfeb9ecc6cd44171ca820635bca0a9d93d0f0bb3e7f3405f"
+    },
+    "displayedCodeSha256": "46f030fdaf35a4584a51a2780ae4827be07cdac36a5f6d541b2b30b268f88b8a"
+  }
+}

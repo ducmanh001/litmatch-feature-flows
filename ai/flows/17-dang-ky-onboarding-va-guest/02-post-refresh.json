@@ -1,0 +1,924 @@
+{
+  "id": "17-dang-ky-onboarding-va-guest/02-post-refresh",
+  "featureId": "17-dang-ky-onboarding-va-guest",
+  "feature": "Đăng ký, Onboarding và Guest",
+  "summary": "Đăng nhập bằng OTP, social hoặc guest, tự tạo tài khoản ở lần đầu và giữ phiên bằng refresh token xoay vòng.",
+  "name": "Đổi refresh token lấy phiên mới",
+  "title": "Xoay refresh token mỗi lần dùng và phát hiện dùng lại: token đã xoay mà bị dùng lại thì thu hồi cả họ token.",
+  "method": "POST",
+  "route": "/api/v1/auth/refresh",
+  "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts",
+  "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/17-dang-ky-onboarding-va-guest/02-post-refresh.json",
+  "diagramUrl": "https://ducmanh001.github.io/litmatch-feature-flows/#17-dang-ky-onboarding-va-guest",
+  "catalog": "annotated-17-dang-ky-onboarding-va-guest.mjs",
+  "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [CONTROLLER]",
+  "roles": [
+    [
+      "CONTROLLER",
+      "Chặn bằng CSRF double-submit, đọc refresh token từ cookie httpOnly, rồi đặt cặp cookie mới và trả access token (không trả refresh token trong body)."
+    ],
+    [
+      "SERVICE",
+      "Sinh token mới và nhờ adapter xoay token cũ; kiểm lại trạng thái user tại thời điểm refresh, bị khóa thì thu hồi token vừa cấp."
+    ],
+    [
+      "POSTGRES",
+      "Khóa dòng token (FOR UPDATE), đánh dấu rotated bằng UPDATE có điều kiện, ghi token mới cùng transaction; dùng lại token cũ thì thu hồi cả family."
+    ]
+  ],
+  "tables": [
+    [
+      "refresh_tokens",
+      "mỗi lần xoay: dòng cũ được đánh dấu rotated_at, dòng mới giữ cùng family_id; token_hash unique; dùng lại thì revoked_at được đặt cho cả family."
+    ],
+    [
+      "users",
+      "đọc user để lấy role, isGuest và kiểm trạng thái còn Active."
+    ]
+  ],
+  "redis": [],
+  "related": [
+    [
+      "CsrfGuard",
+      "chặn trước khi vào controller: so cookie csrf_token với header X-CSRF-Token (không chép)."
+    ],
+    [
+      "POST /auth/otp/verify, /auth/social, /auth/guest",
+      "nơi cấp refresh token đầu tiên của 1 family (xem file 01)."
+    ],
+    [
+      "POST /auth/logout",
+      "thu hồi token hiện tại và xóa cookie (chưa chép)."
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "text": "Nhận request: CSRF double-submit, refresh token đọc từ cookie",
+      "line": 33,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L33",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L33"
+    },
+    {
+      "number": 2,
+      "text": "Tìm token theo băm SHA-256, kiểm chưa thu hồi và còn hạn",
+      "line": 55,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L55",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L55"
+    },
+    {
+      "number": 3,
+      "text": "Sinh cặp token mới (chưa lưu vào DB)",
+      "line": 74,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L74",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L74"
+    },
+    {
+      "number": 4,
+      "text": "Giao adapter xoay token trong 1 transaction",
+      "line": 79,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L79",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L79"
+    },
+    {
+      "number": 5,
+      "text": "Đọc lại token cũ và khóa dòng (FOR UPDATE)",
+      "line": 98,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L98",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L98"
+    },
+    {
+      "number": 6,
+      "text": "Token đã xoay mà bị dùng lại thì thu hồi cả family",
+      "line": 109,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L109",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L109"
+    },
+    {
+      "number": 7,
+      "text": "Đánh dấu token cũ đã xoay (UPDATE có điều kiện)",
+      "line": 121,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L121",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L121"
+    },
+    {
+      "number": 8,
+      "text": "Ghi token mới cùng family, cùng transaction",
+      "line": 138,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L138",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L138"
+    },
+    {
+      "number": 9,
+      "text": "Kết quả invalid hoặc reused thì từ chối với 401",
+      "line": 150,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L150",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L150"
+    },
+    {
+      "number": 10,
+      "text": "Kiểm lại trạng thái user, bị khóa thì thu hồi token vừa cấp",
+      "line": 166,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L166",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L166"
+    },
+    {
+      "number": 11,
+      "text": "Đặt refresh token mới vào cookie httpOnly, không trả trong body",
+      "line": 187,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L187",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L187"
+    },
+    {
+      "number": 12,
+      "text": "Trả access token và csrfToken trong body",
+      "line": 203,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L203",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L203"
+    }
+  ],
+  "declaredSteps": [
+    {
+      "at": "@Post('refresh')",
+      "text": "Nhận request: CSRF double-submit, refresh token đọc từ cookie"
+    },
+    {
+      "at": "const session = await this.refreshSessions.findByTokenHash(",
+      "text": "Tìm token theo băm SHA-256, kiểm chưa thu hồi và còn hạn"
+    },
+    {
+      "at": "const tokens = await this.issueTokens(",
+      "text": "Sinh cặp token mới (chưa lưu vào DB)"
+    },
+    {
+      "at": "const result = await this.refreshSessions.rotate({",
+      "text": "Giao adapter xoay token trong 1 transaction"
+    },
+    {
+      "at": "const session = await manager.findOne(RefreshToken, {",
+      "text": "Đọc lại token cũ và khóa dòng (FOR UPDATE)"
+    },
+    {
+      "at": "if (session.rotatedAt) {",
+      "text": "Token đã xoay mà bị dùng lại thì thu hồi cả family"
+    },
+    {
+      "at": "const marked = await manager.update(",
+      "text": "Đánh dấu token cũ đã xoay (UPDATE có điều kiện)"
+    },
+    {
+      "at": "await manager.insert(RefreshToken, {",
+      "text": "Ghi token mới cùng family, cùng transaction"
+    },
+    {
+      "at": "if (result === 'invalid') {",
+      "text": "Kết quả invalid hoặc reused thì từ chối với 401"
+    },
+    {
+      "at": "const user = await this.userService.getByIdOrThrow(userId);",
+      "text": "Kiểm lại trạng thái user, bị khóa thì thu hồi token vừa cấp"
+    },
+    {
+      "at": "setAuthCookies(res, {",
+      "text": "Đặt refresh token mới vào cookie httpOnly, không trả trong body"
+    },
+    {
+      "at": "return {",
+      "in": "AuthController.finalizeSession",
+      "text": "Trả access token và csrfToken trong body"
+    }
+  ],
+  "whyComments": [
+    {
+      "at": "@UseGuards(CsrfGuard)",
+      "text": [
+        "CSRF double-submit: so cookie csrf_token với header X-CSRF-Token (giá trị client nhận qua body lúc đăng nhập), lệch hoặc thiếu thì 401. Cần vì cookie refresh tự gắn theo request."
+      ],
+      "src": "docs/adr/0007-httponly-cookie-refresh-token.md mục 3",
+      "file": "apps/core-api/src/modules/auth/auth.controller.ts"
+    },
+    {
+      "at": "const user = await this.userService.getByIdOrThrow(userId);",
+      "text": [
+        "Xác minh lại trạng thái ĐÚNG THỜI ĐIỂM hành động: user bị khóa giữa 2 lần refresh thì không được cấp phiên mới."
+      ],
+      "src": "comment gốc auth.service.ts L126-127",
+      "file": "apps/core-api/src/modules/auth/auth.service.ts"
+    },
+    {
+      "at": "await this.tokenService.revoke(tokens.refreshToken);",
+      "text": [
+        "Thu hồi luôn token mới vừa cấp, vì bước xoay đã lưu nó vào DB."
+      ],
+      "src": "suy ra từ code (rotate đã ghi token mới trước khi kiểm user)",
+      "file": "apps/core-api/src/modules/auth/auth.service.ts"
+    },
+    {
+      "at": "const tokens = await this.issueTokens(user.id, user.isGuest, user.role);",
+      "text": [
+        "Chỉ sinh token (chưa lưu): việc lưu token mới nằm TRONG transaction xoay của adapter, cùng với đánh dấu token cũ."
+      ],
+      "src": "suy ra từ code (issueTokens không gọi refreshSessions.issue; replacement truyền vào refreshSessions.rotate)",
+      "file": "apps/core-api/src/modules/auth/services/token.service.ts"
+    },
+    {
+      "at": "if (result === 'reused') {",
+      "text": [
+        "Token đã xoay mà bị dùng lại: adapter đã thu hồi cả family (mọi token cùng lần đăng nhập), nên cả bên dùng lại lẫn người thật phải đăng nhập lại."
+      ],
+      "src": "doc entity refresh-token.entity.ts L10-12 + message DomainException token.service.ts",
+      "file": "apps/core-api/src/modules/auth/services/token.service.ts"
+    },
+    {
+      "at": "return createHash('sha256').update(value).digest('hex');",
+      "text": [
+        "SHA-256 là đủ vì token ngẫu nhiên 48 byte (không phải mật khẩu), không cần bcrypt."
+      ],
+      "src": "doc hash token.service.ts L150 + auth.constants.ts L14",
+      "file": "apps/core-api/src/modules/auth/services/token.service.ts"
+    },
+    {
+      "at": "lock: { mode: 'pessimistic_write' },",
+      "text": [
+        "Khóa dòng token (FOR UPDATE): 2 request song song cùng 1 token xếp hàng, chỉ 1 request đánh dấu được rotated."
+      ],
+      "src": "doc rotate token.service.ts L64-66 + suy ra từ code (khóa dòng rồi UPDATE có điều kiện)",
+      "file": "apps/core-api/src/modules/auth/repositories/typeorm-refresh-session.adapter.ts"
+    },
+    {
+      "at": "if (session.rotatedAt) {",
+      "text": [
+        "Token đã xoay mà còn được dùng lại: thu hồi cả family (mọi token chưa revoke cùng familyId)."
+      ],
+      "src": "doc entity refresh-token.entity.ts L10-12",
+      "file": "apps/core-api/src/modules/auth/repositories/typeorm-refresh-session.adapter.ts"
+    },
+    {
+      "at": "const marked = await manager.update(",
+      "text": [
+        "Đánh dấu rotated bằng UPDATE có điều kiện rotated_at IS NULL; 0 dòng bị ảnh hưởng nghĩa là request khác đã xoay trước, coi như dùng lại."
+      ],
+      "src": "doc rotate token.service.ts L64-66",
+      "file": "apps/core-api/src/modules/auth/repositories/typeorm-refresh-session.adapter.ts"
+    },
+    {
+      "at": "await manager.insert(RefreshToken, {",
+      "text": [
+        "Token mới giữ nguyên familyId và ghi cùng transaction với việc đánh dấu token cũ: không có trạng thái cũ đã xoay mà chưa có token mới."
+      ],
+      "src": "suy ra từ code (cùng manager, familyId: session.familyId)",
+      "file": "apps/core-api/src/modules/auth/repositories/typeorm-refresh-session.adapter.ts"
+    },
+    {
+      "at": "setAuthCookies(res, {",
+      "text": [
+        "Refresh token chỉ đi qua cookie httpOnly rồi bị bóc khỏi body trả về: client (và XSS) không bao giờ thấy giá trị này."
+      ],
+      "src": "doc finalizeSession auth.controller.ts L148 + docs/adr/0007-httponly-cookie-refresh-token.md mục 1",
+      "file": "apps/core-api/src/modules/auth/auth.controller.ts"
+    }
+  ],
+  "sources": [
+    "apps/core-api/src/database/migrations/1751900000000-init-auth-user.ts",
+    "apps/core-api/src/modules/auth/auth.controller.ts",
+    "apps/core-api/src/modules/auth/auth.cookies.ts",
+    "apps/core-api/src/modules/auth/auth.service.ts",
+    "apps/core-api/src/modules/auth/repositories/typeorm-refresh-session.adapter.ts",
+    "apps/core-api/src/modules/auth/services/token.service.ts"
+  ],
+  "sourceContext": {
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/auth/auth.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('refresh')",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "@UseGuards(CsrfGuard)",
+            "text": [
+              "CSRF double-submit: so cookie csrf_token với header X-CSRF-Token (giá trị client nhận qua body lúc đăng nhập), lệch hoặc thiếu thì 401. Cần vì cookie refresh tự gắn theo request."
+            ],
+            "src": "docs/adr/0007-httponly-cookie-refresh-token.md mục 3"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/auth/auth.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async refresh(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const user = await this.userService.getByIdOrThrow(userId);",
+            "text": [
+              "Xác minh lại trạng thái ĐÚNG THỜI ĐIỂM hành động: user bị khóa giữa 2 lần refresh thì không được cấp phiên mới."
+            ],
+            "src": "comment gốc auth.service.ts L126-127"
+          },
+          {
+            "at": "await this.tokenService.revoke(tokens.refreshToken);",
+            "text": [
+              "Thu hồi luôn token mới vừa cấp, vì bước xoay đã lưu nó vào DB."
+            ],
+            "src": "suy ra từ code (rotate đã ghi token mới trước khi kiểm user)"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/auth/services/token.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async rotate(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async issueTokens(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private hash(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const tokens = await this.issueTokens(user.id, user.isGuest, user.role);",
+            "text": [
+              "Chỉ sinh token (chưa lưu): việc lưu token mới nằm TRONG transaction xoay của adapter, cùng với đánh dấu token cũ."
+            ],
+            "src": "suy ra từ code (issueTokens không gọi refreshSessions.issue; replacement truyền vào refreshSessions.rotate)"
+          },
+          {
+            "at": "if (result === 'reused') {",
+            "text": [
+              "Token đã xoay mà bị dùng lại: adapter đã thu hồi cả family (mọi token cùng lần đăng nhập), nên cả bên dùng lại lẫn người thật phải đăng nhập lại."
+            ],
+            "src": "doc entity refresh-token.entity.ts L10-12 + message DomainException token.service.ts"
+          },
+          {
+            "at": "return createHash('sha256').update(value).digest('hex');",
+            "text": [
+              "SHA-256 là đủ vì token ngẫu nhiên 48 byte (không phải mật khẩu), không cần bcrypt."
+            ],
+            "src": "doc hash token.service.ts L150 + auth.constants.ts L14"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/modules/auth/repositories/typeorm-refresh-session.adapter.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async findByTokenHash(",
+            "to": "^  }$"
+          },
+          {
+            "at": "async rotate(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "lock: { mode: 'pessimistic_write' },",
+            "text": [
+              "Khóa dòng token (FOR UPDATE): 2 request song song cùng 1 token xếp hàng, chỉ 1 request đánh dấu được rotated."
+            ],
+            "src": "doc rotate token.service.ts L64-66 + suy ra từ code (khóa dòng rồi UPDATE có điều kiện)"
+          },
+          {
+            "at": "if (session.rotatedAt) {",
+            "text": [
+              "Token đã xoay mà còn được dùng lại: thu hồi cả family (mọi token chưa revoke cùng familyId)."
+            ],
+            "src": "doc entity refresh-token.entity.ts L10-12"
+          },
+          {
+            "at": "const marked = await manager.update(",
+            "text": [
+              "Đánh dấu rotated bằng UPDATE có điều kiện rotated_at IS NULL; 0 dòng bị ảnh hưởng nghĩa là request khác đã xoay trước, coi như dùng lại."
+            ],
+            "src": "doc rotate token.service.ts L64-66"
+          },
+          {
+            "at": "await manager.insert(RefreshToken, {",
+            "text": [
+              "Token mới giữ nguyên familyId và ghi cùng transaction với việc đánh dấu token cũ: không có trạng thái cũ đã xoay mà chưa có token mới."
+            ],
+            "src": "suy ra từ code (cùng manager, familyId: session.familyId)"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1751900000000-init-auth-user.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE refresh_tokens (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      },
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/auth/auth.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private finalizeSession(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "setAuthCookies(res, {",
+            "text": [
+              "Refresh token chỉ đi qua cookie httpOnly rồi bị bóc khỏi body trả về: client (và XSS) không bao giờ thấy giá trị này."
+            ],
+            "src": "doc finalizeSession auth.controller.ts L148 + docs/adr/0007-httponly-cookie-refresh-token.md mục 1"
+          }
+        ]
+      },
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/auth/auth.cookies.ts",
+        "ranges": [
+          {
+            "at": "function cookieOptions(",
+            "to": "^}"
+          },
+          {
+            "at": "export function setAuthCookies(",
+            "to": "^}"
+          }
+        ]
+      }
+    ],
+    "ranges": [
+      {
+        "file": "apps/core-api/src/modules/auth/auth.controller.ts",
+        "range": {
+          "at": "@Post('refresh')",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/auth/auth.service.ts",
+        "range": {
+          "at": "async refresh(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/auth/services/token.service.ts",
+        "range": {
+          "at": "async rotate(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/auth/services/token.service.ts",
+        "range": {
+          "at": "private async issueTokens(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/auth/services/token.service.ts",
+        "range": {
+          "at": "private hash(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/auth/repositories/typeorm-refresh-session.adapter.ts",
+        "range": {
+          "at": "async findByTokenHash(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/auth/repositories/typeorm-refresh-session.adapter.ts",
+        "range": {
+          "at": "async rotate(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/database/migrations/1751900000000-init-auth-user.ts",
+        "range": {
+          "at": "CREATE TABLE refresh_tokens (",
+          "to": "^    `\\);$",
+          "pad": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/auth/auth.controller.ts",
+        "range": {
+          "at": "private finalizeSession(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/auth/auth.cookies.ts",
+        "range": {
+          "at": "function cookieOptions(",
+          "to": "^}"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/auth/auth.cookies.ts",
+        "range": {
+          "at": "export function setAuthCookies(",
+          "to": "^}"
+        }
+      }
+    ],
+    "helpers": [],
+    "skip": [
+      "findByTokenHash",
+      "issueTokens",
+      "setAuthCookies",
+      "cookieOptions"
+    ],
+    "attach": {},
+    "nested": true
+  },
+  "omittedContext": {
+    "note": "Curated source selection; unlisted call bodies, shared request infrastructure, DTOs and other context may be omitted. skip names stay unexpanded; helpers may be substituted; attach controls placement. Flattened scopes are not executable code.",
+    "skip": [
+      "findByTokenHash",
+      "issueTokens",
+      "setAuthCookies",
+      "cookieOptions"
+    ],
+    "attach": {},
+    "helpers": []
+  },
+  "featureMetadata": {
+    "id": "17-dang-ky-onboarding-va-guest",
+    "short": "Đăng ký, Onboarding và Guest",
+    "title": "Đăng ký, Onboarding và Guest",
+    "summary": "Đăng nhập bằng OTP, social hoặc guest, tự tạo tài khoản ở lần đầu và giữ phiên bằng refresh token xoay vòng.",
+    "diagramAnchor": "17-dang-ky-onboarding-va-guest"
+  },
+  "endpointCatalog": {
+    "n": "02",
+    "slug": "post-refresh",
+    "method": "POST",
+    "short": "/auth/refresh",
+    "route": "/api/v1/auth/refresh",
+    "name": "Đổi refresh token lấy phiên mới",
+    "title": "Xoay refresh token mỗi lần dùng và phát hiện dùng lại: token đã xoay mà bị dùng lại thì thu hồi cả họ token.",
+    "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [CONTROLLER]",
+    "roles": [
+      [
+        "CONTROLLER",
+        "Chặn bằng CSRF double-submit, đọc refresh token từ cookie httpOnly, rồi đặt cặp cookie mới và trả access token (không trả refresh token trong body)."
+      ],
+      [
+        "SERVICE",
+        "Sinh token mới và nhờ adapter xoay token cũ; kiểm lại trạng thái user tại thời điểm refresh, bị khóa thì thu hồi token vừa cấp."
+      ],
+      [
+        "POSTGRES",
+        "Khóa dòng token (FOR UPDATE), đánh dấu rotated bằng UPDATE có điều kiện, ghi token mới cùng transaction; dùng lại token cũ thì thu hồi cả family."
+      ]
+    ],
+    "tables": [
+      [
+        "refresh_tokens",
+        "mỗi lần xoay: dòng cũ được đánh dấu rotated_at, dòng mới giữ cùng family_id; token_hash unique; dùng lại thì revoked_at được đặt cho cả family."
+      ],
+      [
+        "users",
+        "đọc user để lấy role, isGuest và kiểm trạng thái còn Active."
+      ]
+    ],
+    "related": [
+      [
+        "CsrfGuard",
+        "chặn trước khi vào controller: so cookie csrf_token với header X-CSRF-Token (không chép)."
+      ],
+      [
+        "POST /auth/otp/verify, /auth/social, /auth/guest",
+        "nơi cấp refresh token đầu tiên của 1 family (xem file 01)."
+      ],
+      [
+        "POST /auth/logout",
+        "thu hồi token hiện tại và xóa cookie (chưa chép)."
+      ]
+    ],
+    "nested": true,
+    "skip": [
+      "findByTokenHash",
+      "issueTokens",
+      "setAuthCookies",
+      "cookieOptions"
+    ],
+    "steps": [
+      {
+        "at": "@Post('refresh')",
+        "text": "Nhận request: CSRF double-submit, refresh token đọc từ cookie"
+      },
+      {
+        "at": "const session = await this.refreshSessions.findByTokenHash(",
+        "text": "Tìm token theo băm SHA-256, kiểm chưa thu hồi và còn hạn"
+      },
+      {
+        "at": "const tokens = await this.issueTokens(",
+        "text": "Sinh cặp token mới (chưa lưu vào DB)"
+      },
+      {
+        "at": "const result = await this.refreshSessions.rotate({",
+        "text": "Giao adapter xoay token trong 1 transaction"
+      },
+      {
+        "at": "const session = await manager.findOne(RefreshToken, {",
+        "text": "Đọc lại token cũ và khóa dòng (FOR UPDATE)"
+      },
+      {
+        "at": "if (session.rotatedAt) {",
+        "text": "Token đã xoay mà bị dùng lại thì thu hồi cả family"
+      },
+      {
+        "at": "const marked = await manager.update(",
+        "text": "Đánh dấu token cũ đã xoay (UPDATE có điều kiện)"
+      },
+      {
+        "at": "await manager.insert(RefreshToken, {",
+        "text": "Ghi token mới cùng family, cùng transaction"
+      },
+      {
+        "at": "if (result === 'invalid') {",
+        "text": "Kết quả invalid hoặc reused thì từ chối với 401"
+      },
+      {
+        "at": "const user = await this.userService.getByIdOrThrow(userId);",
+        "text": "Kiểm lại trạng thái user, bị khóa thì thu hồi token vừa cấp"
+      },
+      {
+        "at": "setAuthCookies(res, {",
+        "text": "Đặt refresh token mới vào cookie httpOnly, không trả trong body"
+      },
+      {
+        "at": "return {",
+        "in": "AuthController.finalizeSession",
+        "text": "Trả access token và csrfToken trong body"
+      }
+    ],
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/auth/auth.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('refresh')",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "@UseGuards(CsrfGuard)",
+            "text": [
+              "CSRF double-submit: so cookie csrf_token với header X-CSRF-Token (giá trị client nhận qua body lúc đăng nhập), lệch hoặc thiếu thì 401. Cần vì cookie refresh tự gắn theo request."
+            ],
+            "src": "docs/adr/0007-httponly-cookie-refresh-token.md mục 3"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/auth/auth.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async refresh(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const user = await this.userService.getByIdOrThrow(userId);",
+            "text": [
+              "Xác minh lại trạng thái ĐÚNG THỜI ĐIỂM hành động: user bị khóa giữa 2 lần refresh thì không được cấp phiên mới."
+            ],
+            "src": "comment gốc auth.service.ts L126-127"
+          },
+          {
+            "at": "await this.tokenService.revoke(tokens.refreshToken);",
+            "text": [
+              "Thu hồi luôn token mới vừa cấp, vì bước xoay đã lưu nó vào DB."
+            ],
+            "src": "suy ra từ code (rotate đã ghi token mới trước khi kiểm user)"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/auth/services/token.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async rotate(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private async issueTokens(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private hash(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const tokens = await this.issueTokens(user.id, user.isGuest, user.role);",
+            "text": [
+              "Chỉ sinh token (chưa lưu): việc lưu token mới nằm TRONG transaction xoay của adapter, cùng với đánh dấu token cũ."
+            ],
+            "src": "suy ra từ code (issueTokens không gọi refreshSessions.issue; replacement truyền vào refreshSessions.rotate)"
+          },
+          {
+            "at": "if (result === 'reused') {",
+            "text": [
+              "Token đã xoay mà bị dùng lại: adapter đã thu hồi cả family (mọi token cùng lần đăng nhập), nên cả bên dùng lại lẫn người thật phải đăng nhập lại."
+            ],
+            "src": "doc entity refresh-token.entity.ts L10-12 + message DomainException token.service.ts"
+          },
+          {
+            "at": "return createHash('sha256').update(value).digest('hex');",
+            "text": [
+              "SHA-256 là đủ vì token ngẫu nhiên 48 byte (không phải mật khẩu), không cần bcrypt."
+            ],
+            "src": "doc hash token.service.ts L150 + auth.constants.ts L14"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/modules/auth/repositories/typeorm-refresh-session.adapter.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async findByTokenHash(",
+            "to": "^  }$"
+          },
+          {
+            "at": "async rotate(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "lock: { mode: 'pessimistic_write' },",
+            "text": [
+              "Khóa dòng token (FOR UPDATE): 2 request song song cùng 1 token xếp hàng, chỉ 1 request đánh dấu được rotated."
+            ],
+            "src": "doc rotate token.service.ts L64-66 + suy ra từ code (khóa dòng rồi UPDATE có điều kiện)"
+          },
+          {
+            "at": "if (session.rotatedAt) {",
+            "text": [
+              "Token đã xoay mà còn được dùng lại: thu hồi cả family (mọi token chưa revoke cùng familyId)."
+            ],
+            "src": "doc entity refresh-token.entity.ts L10-12"
+          },
+          {
+            "at": "const marked = await manager.update(",
+            "text": [
+              "Đánh dấu rotated bằng UPDATE có điều kiện rotated_at IS NULL; 0 dòng bị ảnh hưởng nghĩa là request khác đã xoay trước, coi như dùng lại."
+            ],
+            "src": "doc rotate token.service.ts L64-66"
+          },
+          {
+            "at": "await manager.insert(RefreshToken, {",
+            "text": [
+              "Token mới giữ nguyên familyId và ghi cùng transaction với việc đánh dấu token cũ: không có trạng thái cũ đã xoay mà chưa có token mới."
+            ],
+            "src": "suy ra từ code (cùng manager, familyId: session.familyId)"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1751900000000-init-auth-user.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE refresh_tokens (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      },
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/auth/auth.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private finalizeSession(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "setAuthCookies(res, {",
+            "text": [
+              "Refresh token chỉ đi qua cookie httpOnly rồi bị bóc khỏi body trả về: client (và XSS) không bao giờ thấy giá trị này."
+            ],
+            "src": "doc finalizeSession auth.controller.ts L148 + docs/adr/0007-httponly-cookie-refresh-token.md mục 1"
+          }
+        ]
+      },
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/auth/auth.cookies.ts",
+        "ranges": [
+          {
+            "at": "function cookieOptions(",
+            "to": "^}"
+          },
+          {
+            "at": "export function setAuthCookies(",
+            "to": "^}"
+          }
+        ]
+      }
+    ]
+  },
+  "sourceManifest": {
+    "verifiedCodeSha256": true,
+    "mode": "published-presentation",
+    "baselineCommit": "cb30743143bd8f6576b154db4b606380c365c674",
+    "sourceCommit": "d3cb28c",
+    "sources": [
+      "apps/core-api/src/database/migrations/1751900000000-init-auth-user.ts",
+      "apps/core-api/src/modules/auth/auth.controller.ts",
+      "apps/core-api/src/modules/auth/auth.cookies.ts",
+      "apps/core-api/src/modules/auth/auth.service.ts",
+      "apps/core-api/src/modules/auth/repositories/typeorm-refresh-session.adapter.ts",
+      "apps/core-api/src/modules/auth/services/token.service.ts"
+    ],
+    "steps": [
+      "Step 1: Nhận request: CSRF double-submit, refresh token đọc từ cookie",
+      "Step 2: Tìm token theo băm SHA-256, kiểm chưa thu hồi và còn hạn",
+      "Step 3: Sinh cặp token mới (chưa lưu vào DB)",
+      "Step 4: Giao adapter xoay token trong 1 transaction",
+      "Step 5: Đọc lại token cũ và khóa dòng (FOR UPDATE)",
+      "Step 6: Token đã xoay mà bị dùng lại thì thu hồi cả family",
+      "Step 7: Đánh dấu token cũ đã xoay (UPDATE có điều kiện)",
+      "Step 8: Ghi token mới cùng family, cùng transaction",
+      "Step 9: Kết quả invalid hoặc reused thì từ chối với 401",
+      "Step 10: Kiểm lại trạng thái user, bị khóa thì thu hồi token vừa cấp",
+      "Step 11: Đặt refresh token mới vào cookie httpOnly, không trả trong body",
+      "Step 12: Trả access token và csrfToken trong body"
+    ],
+    "removedOverview": "// ════════════════════════════════════════════════════════════════════════════\n//  POST /api/v1/auth/refresh\n//  Xoay refresh token mỗi lần dùng và phát hiện dùng lại: token đã xoay mà bị dùng lại thì thu hồi cả họ token.\n// ════════════════════════════════════════════════════════════════════════════\n//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [CONTROLLER]\n//\n//  Vai trò từng tầng\n//    [CONTROLLER] Chặn bằng CSRF double-submit, đọc refresh token từ cookie httpOnly,\n//                 rồi đặt cặp cookie mới và trả access token (không trả refresh token\n//                 trong body).\n//    [SERVICE]    Sinh token mới và nhờ adapter xoay token cũ; kiểm lại trạng thái user\n//                 tại thời điểm refresh, bị khóa thì thu hồi token vừa cấp.\n//    [POSTGRES]   Khóa dòng token (FOR UPDATE), đánh dấu rotated bằng UPDATE có điều\n//                 kiện, ghi token mới cùng transaction; dùng lại token cũ thì thu hồi\n//                 cả family.\n//\n//  Bảng       refresh_tokens — mỗi lần xoay: dòng cũ được đánh dấu rotated_at, dòng mới\n//               giữ cùng family_id; token_hash unique; dùng lại thì revoked_at được đặt\n//               cho cả family.\n//             users — đọc user để lấy role, isGuest và kiểm trạng thái còn Active.\n//  Liên quan  CsrfGuard — chặn trước khi vào controller: so cookie csrf_token với\n//               header X-CSRF-Token (không chép).\n//             POST /auth/otp/verify, /auth/social, /auth/guest — nơi cấp refresh token\n//               đầu tiên của 1 family (xem file 01).\n//             POST /auth/logout — thu hồi token hiện tại và xóa cookie (chưa chép).\n//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi\n//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới\n//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //\n//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các\n//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số\n//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức\n//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong\n//             repo.\n",
+    "baselineBodySha256": "977ae6edd0fedae9773aed0836e430e5ef5e27f6da8f58985061a9533c24aeee",
+    "bodySha256": "977ae6edd0fedae9773aed0836e430e5ef5e27f6da8f58985061a9533c24aeee",
+    "rawSha256": "394bda4aff1dd0237c6174ef142e6d8448c1f9bbae71b48161d8dc71e055cd49",
+    "codeSha256": "394bda4aff1dd0237c6174ef142e6d8448c1f9bbae71b48161d8dc71e055cd49"
+  },
+  "code": {
+    "path": "code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts",
+    "sha256": "394bda4aff1dd0237c6174ef142e6d8448c1f9bbae71b48161d8dc71e055cd49",
+    "hashAlgorithm": "sha256",
+    "content": "//  POST /api/v1/auth/refresh\n//  Xoay refresh token mỗi lần dùng và phát hiện dùng lại: token đã xoay mà bị dùng lại thì thu hồi cả họ token.\n//  Step 1: Nhận request: CSRF double-submit, refresh token đọc từ cookie\n//  Step 2: Tìm token theo băm SHA-256, kiểm chưa thu hồi và còn hạn\n//  Step 3: Sinh cặp token mới (chưa lưu vào DB)\n//  Step 4: Giao adapter xoay token trong 1 transaction\n//  Step 5: Đọc lại token cũ và khóa dòng (FOR UPDATE)\n//  Step 6: Token đã xoay mà bị dùng lại thì thu hồi cả family\n//  Step 7: Đánh dấu token cũ đã xoay (UPDATE có điều kiện)\n//  Step 8: Ghi token mới cùng family, cùng transaction\n//  Step 9: Kết quả invalid hoặc reused thì từ chối với 401\n//  Step 10: Kiểm lại trạng thái user, bị khóa thì thu hồi token vừa cấp\n//  Step 11: Đặt refresh token mới vào cookie httpOnly, không trả trong body\n//  Step 12: Trả access token và csrfToken trong body\n\n// [CONTROLLER] AuthController.refresh  ·  auth.controller.ts L38–40, L108–125\n@Public()\n@Controller('auth')\nexport class AuthController {\n  constructor(\n    private readonly authService: AuthService,\n    private readonly config: ConfigService<CoreApiEnv, true>,\n    // AuthService\n    private readonly userService: UserService,\n    private readonly tokenService: TokenService,\n    // TokenService\n    @Inject(RefreshSessionPort)\n    private readonly refreshSessions: RefreshSessionPort,\n    // TypeOrmRefreshSessionAdapter\n    @InjectDataSource() private readonly dataSource: DataSource,\n  ) {}\n\n  // Step 1: Nhận request: CSRF double-submit, refresh token đọc từ cookie\n  @Post('refresh')\n  @HttpCode(HttpStatus.OK)\n  // CSRF double-submit: so cookie csrf_token với header X-CSRF-Token (giá trị client nhận qua\n  // body lúc đăng nhập), lệch hoặc thiếu thì 401. Cần vì cookie refresh tự gắn theo request.\n  @UseGuards(CsrfGuard)\n  async refresh(\n    @Req() req: Request,\n    @Res({ passthrough: true }) res: Response,\n  ): Promise<AuthTokensDto> {\n    const refreshToken = extractRefreshTokenCookie(req);\n    return this.finalizeSession(\n      await this.authService.refresh(refreshToken),\n      res,\n    );\n\n    // [SERVICE] AuthService.refresh  ·  auth.service.ts L124–141\n    const { userId, tokens } = await this.tokenService.rotate(refreshToken);\n\n    // [SERVICE] TokenService.rotate  ·  token.service.ts L68–103\n    const refreshPlain = refreshToken;\n\n    // Step 2: Tìm token theo băm SHA-256, kiểm chưa thu hồi và còn hạn\n    const session = await this.refreshSessions.findByTokenHash(\n      this.hash(refreshPlain),\n    );\n\n    // [SERVICE] TokenService.hash  ·  token.service.ts L151–153\n    const value = refreshPlain;\n    // SHA-256 là đủ vì token ngẫu nhiên 48 byte (không phải mật khẩu), không cần bcrypt.\n    return createHash('sha256').update(value).digest('hex');\n\n    if (!session || session.revokedAt || session.expiresAt <= new Date()) {\n      throw this.invalidRefreshToken();\n    }\n\n    const ttlDays = this.config.getOrThrow('AUTH_REFRESH_TTL_DAYS', {\n      infer: true,\n    });\n    const user = await this.userService.getByIdOrThrow(session.userId);\n\n    // Step 3: Sinh cặp token mới (chưa lưu vào DB)\n    // Chỉ sinh token (chưa lưu): việc lưu token mới nằm TRONG transaction xoay của adapter, cùng\n    // với đánh dấu token cũ.\n    const tokens = await this.issueTokens(user.id, user.isGuest, user.role);\n\n    // Step 4: Giao adapter xoay token trong 1 transaction\n    const result = await this.refreshSessions.rotate({\n      tokenId: session.id,\n      replacement: {\n        tokenHash: this.hash(tokens.refreshToken),\n        expiresAt: this.refreshExpiresAt(ttlDays),\n      },\n    });\n\n    // [POSTGRES] TypeOrmRefreshSessionAdapter.rotate  ·  typeorm-refresh-session.adapter.ts L36–78\n    const input = {\n      tokenId: session.id,\n      replacement: {\n        tokenHash: this.hash(tokens.refreshToken),\n        expiresAt: this.refreshExpiresAt(ttlDays),\n      },\n    };\n    return this.dataSource.transaction(async (manager) => {\n\n      // Step 5: Đọc lại token cũ và khóa dòng (FOR UPDATE)\n      const session = await manager.findOne(RefreshToken, {\n        where: { id: input.tokenId },\n        // Khóa dòng token (FOR UPDATE): 2 request song song cùng 1 token xếp hàng, chỉ 1 request\n        // đánh dấu được rotated.\n        lock: { mode: 'pessimistic_write' },\n      });\n      if (!session || session.revokedAt || session.expiresAt <= new Date()) {\n        return 'invalid';\n      }\n\n      // Step 6: Token đã xoay mà bị dùng lại thì thu hồi cả family\n      // Token đã xoay mà còn được dùng lại: thu hồi cả family (mọi token chưa revoke cùng\n      // familyId).\n      if (session.rotatedAt) {\n        await manager.update(\n          RefreshToken,\n          { familyId: session.familyId, revokedAt: IsNull() },\n          { revokedAt: new Date() },\n        );\n        return 'reused';\n      }\n\n      // Step 7: Đánh dấu token cũ đã xoay (UPDATE có điều kiện)\n      // Đánh dấu rotated bằng UPDATE có điều kiện rotated_at IS NULL; 0 dòng bị ảnh hưởng nghĩa\n      // là request khác đã xoay trước, coi như dùng lại.\n      const marked = await manager.update(\n        RefreshToken,\n        { id: session.id, rotatedAt: IsNull(), revokedAt: IsNull() },\n        { rotatedAt: new Date() },\n      );\n      if (!marked.affected) {\n        await manager.update(\n          RefreshToken,\n          { familyId: session.familyId, revokedAt: IsNull() },\n          { revokedAt: new Date() },\n        );\n        return 'reused';\n      }\n\n      // Step 8: Ghi token mới cùng family, cùng transaction\n      // Token mới giữ nguyên familyId và ghi cùng transaction với việc đánh dấu token cũ: không\n      // có trạng thái cũ đã xoay mà chưa có token mới.\n      await manager.insert(RefreshToken, {\n        userId: session.userId,\n        tokenHash: input.replacement.tokenHash,\n        familyId: session.familyId,\n        expiresAt: input.replacement.expiresAt,\n      });\n      return 'rotated';\n    });\n\n    // Step 9: Kết quả invalid hoặc reused thì từ chối với 401\n    if (result === 'invalid') {\n      throw this.invalidRefreshToken();\n    }\n    // Token đã xoay mà bị dùng lại: adapter đã thu hồi cả family (mọi token cùng lần đăng nhập),\n    // nên cả bên dùng lại lẫn người thật phải đăng nhập lại.\n    if (result === 'reused') {\n      throw new DomainException(\n        AuthErrors.REFRESH_TOKEN_REUSED,\n        'Refresh token đã bị dùng lại — phiên bị thu hồi',\n        HttpStatus.UNAUTHORIZED,\n      );\n    }\n\n    return { userId: session.userId, tokens };\n\n    // Step 10: Kiểm lại trạng thái user, bị khóa thì thu hồi token vừa cấp\n    // Xác minh lại trạng thái ĐÚNG THỜI ĐIỂM hành động: user bị khóa giữa 2 lần refresh thì không\n    // được cấp phiên mới.\n    const user = await this.userService.getByIdOrThrow(userId);\n    try {\n      this.assertActive(user);\n    } catch (err) {\n      // Thu hồi luôn token mới vừa cấp, vì bước xoay đã lưu nó vào DB.\n      await this.tokenService.revoke(tokens.refreshToken);\n      throw err;\n    }\n    return {\n      ...tokens,\n      csrfToken: generateCsrfToken(),\n      userId: user.id,\n      isGuest: user.isGuest,\n    };\n\n    // [CONTROLLER] AuthController.finalizeSession  ·  auth.controller.ts L149–173\n    // session = await this.authService.refresh(refreshToken)\n\n    // Step 11: Đặt refresh token mới vào cookie httpOnly, không trả trong body\n    // Refresh token chỉ đi qua cookie httpOnly rồi bị bóc khỏi body trả về: client (và XSS) không\n    // bao giờ thấy giá trị này.\n    setAuthCookies(res, {\n      refreshToken: session.refreshToken,\n      csrfToken: session.csrfToken,\n      isProduction:\n        this.config.get('NODE_ENV', { infer: true }) === 'production',\n      crossOriginDev:\n        this.config.get('AUTH_CROSS_ORIGIN_DEV', { infer: true }) === true,\n      productionSameSite: this.config.getOrThrow('AUTH_COOKIE_SAME_SITE', {\n        infer: true,\n      }),\n      ttlDays: this.config.getOrThrow('AUTH_REFRESH_TTL_DAYS', { infer: true }),\n    });\n\n    // Step 12: Trả access token và csrfToken trong body\n    return {\n      accessToken: session.accessToken,\n      csrfToken: session.csrfToken,\n      expiresIn: session.expiresIn,\n      userId: session.userId,\n      isGuest: session.isGuest,\n      guestDeviceToken: session.guestDeviceToken,\n    };\n  }\n}\n\n// [POSTGRES] CREATE TABLE refresh_tokens  ·  1751900000000-init-auth-user.ts L42–54\nawait queryRunner.query(`\n  CREATE TABLE refresh_tokens (\n    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n    user_id       uuid         NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n    token_hash    char(64)     NOT NULL,\n    family_id     uuid         NOT NULL,\n    expires_at    timestamptz  NOT NULL,\n    revoked_at    timestamptz  NULL,\n    rotated_at    timestamptz  NULL,\n    created_at    timestamptz  NOT NULL DEFAULT now(),\n    CONSTRAINT uq_refresh_tokens_token_hash UNIQUE (token_hash)\n  )\n`);\n"
+  },
+  "provenance": {
+    "catalog": {
+      "path": "annotated-17-dang-ky-onboarding-va-guest.mjs",
+      "sha256": "19dffcfe02f7d8daaa48593af33e4bff201deaa017b52b8a7bb9ed789a33d92b"
+    },
+    "displayedCodeSha256": "394bda4aff1dd0237c6174ef142e6d8448c1f9bbae71b48161d8dc71e055cd49"
+  }
+}

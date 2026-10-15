@@ -1,0 +1,904 @@
+{
+  "id": "17-dang-ky-onboarding-va-guest/01-post-verify-otp",
+  "featureId": "17-dang-ky-onboarding-va-guest",
+  "feature": "Đăng ký, Onboarding và Guest",
+  "summary": "Đăng nhập bằng OTP, social hoặc guest, tự tạo tài khoản ở lần đầu và giữ phiên bằng refresh token xoay vòng.",
+  "name": "Xác minh OTP và đăng nhập",
+  "title": "Kiểm mã OTP có giới hạn số lần thử và chỉ dùng một lần, rồi tìm hoặc tạo tài khoản và cấp phiên đăng nhập.",
+  "method": "POST",
+  "route": "/api/v1/auth/otp/verify",
+  "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts",
+  "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html",
+  "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/17-dang-ky-onboarding-va-guest/01-post-verify-otp.json",
+  "diagramUrl": "https://ducmanh001.github.io/litmatch-feature-flows/#17-dang-ky-onboarding-va-guest",
+  "catalog": "annotated-17-dang-ky-onboarding-va-guest.mjs",
+  "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [CONTROLLER]",
+  "roles": [
+    [
+      "CONTROLLER",
+      "Nhận số điện thoại và mã OTP (giới hạn 10 lần/phút), giao cho service, rồi đặt refresh token vào cookie httpOnly và bóc nó khỏi body trả về."
+    ],
+    [
+      "SERVICE",
+      "Xác minh OTP, tìm hoặc tạo tài khoản (không tạo trùng khi 2 request song song), cấp access token và refresh token."
+    ],
+    [
+      "POSTGRES",
+      "Mã OTP lưu dạng băm, đếm lần thử và tiêu thụ mã bằng UPDATE có điều kiện; unique (provider, provider_uid) chặn tạo trùng tài khoản; refresh token lưu dạng băm."
+    ]
+  ],
+  "tables": [
+    [
+      "phone_otps",
+      "mã OTP của từng số: code_hash (HMAC), expires_at, attempt_count, consumed_at; chỉ mã chưa dùng mới nhất có giá trị."
+    ],
+    [
+      "auth_identities",
+      "cách đăng nhập của 1 user; unique (provider, provider_uid) nên cùng số điện thoại không tạo được 2 tài khoản."
+    ],
+    [
+      "users",
+      "dòng người dùng mới (nickname ngẫu nhiên, isGuest = false) hoặc dòng cũ để kiểm trạng thái."
+    ],
+    [
+      "refresh_tokens",
+      "ghi 1 dòng refresh token mới (chỉ lưu băm SHA-256) cùng family_id của lần đăng nhập này."
+    ]
+  ],
+  "redis": [],
+  "related": [
+    [
+      "POST /auth/otp/request",
+      "bước trước: tạo mã 6 số, giới hạn số lần yêu cầu theo số điện thoại mỗi giờ, vô hiệu mã cũ, lưu băm (chưa chép)."
+    ],
+    [
+      "User",
+      "createWithManager: tạo user cùng transaction với identity (không chép)."
+    ],
+    [
+      "POST /auth/refresh",
+      "bước sau: đổi refresh token lấy cặp token mới (xem file 02)."
+    ]
+  ],
+  "steps": [
+    {
+      "number": 1,
+      "text": "Nhận số điện thoại và mã OTP (giới hạn 10 lần/phút)",
+      "line": 38,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L38",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L38"
+    },
+    {
+      "number": 2,
+      "text": "Lấy mã OTP chưa dùng mới nhất của số này, kiểm còn hạn",
+      "line": 58,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L58",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L58"
+    },
+    {
+      "number": 3,
+      "text": "Cộng 1 lượt thử cho mã này, vượt giới hạn thì 429",
+      "line": 77,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L77",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L77"
+    },
+    {
+      "number": 4,
+      "text": "So băm HMAC của mã nhập với băm lưu trong DB",
+      "line": 97,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L97",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L97"
+    },
+    {
+      "number": 5,
+      "text": "Đánh dấu mã đã dùng (consumed_at), không dùng lại được",
+      "line": 122,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L122",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L122"
+    },
+    {
+      "number": 6,
+      "text": "Tìm tài khoản theo số điện thoại, chưa có thì tạo",
+      "line": 137,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L137",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L137"
+    },
+    {
+      "number": 7,
+      "text": "Chưa có tài khoản: tạo user và identity trong 1 transaction",
+      "line": 164,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L164",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L164"
+    },
+    {
+      "number": 8,
+      "text": "2 request đầu tiên chạy song song: bên dính unique đọc lại identity",
+      "line": 183,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L183",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L183"
+    },
+    {
+      "number": 9,
+      "text": "Ký access token JWT",
+      "line": 224,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L224",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L224"
+    },
+    {
+      "number": 10,
+      "text": "Sinh refresh token ngẫu nhiên, DB chỉ lưu băm SHA-256",
+      "line": 227,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L227",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L227"
+    },
+    {
+      "number": 11,
+      "text": "Đặt refresh token vào cookie httpOnly, bóc khỏi body trả về",
+      "line": 255,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L255",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L255"
+    },
+    {
+      "number": 12,
+      "text": "Trả access token và csrfToken trong body",
+      "line": 271,
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L271",
+      "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L271"
+    }
+  ],
+  "declaredSteps": [
+    {
+      "at": "@Post('otp/verify')",
+      "text": "Nhận số điện thoại và mã OTP (giới hạn 10 lần/phút)"
+    },
+    {
+      "at": "const otp = await this.otpRepo.findOne({",
+      "text": "Lấy mã OTP chưa dùng mới nhất của số này, kiểm còn hạn"
+    },
+    {
+      "at": "const counted = await this.otpRepo",
+      "text": "Cộng 1 lượt thử cho mã này, vượt giới hạn thì 429"
+    },
+    {
+      "at": "const expected = Buffer.from(otp.codeHash, 'hex');",
+      "text": "So băm HMAC của mã nhập với băm lưu trong DB"
+    },
+    {
+      "at": "const consumed = await this.otpRepo.update(",
+      "text": "Đánh dấu mã đã dùng (consumed_at), không dùng lại được"
+    },
+    {
+      "at": "const user = await this.findOrCreateUser(",
+      "text": "Tìm tài khoản theo số điện thoại, chưa có thì tạo"
+    },
+    {
+      "at": "return await this.dataSource.transaction(async (manager) => {",
+      "text": "Chưa có tài khoản: tạo user và identity trong 1 transaction"
+    },
+    {
+      "at": "if (isUniqueViolation(err)) {",
+      "text": "2 request đầu tiên chạy song song: bên dính unique đọc lại identity"
+    },
+    {
+      "at": "const accessToken = await this.jwtService.signAsync(",
+      "text": "Ký access token JWT"
+    },
+    {
+      "at": "const refreshPlain = randomBytes(",
+      "text": "Sinh refresh token ngẫu nhiên, DB chỉ lưu băm SHA-256"
+    },
+    {
+      "at": "setAuthCookies(res, {",
+      "text": "Đặt refresh token vào cookie httpOnly, bóc khỏi body trả về"
+    },
+    {
+      "at": "return {",
+      "in": "AuthController.finalizeSession",
+      "text": "Trả access token và csrfToken trong body"
+    }
+  ],
+  "whyComments": [
+    {
+      "at": "const otp = await this.otpRepo.findOne({",
+      "text": [
+        "Chỉ xét mã chưa dùng mới nhất của số này: lúc yêu cầu mã mới, mã cũ đã bị vô hiệu nên chỉ mã mới nhất có giá trị."
+      ],
+      "src": "comment gốc otp.service.ts L51",
+      "file": "apps/core-api/src/modules/auth/services/otp.service.ts"
+    },
+    {
+      "at": "const counted = await this.otpRepo",
+      "text": [
+        "[POSTGRES] Đếm lần thử bằng UPDATE có điều kiện attempt_count < max: nhiều request song song cũng không vượt được giới hạn. Đếm TRƯỚC khi so mã nên đoán sai cũng tốn lượt."
+      ],
+      "src": "doc verifyOtp otp.service.ts L69-70 + suy ra từ code (đếm trước khi so mã)",
+      "file": "apps/core-api/src/modules/auth/services/otp.service.ts"
+    },
+    {
+      "at": "const expected = Buffer.from(otp.codeHash, 'hex');",
+      "text": [
+        "So băm HMAC bằng timingSafeEqual, thời gian so không lộ vị trí byte đầu tiên khác nhau; DB chỉ chứa băm, không có mã gốc."
+      ],
+      "src": "doc entity phone-otp.entity.ts L9 + suy ra từ code (timingSafeEqual)",
+      "file": "apps/core-api/src/modules/auth/services/otp.service.ts"
+    },
+    {
+      "at": "const consumed = await this.otpRepo.update(",
+      "text": [
+        "[POSTGRES] Tiêu thụ mã bằng UPDATE có điều kiện consumed_at IS NULL: 1 mã chỉ dùng được đúng 1 lần, request song song thua sẽ bị báo mã sai."
+      ],
+      "src": "doc verifyOtp otp.service.ts L71 + comment gốc L124",
+      "file": "apps/core-api/src/modules/auth/services/otp.service.ts"
+    },
+    {
+      "at": "const pepper = this.config.getOrThrow('AUTH_OTP_PEPPER', { infer: true });",
+      "text": [
+        "HMAC-SHA256 với pepper của server: mã chỉ có 6 số nên băm thường sẽ bị dò ra ngay, có pepper thì DB lộ cũng không suy ra được mã."
+      ],
+      "src": "doc entity phone-otp.entity.ts L9 + auth.constants.ts L8-9 (OTP 6 số) + suy ra từ code",
+      "file": "apps/core-api/src/modules/auth/services/otp.service.ts"
+    },
+    {
+      "at": "return await this.dataSource.transaction(async (manager) => {",
+      "text": [
+        "[POSTGRES] Tạo user và identity trong 1 transaction để không có user mồ côi thiếu identity."
+      ],
+      "src": "doc UserService.createWithManager user.service.ts L68-70",
+      "file": "apps/core-api/src/modules/auth/auth.service.ts"
+    },
+    {
+      "at": "if (isUniqueViolation(err)) {",
+      "text": [
+        "Unique (provider, providerUid) ở DB là chốt chặn cuối: 2 request đầu tiên chạy song song thì 1 bên dính unique violation rồi đọc lại identity của bên kia."
+      ],
+      "src": "doc findOrCreateUser auth.service.ts L148-149",
+      "file": "apps/core-api/src/modules/auth/auth.service.ts"
+    },
+    {
+      "at": "const refreshPlain = randomBytes(REFRESH_TOKEN_BYTES).toString('base64url');",
+      "text": [
+        "Refresh token là chuỗi ngẫu nhiên 48 byte; DB chỉ lưu băm SHA-256 của nó, bản gốc chỉ trả cho client."
+      ],
+      "src": "auth.constants.ts L14 + doc entity refresh-token.entity.ts L10",
+      "file": "apps/core-api/src/modules/auth/services/token.service.ts"
+    },
+    {
+      "at": "familyId: familyId ?? randomUUID(),",
+      "text": [
+        "familyId nhóm mọi token sinh ra từ cùng 1 lần đăng nhập, để phát hiện dùng lại và thu hồi cả họ (xem POST /auth/refresh)."
+      ],
+      "src": "doc entity refresh-token.entity.ts L10-12",
+      "file": "apps/core-api/src/modules/auth/services/token.service.ts"
+    },
+    {
+      "at": "setAuthCookies(res, {",
+      "text": [
+        "Refresh token chỉ đi qua cookie httpOnly rồi bị bóc khỏi body trả về: client (và XSS) không bao giờ thấy giá trị này."
+      ],
+      "src": "doc finalizeSession auth.controller.ts L148 + docs/adr/0007-httponly-cookie-refresh-token.md mục 1",
+      "file": "apps/core-api/src/modules/auth/auth.controller.ts"
+    }
+  ],
+  "sources": [
+    "apps/core-api/src/database/migrations/1751900000000-init-auth-user.ts",
+    "apps/core-api/src/modules/auth/auth.controller.ts",
+    "apps/core-api/src/modules/auth/auth.service.ts",
+    "apps/core-api/src/modules/auth/services/otp.service.ts",
+    "apps/core-api/src/modules/auth/services/token.service.ts"
+  ],
+  "sourceContext": {
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/auth/auth.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('otp/verify')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/auth/auth.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async verifyOtpAndLogin(",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/auth/services/otp.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async verifyOtp(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private hash(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const otp = await this.otpRepo.findOne({",
+            "text": [
+              "Chỉ xét mã chưa dùng mới nhất của số này: lúc yêu cầu mã mới, mã cũ đã bị vô hiệu nên chỉ mã mới nhất có giá trị."
+            ],
+            "src": "comment gốc otp.service.ts L51"
+          },
+          {
+            "at": "const counted = await this.otpRepo",
+            "text": [
+              "[POSTGRES] Đếm lần thử bằng UPDATE có điều kiện attempt_count < max: nhiều request song song cũng không vượt được giới hạn. Đếm TRƯỚC khi so mã nên đoán sai cũng tốn lượt."
+            ],
+            "src": "doc verifyOtp otp.service.ts L69-70 + suy ra từ code (đếm trước khi so mã)"
+          },
+          {
+            "at": "const expected = Buffer.from(otp.codeHash, 'hex');",
+            "text": [
+              "So băm HMAC bằng timingSafeEqual, thời gian so không lộ vị trí byte đầu tiên khác nhau; DB chỉ chứa băm, không có mã gốc."
+            ],
+            "src": "doc entity phone-otp.entity.ts L9 + suy ra từ code (timingSafeEqual)"
+          },
+          {
+            "at": "const consumed = await this.otpRepo.update(",
+            "text": [
+              "[POSTGRES] Tiêu thụ mã bằng UPDATE có điều kiện consumed_at IS NULL: 1 mã chỉ dùng được đúng 1 lần, request song song thua sẽ bị báo mã sai."
+            ],
+            "src": "doc verifyOtp otp.service.ts L71 + comment gốc L124"
+          },
+          {
+            "at": "const pepper = this.config.getOrThrow('AUTH_OTP_PEPPER', { infer: true });",
+            "text": [
+              "HMAC-SHA256 với pepper của server: mã chỉ có 6 số nên băm thường sẽ bị dò ra ngay, có pepper thì DB lộ cũng không suy ra được mã."
+            ],
+            "src": "doc entity phone-otp.entity.ts L9 + auth.constants.ts L8-9 (OTP 6 số) + suy ra từ code"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/auth/auth.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async findOrCreateUser(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private assertActive(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "return await this.dataSource.transaction(async (manager) => {",
+            "text": [
+              "[POSTGRES] Tạo user và identity trong 1 transaction để không có user mồ côi thiếu identity."
+            ],
+            "src": "doc UserService.createWithManager user.service.ts L68-70"
+          },
+          {
+            "at": "if (isUniqueViolation(err)) {",
+            "text": [
+              "Unique (provider, providerUid) ở DB là chốt chặn cuối: 2 request đầu tiên chạy song song thì 1 bên dính unique violation rồi đọc lại identity của bên kia."
+            ],
+            "src": "doc findOrCreateUser auth.service.ts L148-149"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1751900000000-init-auth-user.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE auth_identities (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/auth/auth.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async issue(",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/auth/services/token.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async issueForUser(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const refreshPlain = randomBytes(REFRESH_TOKEN_BYTES).toString('base64url');",
+            "text": [
+              "Refresh token là chuỗi ngẫu nhiên 48 byte; DB chỉ lưu băm SHA-256 của nó, bản gốc chỉ trả cho client."
+            ],
+            "src": "auth.constants.ts L14 + doc entity refresh-token.entity.ts L10"
+          },
+          {
+            "at": "familyId: familyId ?? randomUUID(),",
+            "text": [
+              "familyId nhóm mọi token sinh ra từ cùng 1 lần đăng nhập, để phát hiện dùng lại và thu hồi cả họ (xem POST /auth/refresh)."
+            ],
+            "src": "doc entity refresh-token.entity.ts L10-12"
+          }
+        ]
+      },
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/auth/auth.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private finalizeSession(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "setAuthCookies(res, {",
+            "text": [
+              "Refresh token chỉ đi qua cookie httpOnly rồi bị bóc khỏi body trả về: client (và XSS) không bao giờ thấy giá trị này."
+            ],
+            "src": "doc finalizeSession auth.controller.ts L148 + docs/adr/0007-httponly-cookie-refresh-token.md mục 1"
+          }
+        ]
+      }
+    ],
+    "ranges": [
+      {
+        "file": "apps/core-api/src/modules/auth/auth.controller.ts",
+        "range": {
+          "at": "@Post('otp/verify')",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/auth/auth.service.ts",
+        "range": {
+          "at": "async verifyOtpAndLogin(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/auth/services/otp.service.ts",
+        "range": {
+          "at": "async verifyOtp(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/auth/services/otp.service.ts",
+        "range": {
+          "at": "private hash(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/auth/auth.service.ts",
+        "range": {
+          "at": "private async findOrCreateUser(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/auth/auth.service.ts",
+        "range": {
+          "at": "private assertActive(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/database/migrations/1751900000000-init-auth-user.ts",
+        "range": {
+          "at": "CREATE TABLE auth_identities (",
+          "to": "^    `\\);$",
+          "pad": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/auth/auth.service.ts",
+        "range": {
+          "at": "private async issue(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/auth/services/token.service.ts",
+        "range": {
+          "at": "async issueForUser(",
+          "to": "^  }$"
+        }
+      },
+      {
+        "file": "apps/core-api/src/modules/auth/auth.controller.ts",
+        "range": {
+          "at": "private finalizeSession(",
+          "to": "^  }$"
+        }
+      }
+    ],
+    "helpers": [],
+    "skip": [
+      "assertActive"
+    ],
+    "attach": {},
+    "nested": true
+  },
+  "omittedContext": {
+    "note": "Curated source selection; unlisted call bodies, shared request infrastructure, DTOs and other context may be omitted. skip names stay unexpanded; helpers may be substituted; attach controls placement. Flattened scopes are not executable code.",
+    "skip": [
+      "assertActive"
+    ],
+    "attach": {},
+    "helpers": []
+  },
+  "featureMetadata": {
+    "id": "17-dang-ky-onboarding-va-guest",
+    "short": "Đăng ký, Onboarding và Guest",
+    "title": "Đăng ký, Onboarding và Guest",
+    "summary": "Đăng nhập bằng OTP, social hoặc guest, tự tạo tài khoản ở lần đầu và giữ phiên bằng refresh token xoay vòng.",
+    "diagramAnchor": "17-dang-ky-onboarding-va-guest"
+  },
+  "endpointCatalog": {
+    "n": "01",
+    "slug": "post-verify-otp",
+    "method": "POST",
+    "short": "/auth/otp/verify",
+    "route": "/api/v1/auth/otp/verify",
+    "name": "Xác minh OTP và đăng nhập",
+    "title": "Kiểm mã OTP có giới hạn số lần thử và chỉ dùng một lần, rồi tìm hoặc tạo tài khoản và cấp phiên đăng nhập.",
+    "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [CONTROLLER]",
+    "roles": [
+      [
+        "CONTROLLER",
+        "Nhận số điện thoại và mã OTP (giới hạn 10 lần/phút), giao cho service, rồi đặt refresh token vào cookie httpOnly và bóc nó khỏi body trả về."
+      ],
+      [
+        "SERVICE",
+        "Xác minh OTP, tìm hoặc tạo tài khoản (không tạo trùng khi 2 request song song), cấp access token và refresh token."
+      ],
+      [
+        "POSTGRES",
+        "Mã OTP lưu dạng băm, đếm lần thử và tiêu thụ mã bằng UPDATE có điều kiện; unique (provider, provider_uid) chặn tạo trùng tài khoản; refresh token lưu dạng băm."
+      ]
+    ],
+    "tables": [
+      [
+        "phone_otps",
+        "mã OTP của từng số: code_hash (HMAC), expires_at, attempt_count, consumed_at; chỉ mã chưa dùng mới nhất có giá trị."
+      ],
+      [
+        "auth_identities",
+        "cách đăng nhập của 1 user; unique (provider, provider_uid) nên cùng số điện thoại không tạo được 2 tài khoản."
+      ],
+      [
+        "users",
+        "dòng người dùng mới (nickname ngẫu nhiên, isGuest = false) hoặc dòng cũ để kiểm trạng thái."
+      ],
+      [
+        "refresh_tokens",
+        "ghi 1 dòng refresh token mới (chỉ lưu băm SHA-256) cùng family_id của lần đăng nhập này."
+      ]
+    ],
+    "related": [
+      [
+        "POST /auth/otp/request",
+        "bước trước: tạo mã 6 số, giới hạn số lần yêu cầu theo số điện thoại mỗi giờ, vô hiệu mã cũ, lưu băm (chưa chép)."
+      ],
+      [
+        "User",
+        "createWithManager: tạo user cùng transaction với identity (không chép)."
+      ],
+      [
+        "POST /auth/refresh",
+        "bước sau: đổi refresh token lấy cặp token mới (xem file 02)."
+      ]
+    ],
+    "nested": true,
+    "skip": [
+      "assertActive"
+    ],
+    "steps": [
+      {
+        "at": "@Post('otp/verify')",
+        "text": "Nhận số điện thoại và mã OTP (giới hạn 10 lần/phút)"
+      },
+      {
+        "at": "const otp = await this.otpRepo.findOne({",
+        "text": "Lấy mã OTP chưa dùng mới nhất của số này, kiểm còn hạn"
+      },
+      {
+        "at": "const counted = await this.otpRepo",
+        "text": "Cộng 1 lượt thử cho mã này, vượt giới hạn thì 429"
+      },
+      {
+        "at": "const expected = Buffer.from(otp.codeHash, 'hex');",
+        "text": "So băm HMAC của mã nhập với băm lưu trong DB"
+      },
+      {
+        "at": "const consumed = await this.otpRepo.update(",
+        "text": "Đánh dấu mã đã dùng (consumed_at), không dùng lại được"
+      },
+      {
+        "at": "const user = await this.findOrCreateUser(",
+        "text": "Tìm tài khoản theo số điện thoại, chưa có thì tạo"
+      },
+      {
+        "at": "return await this.dataSource.transaction(async (manager) => {",
+        "text": "Chưa có tài khoản: tạo user và identity trong 1 transaction"
+      },
+      {
+        "at": "if (isUniqueViolation(err)) {",
+        "text": "2 request đầu tiên chạy song song: bên dính unique đọc lại identity"
+      },
+      {
+        "at": "const accessToken = await this.jwtService.signAsync(",
+        "text": "Ký access token JWT"
+      },
+      {
+        "at": "const refreshPlain = randomBytes(",
+        "text": "Sinh refresh token ngẫu nhiên, DB chỉ lưu băm SHA-256"
+      },
+      {
+        "at": "setAuthCookies(res, {",
+        "text": "Đặt refresh token vào cookie httpOnly, bóc khỏi body trả về"
+      },
+      {
+        "at": "return {",
+        "in": "AuthController.finalizeSession",
+        "text": "Trả access token và csrfToken trong body"
+      }
+    ],
+    "items": [
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/auth/auth.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "@Post('otp/verify')",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/auth/auth.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async verifyOtpAndLogin(",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/auth/services/otp.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async verifyOtp(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private hash(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const otp = await this.otpRepo.findOne({",
+            "text": [
+              "Chỉ xét mã chưa dùng mới nhất của số này: lúc yêu cầu mã mới, mã cũ đã bị vô hiệu nên chỉ mã mới nhất có giá trị."
+            ],
+            "src": "comment gốc otp.service.ts L51"
+          },
+          {
+            "at": "const counted = await this.otpRepo",
+            "text": [
+              "[POSTGRES] Đếm lần thử bằng UPDATE có điều kiện attempt_count < max: nhiều request song song cũng không vượt được giới hạn. Đếm TRƯỚC khi so mã nên đoán sai cũng tốn lượt."
+            ],
+            "src": "doc verifyOtp otp.service.ts L69-70 + suy ra từ code (đếm trước khi so mã)"
+          },
+          {
+            "at": "const expected = Buffer.from(otp.codeHash, 'hex');",
+            "text": [
+              "So băm HMAC bằng timingSafeEqual, thời gian so không lộ vị trí byte đầu tiên khác nhau; DB chỉ chứa băm, không có mã gốc."
+            ],
+            "src": "doc entity phone-otp.entity.ts L9 + suy ra từ code (timingSafeEqual)"
+          },
+          {
+            "at": "const consumed = await this.otpRepo.update(",
+            "text": [
+              "[POSTGRES] Tiêu thụ mã bằng UPDATE có điều kiện consumed_at IS NULL: 1 mã chỉ dùng được đúng 1 lần, request song song thua sẽ bị báo mã sai."
+            ],
+            "src": "doc verifyOtp otp.service.ts L71 + comment gốc L124"
+          },
+          {
+            "at": "const pepper = this.config.getOrThrow('AUTH_OTP_PEPPER', { infer: true });",
+            "text": [
+              "HMAC-SHA256 với pepper của server: mã chỉ có 6 số nên băm thường sẽ bị dò ra ngay, có pepper thì DB lộ cũng không suy ra được mã."
+            ],
+            "src": "doc entity phone-otp.entity.ts L9 + auth.constants.ts L8-9 (OTP 6 số) + suy ra từ code"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/auth/auth.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async findOrCreateUser(",
+            "to": "^  }$"
+          },
+          {
+            "at": "private assertActive(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "return await this.dataSource.transaction(async (manager) => {",
+            "text": [
+              "[POSTGRES] Tạo user và identity trong 1 transaction để không có user mồ côi thiếu identity."
+            ],
+            "src": "doc UserService.createWithManager user.service.ts L68-70"
+          },
+          {
+            "at": "if (isUniqueViolation(err)) {",
+            "text": [
+              "Unique (provider, providerUid) ở DB là chốt chặn cuối: 2 request đầu tiên chạy song song thì 1 bên dính unique violation rồi đọc lại identity của bên kia."
+            ],
+            "src": "doc findOrCreateUser auth.service.ts L148-149"
+          }
+        ]
+      },
+      {
+        "tag": "POSTGRES",
+        "file": "apps/core-api/src/database/migrations/1751900000000-init-auth-user.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "CREATE TABLE auth_identities (",
+            "to": "^    `\\);$",
+            "pad": [
+              1,
+              0
+            ]
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/auth/auth.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private async issue(",
+            "to": "^  }$"
+          }
+        ]
+      },
+      {
+        "tag": "SERVICE",
+        "file": "apps/core-api/src/modules/auth/services/token.service.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "async issueForUser(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "const refreshPlain = randomBytes(REFRESH_TOKEN_BYTES).toString('base64url');",
+            "text": [
+              "Refresh token là chuỗi ngẫu nhiên 48 byte; DB chỉ lưu băm SHA-256 của nó, bản gốc chỉ trả cho client."
+            ],
+            "src": "auth.constants.ts L14 + doc entity refresh-token.entity.ts L10"
+          },
+          {
+            "at": "familyId: familyId ?? randomUUID(),",
+            "text": [
+              "familyId nhóm mọi token sinh ra từ cùng 1 lần đăng nhập, để phát hiện dùng lại và thu hồi cả họ (xem POST /auth/refresh)."
+            ],
+            "src": "doc entity refresh-token.entity.ts L10-12"
+          }
+        ]
+      },
+      {
+        "tag": "CONTROLLER",
+        "file": "apps/core-api/src/modules/auth/auth.controller.ts",
+        "dedent": true,
+        "ranges": [
+          {
+            "at": "private finalizeSession(",
+            "to": "^  }$"
+          }
+        ],
+        "inline": [
+          {
+            "at": "setAuthCookies(res, {",
+            "text": [
+              "Refresh token chỉ đi qua cookie httpOnly rồi bị bóc khỏi body trả về: client (và XSS) không bao giờ thấy giá trị này."
+            ],
+            "src": "doc finalizeSession auth.controller.ts L148 + docs/adr/0007-httponly-cookie-refresh-token.md mục 1"
+          }
+        ]
+      }
+    ]
+  },
+  "sourceManifest": {
+    "verifiedCodeSha256": true,
+    "mode": "published-presentation",
+    "baselineCommit": "cb30743143bd8f6576b154db4b606380c365c674",
+    "sourceCommit": "d3cb28c",
+    "sources": [
+      "apps/core-api/src/database/migrations/1751900000000-init-auth-user.ts",
+      "apps/core-api/src/modules/auth/auth.controller.ts",
+      "apps/core-api/src/modules/auth/auth.service.ts",
+      "apps/core-api/src/modules/auth/services/otp.service.ts",
+      "apps/core-api/src/modules/auth/services/token.service.ts"
+    ],
+    "steps": [
+      "Step 1: Nhận số điện thoại và mã OTP (giới hạn 10 lần/phút)",
+      "Step 2: Lấy mã OTP chưa dùng mới nhất của số này, kiểm còn hạn",
+      "Step 3: Cộng 1 lượt thử cho mã này, vượt giới hạn thì 429",
+      "Step 4: So băm HMAC của mã nhập với băm lưu trong DB",
+      "Step 5: Đánh dấu mã đã dùng (consumed_at), không dùng lại được",
+      "Step 6: Tìm tài khoản theo số điện thoại, chưa có thì tạo",
+      "Step 7: Chưa có tài khoản: tạo user và identity trong 1 transaction",
+      "Step 8: 2 request đầu tiên chạy song song: bên dính unique đọc lại identity",
+      "Step 9: Ký access token JWT",
+      "Step 10: Sinh refresh token ngẫu nhiên, DB chỉ lưu băm SHA-256",
+      "Step 11: Đặt refresh token vào cookie httpOnly, bóc khỏi body trả về",
+      "Step 12: Trả access token và csrfToken trong body"
+    ],
+    "removedOverview": "// ════════════════════════════════════════════════════════════════════════════\n//  POST /api/v1/auth/otp/verify\n//  Kiểm mã OTP có giới hạn số lần thử và chỉ dùng một lần, rồi tìm hoặc tạo tài khoản và cấp phiên đăng nhập.\n// ════════════════════════════════════════════════════════════════════════════\n//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [CONTROLLER]\n//\n//  Vai trò từng tầng\n//    [CONTROLLER] Nhận số điện thoại và mã OTP (giới hạn 10 lần/phút), giao cho\n//                 service, rồi đặt refresh token vào cookie httpOnly và bóc nó khỏi\n//                 body trả về.\n//    [SERVICE]    Xác minh OTP, tìm hoặc tạo tài khoản (không tạo trùng khi 2 request\n//                 song song), cấp access token và refresh token.\n//    [POSTGRES]   Mã OTP lưu dạng băm, đếm lần thử và tiêu thụ mã bằng UPDATE có điều\n//                 kiện; unique (provider, provider_uid) chặn tạo trùng tài khoản;\n//                 refresh token lưu dạng băm.\n//\n//  Bảng       phone_otps — mã OTP của từng số: code_hash (HMAC), expires_at,\n//               attempt_count, consumed_at; chỉ mã chưa dùng mới nhất có giá trị.\n//             auth_identities — cách đăng nhập của 1 user; unique (provider,\n//               provider_uid) nên cùng số điện thoại không tạo được 2 tài khoản.\n//             users — dòng người dùng mới (nickname ngẫu nhiên, isGuest = false) hoặc\n//               dòng cũ để kiểm trạng thái.\n//             refresh_tokens — ghi 1 dòng refresh token mới (chỉ lưu băm SHA-256) cùng\n//               family_id của lần đăng nhập này.\n//  Liên quan  POST /auth/otp/request — bước trước: tạo mã 6 số, giới hạn số lần yêu cầu\n//               theo số điện thoại mỗi giờ, vô hiệu mã cũ, lưu băm (chưa chép).\n//             User — createWithManager: tạo user cùng transaction với identity (không\n//               chép).\n//             POST /auth/refresh — bước sau: đổi refresh token lấy cặp token mới (xem\n//               file 02).\n//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi\n//             chép ngay tại dòng gọi nó, ngang cấp (chỉ khối { } của chính code mới\n//             thụt vào), không chép class hay chữ ký hàm (tên hàm nằm ở dòng tiêu đề //\n//             [TẦNG]). Constructor gom hết ở đầu, dưới class của điểm vào, chỉ gồm các\n//             dependency mà code bên dưới dùng (this.xxx); các dòng const là tham số\n//             truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một biểu thức\n//             được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên văn trong\n//             repo.\n",
+    "baselineBodySha256": "0aaf42e40792a1f2207594e85cdcf2bcb1156220393f426b88e880389eb44dcd",
+    "bodySha256": "0aaf42e40792a1f2207594e85cdcf2bcb1156220393f426b88e880389eb44dcd",
+    "rawSha256": "3402ccd2aa42ff311d205fdf08bc9f612c8fe9b3181b5f7f30a2c3ec1203bb57",
+    "codeSha256": "3402ccd2aa42ff311d205fdf08bc9f612c8fe9b3181b5f7f30a2c3ec1203bb57"
+  },
+  "code": {
+    "path": "code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts",
+    "sha256": "3402ccd2aa42ff311d205fdf08bc9f612c8fe9b3181b5f7f30a2c3ec1203bb57",
+    "hashAlgorithm": "sha256",
+    "content": "//  POST /api/v1/auth/otp/verify\n//  Kiểm mã OTP có giới hạn số lần thử và chỉ dùng một lần, rồi tìm hoặc tạo tài khoản và cấp phiên đăng nhập.\n//  Step 1: Nhận số điện thoại và mã OTP (giới hạn 10 lần/phút)\n//  Step 2: Lấy mã OTP chưa dùng mới nhất của số này, kiểm còn hạn\n//  Step 3: Cộng 1 lượt thử cho mã này, vượt giới hạn thì 429\n//  Step 4: So băm HMAC của mã nhập với băm lưu trong DB\n//  Step 5: Đánh dấu mã đã dùng (consumed_at), không dùng lại được\n//  Step 6: Tìm tài khoản theo số điện thoại, chưa có thì tạo\n//  Step 7: Chưa có tài khoản: tạo user và identity trong 1 transaction\n//  Step 8: 2 request đầu tiên chạy song song: bên dính unique đọc lại identity\n//  Step 9: Ký access token JWT\n//  Step 10: Sinh refresh token ngẫu nhiên, DB chỉ lưu băm SHA-256\n//  Step 11: Đặt refresh token vào cookie httpOnly, bóc khỏi body trả về\n//  Step 12: Trả access token và csrfToken trong body\n\n// [CONTROLLER] AuthController.verifyOtp  ·  auth.controller.ts L38–40, L75–88\n@Public()\n@Controller('auth')\nexport class AuthController {\n  constructor(\n    private readonly authService: AuthService,\n    private readonly config: ConfigService<CoreApiEnv, true>,\n    // AuthService\n    @InjectRepository(AuthIdentity)\n    private readonly identityRepo: Repository<AuthIdentity>,\n    @InjectDataSource() private readonly dataSource: DataSource,\n    private readonly userService: UserService,\n    private readonly tokenService: TokenService,\n    private readonly otpService: OtpService,\n    // OtpService\n    @InjectRepository(PhoneOtp) private readonly otpRepo: Repository<PhoneOtp>,\n    // TokenService\n    @Inject(RefreshSessionPort)\n    private readonly refreshSessions: RefreshSessionPort,\n    private readonly jwtService: JwtService,\n  ) {}\n\n  // Step 1: Nhận số điện thoại và mã OTP (giới hạn 10 lần/phút)\n  @Post('otp/verify')\n  @HttpCode(HttpStatus.OK)\n  @Throttle({ default: { limit: 10, ttl: minutes(1) } })\n  async verifyOtp(\n    @Body() dto: VerifyOtpDto,\n    @Res({ passthrough: true }) res: Response,\n  ): Promise<AuthTokensDto> {\n    return this.finalizeSession(\n      await this.authService.verifyOtpAndLogin(dto.phone, dto.code),\n      res,\n    );\n\n    // [SERVICE] AuthService.verifyOtpAndLogin  ·  auth.service.ts L73–81\n    const phone = dto.phone;\n    const code = dto.code;\n    this.assertPhoneOtpEnabled();\n    await this.otpService.verifyOtp(phone, code);\n\n    // [SERVICE] OtpService.verifyOtp  ·  otp.service.ts L73–131\n    // Step 2: Lấy mã OTP chưa dùng mới nhất của số này, kiểm còn hạn\n    // Chỉ xét mã chưa dùng mới nhất của số này: lúc yêu cầu mã mới, mã cũ đã bị vô hiệu nên chỉ\n    // mã mới nhất có giá trị.\n    const otp = await this.otpRepo.findOne({\n      where: { phone, consumedAt: IsNull() },\n      order: { createdAt: 'DESC' },\n    });\n    if (!otp || otp.expiresAt < new Date()) {\n      throw new DomainException(\n        AuthErrors.OTP_EXPIRED,\n        'OTP đã hết hạn hoặc chưa được yêu cầu',\n        HttpStatus.BAD_REQUEST,\n      );\n    }\n\n    const maxAttempts = this.config.getOrThrow('AUTH_OTP_MAX_ATTEMPTS', {\n      infer: true,\n    });\n\n    // Step 3: Cộng 1 lượt thử cho mã này, vượt giới hạn thì 429\n    // [POSTGRES] Đếm lần thử bằng UPDATE có điều kiện attempt_count < max: nhiều request song\n    // song cũng không vượt được giới hạn. Đếm TRƯỚC khi so mã nên đoán sai cũng tốn lượt.\n    const counted = await this.otpRepo\n      .createQueryBuilder()\n      .update()\n      .set({ attemptCount: () => 'attempt_count + 1' })\n      .where('id = :id AND attempt_count < :max AND consumed_at IS NULL', {\n        id: otp.id,\n        max: maxAttempts,\n      })\n      .execute();\n    if (!counted.affected) {\n      throw new DomainException(\n        AuthErrors.OTP_TOO_MANY_ATTEMPTS,\n        'Nhập sai quá số lần cho phép, yêu cầu mã mới',\n        HttpStatus.TOO_MANY_REQUESTS,\n      );\n    }\n\n    // Step 4: So băm HMAC của mã nhập với băm lưu trong DB\n    // So băm HMAC bằng timingSafeEqual, thời gian so không lộ vị trí byte đầu tiên khác nhau; DB\n    // chỉ chứa băm, không có mã gốc.\n    const expected = Buffer.from(otp.codeHash, 'hex');\n    const actual = Buffer.from(this.hash(phone, code), 'hex');\n\n    // [SERVICE] OtpService.hash  ·  otp.service.ts L133–138\n    // HMAC-SHA256 với pepper của server: mã chỉ có 6 số nên băm thường sẽ bị dò ra ngay, có\n    // pepper thì DB lộ cũng không suy ra được mã.\n    const pepper = this.config.getOrThrow('AUTH_OTP_PEPPER', { infer: true });\n    return createHmac('sha256', pepper)\n      .update(`${phone}:${code}`)\n      .digest('hex');\n\n    if (\n      expected.length !== actual.length ||\n      !timingSafeEqual(expected, actual)\n    ) {\n      throw new DomainException(\n        AuthErrors.OTP_INVALID,\n        'Mã OTP không đúng',\n        HttpStatus.BAD_REQUEST,\n      );\n    }\n\n    // Step 5: Đánh dấu mã đã dùng (consumed_at), không dùng lại được\n    // [POSTGRES] Tiêu thụ mã bằng UPDATE có điều kiện consumed_at IS NULL: 1 mã chỉ dùng được\n    // đúng 1 lần, request song song thua sẽ bị báo mã sai.\n    const consumed = await this.otpRepo.update(\n      { id: otp.id, consumedAt: IsNull() },\n      { consumedAt: new Date() },\n    );\n    if (!consumed.affected) {\n      throw new DomainException(\n        AuthErrors.OTP_INVALID,\n        'Mã OTP không đúng',\n        HttpStatus.BAD_REQUEST,\n      );\n    }\n\n    // Step 6: Tìm tài khoản theo số điện thoại, chưa có thì tạo\n    const user = await this.findOrCreateUser(AuthProvider.Phone, phone, {\n      isGuest: false,\n      nicknamePrefix: 'User',\n    });\n\n    // [SERVICE] AuthService.findOrCreateUser  ·  auth.service.ts L151–198\n    const provider = AuthProvider.Phone;\n    const providerUid = phone;\n    const opts = {\n      isGuest: false,\n      nicknamePrefix: 'User',\n    };\n    const existing = await this.identityRepo.findOneBy({\n      provider,\n      providerUid,\n    });\n    if (existing) {\n      const user = this.assertActive(\n        await this.userService.getByIdOrThrow(existing.userId),\n      );\n      this.assertGuestIdentityStillActive(provider, user);\n      return user;\n    }\n\n    try {\n\n      // Step 7: Chưa có tài khoản: tạo user và identity trong 1 transaction\n      // [POSTGRES] Tạo user và identity trong 1 transaction để không có user mồ côi thiếu\n      // identity.\n      return await this.dataSource.transaction(async (manager) => {\n        const user = await this.userService.createWithManager(manager, {\n          nickname: `${opts.nicknamePrefix}-${randomInt(100000, 999999)}`,\n          isGuest: opts.isGuest,\n        });\n        await manager.save(\n          manager.create(AuthIdentity, {\n            userId: user.id,\n            provider,\n            providerUid,\n          }),\n        );\n        return user;\n      });\n    } catch (err) {\n\n      // Step 8: 2 request đầu tiên chạy song song: bên dính unique đọc lại identity\n      // Unique (provider, providerUid) ở DB là chốt chặn cuối: 2 request đầu tiên chạy song song\n      // thì 1 bên dính unique violation rồi đọc lại identity của bên kia.\n      if (isUniqueViolation(err)) {\n        const identity = await this.identityRepo.findOneByOrFail({\n          provider,\n          providerUid,\n        });\n        return this.assertActive(\n          this.assertGuestIdentityStillActive(\n            provider,\n            await this.userService.getByIdOrThrow(identity.userId),\n          ),\n        );\n      }\n      throw err;\n    }\n\n    return this.issue(user);\n\n    // [SERVICE] AuthService.issue  ·  auth.service.ts L332–344\n    const tokens = await this.tokenService.issueForUser(\n      user.id,\n      user.isGuest,\n      user.role,\n    );\n\n    // [SERVICE] TokenService.issueForUser  ·  token.service.ts L32–61\n    const userId = user.id;\n    const isGuest = user.isGuest;\n    const role = user.role;\n    const expiresIn = this.config.getOrThrow('JWT_ACCESS_TTL_SECONDS', {\n      infer: true,\n    });\n    const payload: AccessTokenPayload = {\n      sub: userId,\n      isGuest,\n      role,\n      jti: randomUUID(),\n    };\n\n    // Step 9: Ký access token JWT\n    const accessToken = await this.jwtService.signAsync(payload, { expiresIn });\n\n    // Step 10: Sinh refresh token ngẫu nhiên, DB chỉ lưu băm SHA-256\n    // Refresh token là chuỗi ngẫu nhiên 48 byte; DB chỉ lưu băm SHA-256 của nó, bản gốc chỉ trả\n    // cho client.\n    const refreshPlain = randomBytes(REFRESH_TOKEN_BYTES).toString('base64url');\n    const ttlDays = this.config.getOrThrow('AUTH_REFRESH_TTL_DAYS', {\n      infer: true,\n    });\n    await this.refreshSessions.issue({\n      userId,\n      tokenHash: this.hash(refreshPlain),\n      // familyId nhóm mọi token sinh ra từ cùng 1 lần đăng nhập, để phát hiện dùng lại và thu hồi\n      // cả họ (xem POST /auth/refresh).\n      familyId: familyId ?? randomUUID(),\n      expiresAt: this.refreshExpiresAt(ttlDays),\n    });\n\n    return { accessToken, refreshToken: refreshPlain, expiresIn };\n\n    return {\n      ...tokens,\n      csrfToken: generateCsrfToken(),\n      userId: user.id,\n      isGuest: user.isGuest,\n    };\n\n    // [CONTROLLER] AuthController.finalizeSession  ·  auth.controller.ts L149–173\n    const session = await this.authService.verifyOtpAndLogin(dto.phone, dto.code);\n\n    // Step 11: Đặt refresh token vào cookie httpOnly, bóc khỏi body trả về\n    // Refresh token chỉ đi qua cookie httpOnly rồi bị bóc khỏi body trả về: client (và XSS) không\n    // bao giờ thấy giá trị này.\n    setAuthCookies(res, {\n      refreshToken: session.refreshToken,\n      csrfToken: session.csrfToken,\n      isProduction:\n        this.config.get('NODE_ENV', { infer: true }) === 'production',\n      crossOriginDev:\n        this.config.get('AUTH_CROSS_ORIGIN_DEV', { infer: true }) === true,\n      productionSameSite: this.config.getOrThrow('AUTH_COOKIE_SAME_SITE', {\n        infer: true,\n      }),\n      ttlDays: this.config.getOrThrow('AUTH_REFRESH_TTL_DAYS', { infer: true }),\n    });\n\n    // Step 12: Trả access token và csrfToken trong body\n    return {\n      accessToken: session.accessToken,\n      csrfToken: session.csrfToken,\n      expiresIn: session.expiresIn,\n      userId: session.userId,\n      isGuest: session.isGuest,\n      guestDeviceToken: session.guestDeviceToken,\n    };\n  }\n}\n\n// [POSTGRES] CREATE TABLE auth_identities  ·  1751900000000-init-auth-user.ts L28–37\nawait queryRunner.query(`\n  CREATE TABLE auth_identities (\n    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n    user_id       uuid         NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n    provider      varchar(16)  NOT NULL,\n    provider_uid  varchar(255) NOT NULL,\n    created_at    timestamptz  NOT NULL DEFAULT now(),\n    CONSTRAINT uq_auth_identities_provider_uid UNIQUE (provider, provider_uid)\n  )\n`);\n"
+  },
+  "provenance": {
+    "catalog": {
+      "path": "annotated-17-dang-ky-onboarding-va-guest.mjs",
+      "sha256": "19dffcfe02f7d8daaa48593af33e4bff201deaa017b52b8a7bb9ed789a33d92b"
+    },
+    "displayedCodeSha256": "3402ccd2aa42ff311d205fdf08bc9f612c8fe9b3181b5f7f30a2c3ec1203bb57"
+  }
+}

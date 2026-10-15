@@ -1,0 +1,2557 @@
+{
+  "schemaVersion": 2,
+  "siteUrl": "https://ducmanh001.github.io/litmatch-feature-flows/",
+  "evidence": "Generated reading aids from curated source catalogs and displayed code; not executable applications or production-readiness evidence.",
+  "readingGuide": [
+    "These are curated, catalog-driven code walkthroughs and diagram projections, not executable TypeScript or production-readiness evidence. Basic CRUD and other context may be omitted.",
+    "Read the numbered Steps in order, then the body and its tier headers. Selected called bodies appear after their call. The selection is controlled by source ranges, helpers, skip and attach metadata; it is not a complete automatically expanded call graph.",
+    "[CONTROLLER], [SERVICE], [WORKER], [POSTGRES], [REDIS], [KAFKA], [BULLMQ], [EXTERNAL] and [GATEWAY] label responsibilities or infrastructure. Source paths and original line ranges may remain in headers.",
+    "The walkthrough flattens source scopes. Repeated variable names, return statements and constructor groups can belong to different original functions or classes; retain that scope when interpreting the code. It is a reading aid, not code to compile or run.",
+    "Constructor groups retain dependencies selected by the walkthrough catalog. Generated const bindings connect call arguments to expanded parameters. Some simple helper return expressions are substituted; other calls may stay unexpanded. See sourceContext and omittedContext before drawing dependency conclusions.",
+    "Inline why-comments retain their exact src evidence in each flow chunk. src can cite a source comment, document, or stated inference; treat it as the catalog attribution rather than independently verified proof.",
+    "Each Step links to the HTML line anchor and the public GitHub raw-file view at that line. rawUrl serves the full plain TypeScript file; code.content and code.sha256 preserve its exact contents and SHA-256 digest. No image reading or JavaScript execution is needed.",
+    "Diagram chunks preserve all feature, layer-flow and dependency catalog fields, including explicit actors, ordering, branch labels/conditions, continuation flags, entities, Redis roles, providers, protocols and notes. Architecture components and protocol edges come from the actual renderer.",
+    "Canonical source, service contracts and ADRs own behavior. The diagrams describe the catalogs; this site does not independently certify deployment/provider readiness."
+  ],
+  "resources": [
+    {
+      "path": "llms.txt",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/llms.txt"
+    },
+    {
+      "path": "llms-full.txt",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/llms-full.txt"
+    },
+    {
+      "path": "sitemap.xml",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/sitemap.xml"
+    },
+    {
+      "path": "ai/index.html",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/ai/index.html"
+    },
+    {
+      "path": "ai/index.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/ai/index.json"
+    },
+    {
+      "path": "ai/flows.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows.json"
+    }
+  ],
+  "flows": [
+    {
+      "id": "02-soul-match/01-post-send-message",
+      "title": "Gửi tin nhắn trong phòng ẩn danh: giờ chat tính ở server, idempotent theo key, realtime riêng cho từng người nhận.",
+      "name": "Gửi tin nhắn ẩn danh",
+      "feature": "Soul Match",
+      "method": "POST",
+      "route": "/api/v1/soul-match/sessions/:id/messages",
+      "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/02-soul-match/01-post-send-message.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.ts",
+      "codeSha256": "cede0e3d7737df58d79fb081bc0d76d923b43f202cf959d69ae5e88494f7bedb",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận request (user từ JWT, id phòng từ URL, Idempotency-Key từ header)",
+          "line": 33,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L33",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L33"
+        },
+        {
+          "number": 2,
+          "text": "Lấy phòng chat và tính phase theo giờ server",
+          "line": 52,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L52",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L52"
+        },
+        {
+          "number": 3,
+          "text": "Chặn nếu phòng không còn ở phase chatting",
+          "line": 125,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L125",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L125"
+        },
+        {
+          "number": 4,
+          "text": "Kiểm tra người gửi chưa bị khóa tài khoản",
+          "line": 135,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L135",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L135"
+        },
+        {
+          "number": 5,
+          "text": "Gắn user vào Idempotency-Key của client",
+          "line": 158,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L158",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L158"
+        },
+        {
+          "number": 6,
+          "text": "Trong transaction, khóa dòng session FOR UPDATE",
+          "line": 165,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L165",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L165"
+        },
+        {
+          "number": 7,
+          "text": "Kiểm lại hạn chat sau khi đã có khóa",
+          "line": 185,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L185",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L185"
+        },
+        {
+          "number": 8,
+          "text": "Ghi tin nhắn (unique idempotency_key chặn nhân đôi)",
+          "line": 197,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L197",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L197"
+        },
+        {
+          "number": 9,
+          "text": "Phát soul.message qua Redis, payload riêng cho từng người",
+          "line": 208,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L208",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L208"
+        },
+        {
+          "number": 10,
+          "text": "Trùng key: cùng nội dung thì trả tin cũ, khác thì 409",
+          "line": 240,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L240",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L240"
+        },
+        {
+          "number": 11,
+          "text": "Controller trả tin nhắn với vai trò me hoặc partner",
+          "line": 261,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html#L261",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/01-post-send-message.ts#L261"
+        }
+      ]
+    },
+    {
+      "id": "02-soul-match/02-post-rating",
+      "title": "Ghi rating bất biến; khi cả 2 cùng like thì tạo Friendship, Conversation và chuyển lịch sử chat trong một transaction.",
+      "name": "Đánh giá đối phương và thành bạn",
+      "feature": "Soul Match",
+      "method": "POST",
+      "route": "/api/v1/soul-match/sessions/:id/rating",
+      "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [SERVICE] → [POSTGRES] → [REDIS]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/02-soul-match/02-post-rating.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.ts",
+      "codeSha256": "22ae5fb969c355c722c4a25e79f44e96682514f3174ded68c5063fd6ad568a16",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận request (user từ JWT, id phòng từ URL, verdict trong body)",
+          "line": 30,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L30",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L30"
+        },
+        {
+          "number": 2,
+          "text": "Kiểm tra user thuộc phòng và còn trong cửa sổ đánh giá",
+          "line": 43,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L43",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L43"
+        },
+        {
+          "number": 3,
+          "text": "Trong transaction, khóa dòng session FOR UPDATE",
+          "line": 59,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L59",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L59"
+        },
+        {
+          "number": 4,
+          "text": "Đã đánh giá rồi: cùng verdict thì trả kết quả cũ, khác thì 409",
+          "line": 73,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L73",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L73"
+        },
+        {
+          "number": 5,
+          "text": "Ghi rating (unique session + người đánh giá)",
+          "line": 87,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L87",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L87"
+        },
+        {
+          "number": 6,
+          "text": "Cả 2 cùng like: chụp lịch sử chat ẩn danh theo seq",
+          "line": 107,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L107",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L107"
+        },
+        {
+          "number": 7,
+          "text": "Nhờ Friend tạo Friendship và Conversation, cùng transaction",
+          "line": 124,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L124",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L124"
+        },
+        {
+          "number": 8,
+          "text": "Chép lịch sử chat ẩn danh sang Conversation",
+          "line": 164,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L164",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L164"
+        },
+        {
+          "number": 9,
+          "text": "Double-submit song song: đọc lại rồi replay hoặc 409",
+          "line": 222,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L222",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L222"
+        },
+        {
+          "number": 10,
+          "text": "Sau commit, báo soul.matched qua Redis cho cả 2 người",
+          "line": 238,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L238",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L238"
+        },
+        {
+          "number": 11,
+          "text": "Controller trả verdict và cờ matched",
+          "line": 254,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html#L254",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/02-soul-match/02-post-rating.ts#L254"
+        }
+      ]
+    },
+    {
+      "id": "03-voice-match/01-post-join-queue",
+      "title": "Vào hàng đợi Voice Match tới khi 2 người được ghép thành MatchSession.",
+      "name": "Vào hàng đợi ghép Voice Match",
+      "feature": "Voice Match",
+      "method": "POST",
+      "route": "/api/v1/matching/tickets",
+      "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS] → [WORKER] → [POSTGRES] → [REDIS]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/03-voice-match/01-post-join-queue.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/01-post-join-queue.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/01-post-join-queue.ts",
+      "codeSha256": "9a2aad2644370788a787d814f8234669a59217f01326130989e6b6a0a7de1ff0",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận request vào hàng đợi (user, body, Idempotency-Key, guest)",
+          "line": 37,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/01-post-join-queue.html#L37",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/01-post-join-queue.ts#L37"
+        },
+        {
+          "number": 2,
+          "text": "Mở transaction DB; khóa dòng user, kiểm guest và tài khoản bị khóa",
+          "line": 67,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/01-post-join-queue.html#L67",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/01-post-join-queue.ts#L67"
+        },
+        {
+          "number": 3,
+          "text": "Đã có ticket cùng Idempotency-Key thì trả lại luôn, không trừ quota",
+          "line": 120,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/01-post-join-queue.html#L120",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/01-post-join-queue.ts#L120"
+        },
+        {
+          "number": 4,
+          "text": "Trừ lượt miễn phí theo ngày (khóa dòng quota) hoặc trả Diamond",
+          "line": 137,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/01-post-join-queue.html#L137",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/01-post-join-queue.ts#L137"
+        },
+        {
+          "number": 5,
+          "text": "Ghi ticket queued vào Postgres (unique index: mỗi user 1 vé đang chờ)",
+          "line": 231,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/01-post-join-queue.html#L231",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/01-post-join-queue.ts#L231"
+        },
+        {
+          "number": 6,
+          "text": "Dính unique: retry cùng key thì trả vé cũ, còn lại 409",
+          "line": 251,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/01-post-join-queue.html#L251",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/01-post-join-queue.ts#L251"
+        },
+        {
+          "number": 7,
+          "text": "Sau commit, đẩy ticket vào Redis (ensureEnqueued: ZADD NX, đánh dấu shard active)",
+          "line": 281,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/01-post-join-queue.html#L281",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/01-post-join-queue.ts#L281"
+        },
+        {
+          "number": 8,
+          "text": "Trả ticket về controller (bọc thành TicketDto kèm giá speed-up)",
+          "line": 313,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/01-post-join-queue.html#L313",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/01-post-join-queue.ts#L313"
+        },
+        {
+          "number": 9,
+          "text": "Worker nền: ZPOPMIN lấy 2 vé điểm thấp nhất của shard (nguyên tử)",
+          "line": 363,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/01-post-join-queue.html#L363",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/01-post-join-queue.ts#L363"
+        },
+        {
+          "number": 10,
+          "text": "Khóa 2 vé FOR UPDATE, verify lại trong DB (giới tính, canPair)",
+          "line": 411,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/01-post-join-queue.html#L411",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/01-post-join-queue.ts#L411"
+        },
+        {
+          "number": 11,
+          "text": "Ghép được: tạo MatchSession, cập nhật 2 vé, tạo thông báo",
+          "line": 462,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/01-post-join-queue.html#L462",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/01-post-join-queue.ts#L462"
+        },
+        {
+          "number": 12,
+          "text": "Sau commit: vé không ghép được về lại Redis, hoặc phát match.confirmed",
+          "line": 537,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/01-post-join-queue.html#L537",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/01-post-join-queue.ts#L537"
+        }
+      ]
+    },
+    {
+      "id": "03-voice-match/02-post-join-call",
+      "title": "Mở phòng gọi cho cặp đã ghép: tạo CallSession duy nhất rồi cấp token LiveKit riêng cho từng người.",
+      "name": "Vào cuộc gọi Voice Match",
+      "feature": "Voice Match",
+      "method": "POST",
+      "route": "/api/v1/calling/match-sessions/:matchSessionId/join",
+      "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [EXTERNAL] → [SERVICE]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/03-voice-match/02-post-join-call.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/02-post-join-call.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/02-post-join-call.ts",
+      "codeSha256": "f2cee948bf17e3df7a24744ca54ac3e36877b06d22ecb16e81934ed87e65d121",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận yêu cầu vào phòng (giới hạn 20 lần/phút, user từ JWT)",
+          "line": 26,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/02-post-join-call.html#L26",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/02-post-join-call.ts#L26"
+        },
+        {
+          "number": 2,
+          "text": "Kiểm user thuộc session (không phải thành viên thì 404)",
+          "line": 40,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/02-post-join-call.html#L40",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/02-post-join-call.ts#L40"
+        },
+        {
+          "number": 3,
+          "text": "Lấy CallSession hiện có; session đã kết thúc thì từ chối",
+          "line": 55,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/02-post-join-call.html#L55",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/02-post-join-call.ts#L55"
+        },
+        {
+          "number": 4,
+          "text": "Chưa có call thì tạo CallSession pending (roomName do server đặt)",
+          "line": 82,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/02-post-join-call.html#L82",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/02-post-join-call.ts#L82"
+        },
+        {
+          "number": 5,
+          "text": "2 người join cùng lúc: unique match_session_id, bên thua đọc lại call",
+          "line": 100,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/02-post-join-call.html#L100",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/02-post-join-call.ts#L100"
+        },
+        {
+          "number": 6,
+          "text": "Đọc lại session; đã kết thúc giữa chừng thì đóng luôn call vừa tạo",
+          "line": 108,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/02-post-join-call.html#L108",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/02-post-join-call.ts#L108"
+        },
+        {
+          "number": 7,
+          "text": "Ký token LiveKit riêng cho user (identity = userId)",
+          "line": 136,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/02-post-join-call.html#L136",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/02-post-join-call.ts#L136"
+        },
+        {
+          "number": 8,
+          "text": "Trả call, token và URL LiveKit về controller",
+          "line": 147,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/02-post-join-call.html#L147",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/02-post-join-call.ts#L147"
+        },
+        {
+          "number": 9,
+          "text": "Controller trả call, token, URL LiveKit và số giây gọi miễn phí",
+          "line": 157,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/02-post-join-call.html#L157",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/02-post-join-call.ts#L157"
+        }
+      ]
+    },
+    {
+      "id": "03-voice-match/03-post-webhook-livekit",
+      "title": "LiveKit báo ai vào hoặc rời phòng, ticker nền canh giờ (reconnect, tối đa 420 giây) rồi kết thúc call.",
+      "name": "Webhook LiveKit và đồng hồ cuộc gọi",
+      "feature": "Voice Match",
+      "method": "POST",
+      "route": "/api/v1/calling/webhooks/livekit",
+      "flow": "[CONTROLLER] → [EXTERNAL] → [SERVICE] → [POSTGRES] → [WORKER] → [SERVICE] → [EXTERNAL] → [REDIS]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/03-voice-match/03-post-webhook-livekit.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.ts",
+      "codeSha256": "bc37fbded367ee5cb1c9c88dccf8c795cbc3c23b8d98b2fe02338e47563305a1",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận webhook công khai của LiveKit (@Public, lấy nguyên văn body)",
+          "line": 30,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L30",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L30"
+        },
+        {
+          "number": 2,
+          "text": "Kiểm chữ ký webhook (sai thì 401) rồi mới đọc event",
+          "line": 51,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L51",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L51"
+        },
+        {
+          "number": 3,
+          "text": "Chỉ nhận phòng có prefix call-, tìm CallSession theo roomName",
+          "line": 73,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L73",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L73"
+        },
+        {
+          "number": 4,
+          "text": "Người vào phòng: khóa dòng, ghi mốc; đủ 2 người thì call sang active",
+          "line": 89,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L89",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L89"
+        },
+        {
+          "number": 5,
+          "text": "Người rớt: ghi mốc rớt, mở cửa sổ reconnect, chưa end call",
+          "line": 152,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L152",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L152"
+        },
+        {
+          "number": 6,
+          "text": "Sau khi chữ ký hợp lệ luôn trả 200 { ok: true }",
+          "line": 178,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L178",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L178"
+        },
+        {
+          "number": 7,
+          "text": "Ticker nền: đăng ký job theo chu kỳ, mỗi tick chỉ 1 pod chạy",
+          "line": 206,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L206",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L206"
+        },
+        {
+          "number": 8,
+          "text": "Đóng call pending quá hạn (chưa ai vào đủ)",
+          "line": 224,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L224",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L224"
+        },
+        {
+          "number": 9,
+          "text": "End idempotent: khóa dòng, kiểm lại status, chốt thời lượng",
+          "line": 248,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L248",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L248"
+        },
+        {
+          "number": 10,
+          "text": "Dọn sau end: chốt MatchSession, xóa phòng, phát call.ended",
+          "line": 288,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L288",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L288"
+        },
+        {
+          "number": 11,
+          "text": "Đóng call rớt mạng quá cửa sổ reconnect",
+          "line": 329,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L329",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L329"
+        },
+        {
+          "number": 12,
+          "text": "Đóng call Voice Match chạm 420 giây (tính trong SQL)",
+          "line": 353,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html#L353",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/03-post-webhook-livekit.ts#L353"
+        }
+      ]
+    },
+    {
+      "id": "03-voice-match/04-post-like-call",
+      "title": "Ghi lượt thích bất biến; khi cả 2 cùng thích thì tạo bạn bè và phòng chat trong cùng transaction.",
+      "name": "Thích đối phương sau Voice Match",
+      "feature": "Voice Match",
+      "method": "POST",
+      "route": "/api/v1/calling/calls/:id/like",
+      "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/03-voice-match/04-post-like-call.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.ts",
+      "codeSha256": "3d7dffd3afef36afe051059ed7ccfd5301d5653d447749e3acc4ae94681313b2",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận yêu cầu thích (id call từ URL, user từ JWT)",
+          "line": 22,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.html#L22",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/04-post-like-call.ts#L22"
+        },
+        {
+          "number": 2,
+          "text": "Kiểm user thuộc call (không phải thành viên thì 404)",
+          "line": 34,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.html#L34",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/04-post-like-call.ts#L34"
+        },
+        {
+          "number": 3,
+          "text": "Mở transaction DB, khóa dòng CallSession để 2 lượt thích chạy tuần tự",
+          "line": 40,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.html#L40",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/04-post-like-call.ts#L40"
+        },
+        {
+          "number": 4,
+          "text": "Chỉ cho thích khi call đang active hoặc đã ended",
+          "line": 59,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.html#L59",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/04-post-like-call.ts#L59"
+        },
+        {
+          "number": 5,
+          "text": "Ghi lượt thích bất biến của mình (bấm lại không ghi thêm)",
+          "line": 76,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.html#L76",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/04-post-like-call.ts#L76"
+        },
+        {
+          "number": 6,
+          "text": "Cả 2 đã thích thì tạo Friendship và Conversation, cùng transaction",
+          "line": 96,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.html#L96",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/04-post-like-call.ts#L96"
+        },
+        {
+          "number": 7,
+          "text": "Trả { liked, matched, friendUserId } về controller",
+          "line": 112,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.html#L112",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/04-post-like-call.ts#L112"
+        },
+        {
+          "number": 8,
+          "text": "Dính unique: coi như đã thích, đọc lại trạng thái bạn bè",
+          "line": 121,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.html#L121",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/04-post-like-call.ts#L121"
+        }
+      ]
+    },
+    {
+      "id": "04-party-room/01-post-join-room",
+      "title": "Vào phòng Party làm audience, hoặc vào lại khi rớt mạng, rồi nhận token LiveKit theo role hiện tại (audience không được publish).",
+      "name": "Vào phòng Party (join hoặc join lại)",
+      "feature": "Party Room",
+      "method": "POST",
+      "route": "/api/v1/party/rooms/:id/join",
+      "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS] → [EXTERNAL]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/04-party-room/01-post-join-room.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.ts",
+      "codeSha256": "e7df2eb41ae9835a1339dca2876299b88fb2d3ef1b383b2caaefaa49a995263d",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận request (user từ JWT, id phòng từ URL; tối đa 20 lần/phút)",
+          "line": 28,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.html#L28",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/01-post-join-room.ts#L28"
+        },
+        {
+          "number": 2,
+          "text": "Trong transaction, khóa dòng phòng FOR UPDATE",
+          "line": 44,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.html#L44",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/01-post-join-room.ts#L44"
+        },
+        {
+          "number": 3,
+          "text": "Join lại khi rớt mạng: xóa mốc rớt, không tạo membership mới",
+          "line": 76,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.html#L76",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/01-post-join-room.ts#L76"
+        },
+        {
+          "number": 4,
+          "text": "Đếm member đang ở phòng, so với sức chứa",
+          "line": 106,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.html#L106",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/01-post-join-room.ts#L106"
+        },
+        {
+          "number": 5,
+          "text": "Tạo membership audience (unique index chặn đang ở phòng khác)",
+          "line": 126,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.html#L126",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/01-post-join-room.ts#L126"
+        },
+        {
+          "number": 6,
+          "text": "Sau commit, báo party.member.joined cho các member còn lại",
+          "line": 159,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.html#L159",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/01-post-join-room.ts#L159"
+        },
+        {
+          "number": 7,
+          "text": "Chốt URL LiveKit của phòng, ký token theo role hiện tại",
+          "line": 214,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.html#L214",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/01-post-join-room.ts#L214"
+        },
+        {
+          "number": 8,
+          "text": "Controller trả phòng, membership, token và URL LiveKit",
+          "line": 236,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.html#L236",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/01-post-join-room.ts#L236"
+        }
+      ]
+    },
+    {
+      "id": "04-party-room/02-post-create-room",
+      "title": "Tạo phòng và membership host trong 1 transaction, rồi tạo room trên LiveKit; SFU lỗi thì đóng phòng bù trừ.",
+      "name": "Tạo phòng Party",
+      "feature": "Party Room",
+      "method": "POST",
+      "route": "/api/v1/party/rooms",
+      "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [EXTERNAL] → [SERVICE]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/04-party-room/02-post-create-room.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.ts",
+      "codeSha256": "488f2031d9fc46f9b69bd6421fbeb85b0f091495eaa3ef496ac60c99a9ccc391",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận request (user từ JWT, title và category từ body; 5 lần/phút)",
+          "line": 28,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html#L28",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/02-post-create-room.ts#L28"
+        },
+        {
+          "number": 2,
+          "text": "Chốt URL LiveKit theo region của host",
+          "line": 53,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html#L53",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/02-post-create-room.ts#L53"
+        },
+        {
+          "number": 3,
+          "text": "Ghi phòng và membership host trong 1 transaction",
+          "line": 62,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html#L62",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/02-post-create-room.ts#L62"
+        },
+        {
+          "number": 4,
+          "text": "Sau commit, tạo room tường minh trên LiveKit",
+          "line": 109,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html#L109",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/02-post-create-room.ts#L109"
+        },
+        {
+          "number": 5,
+          "text": "SFU lỗi: đóng phòng vừa tạo để bù trừ",
+          "line": 126,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html#L126",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/02-post-create-room.ts#L126"
+        },
+        {
+          "number": 6,
+          "text": "Đóng phòng idempotent: khóa dòng phòng, đã closed thì bỏ qua",
+          "line": 138,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html#L138",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/02-post-create-room.ts#L138"
+        },
+        {
+          "number": 7,
+          "text": "Dọn room trên SFU và báo party.room.closed cho member",
+          "line": 173,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html#L173",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/02-post-create-room.ts#L173"
+        },
+        {
+          "number": 8,
+          "text": "Trả 503 để client thử lại sau",
+          "line": 196,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html#L196",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/02-post-create-room.ts#L196"
+        },
+        {
+          "number": 9,
+          "text": "Ký token publish cho host, trả phòng và URL LiveKit",
+          "line": 204,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html#L204",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/02-post-create-room.ts#L204"
+        },
+        {
+          "number": 10,
+          "text": "Controller trả phòng, membership host, token và URL LiveKit",
+          "line": 212,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html#L212",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/02-post-create-room.ts#L212"
+        }
+      ]
+    },
+    {
+      "id": "04-party-room/03-post-accept-speaker-invite",
+      "title": "Audience đồng ý lời mời của host để lên speaker: đếm giới hạn dưới khóa phòng, commit role, rồi mở quyền publish trên LiveKit.",
+      "name": "Đồng ý lời mời lên speaker",
+      "feature": "Party Room",
+      "method": "POST",
+      "route": "/api/v1/party/rooms/:id/speaker-invite/accept",
+      "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [EXTERNAL] → [REDIS]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/04-party-room/03-post-accept-speaker-invite.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/03-post-accept-speaker-invite.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/03-post-accept-speaker-invite.ts",
+      "codeSha256": "920d6689d34e115b0eb5d4745fdf7c19bb937284e07593d6e6003b820c190a71",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận request (user từ JWT, id phòng từ URL)",
+          "line": 29,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/03-post-accept-speaker-invite.html#L29",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/03-post-accept-speaker-invite.ts#L29"
+        },
+        {
+          "number": 2,
+          "text": "Trong transaction, khóa dòng phòng FOR UPDATE",
+          "line": 45,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/03-post-accept-speaker-invite.html#L45",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/03-post-accept-speaker-invite.ts#L45"
+        },
+        {
+          "number": 3,
+          "text": "Kiểm tra lời mời đang chờ (đã là speaker thì trả luôn)",
+          "line": 84,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/03-post-accept-speaker-invite.html#L84",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/03-post-accept-speaker-invite.ts#L84"
+        },
+        {
+          "number": 4,
+          "text": "Đếm speaker so với giới hạn, rồi đổi role thành speaker",
+          "line": 101,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/03-post-accept-speaker-invite.html#L101",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/03-post-accept-speaker-invite.ts#L101"
+        },
+        {
+          "number": 5,
+          "text": "Sau commit, gọi LiveKit mở quyền publish cho người này",
+          "line": 129,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/03-post-accept-speaker-invite.html#L129",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/03-post-accept-speaker-invite.ts#L129"
+        },
+        {
+          "number": 6,
+          "text": "LiveKit lỗi: hoàn role cũ bằng transaction mới",
+          "line": 180,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/03-post-accept-speaker-invite.html#L180",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/03-post-accept-speaker-invite.ts#L180"
+        },
+        {
+          "number": 7,
+          "text": "Báo party.role.changed cho mọi member qua Redis",
+          "line": 237,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/03-post-accept-speaker-invite.html#L237",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/03-post-accept-speaker-invite.ts#L237"
+        },
+        {
+          "number": 8,
+          "text": "Service trả membership, controller trả DTO",
+          "line": 272,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/03-post-accept-speaker-invite.html#L272",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/04-party-room/03-post-accept-speaker-invite.ts#L272"
+        }
+      ]
+    },
+    {
+      "id": "05-movie-match-movie-night/01-post-create-session",
+      "title": "Tạo phiên xem video chung giữa 2 người bạn, idempotent theo cặp, mỗi user chỉ có 1 phiên đang xem.",
+      "name": "Tạo phiên xem chung với một người bạn",
+      "feature": "Movie Match / Movie Night",
+      "method": "POST",
+      "route": "/api/v1/movie-match/sessions",
+      "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/05-movie-match-movie-night/01-post-create-session.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.ts",
+      "codeSha256": "b38ec4fe62fa57c52c294617d9a48f6923b3c9dfefc7c7dec4e7c9e94c0f5764",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận request (user từ JWT, friendUserId và videoUrl trong body)",
+          "line": 26,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.html#L26",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/05-movie-match-movie-night/01-post-create-session.ts#L26"
+        },
+        {
+          "number": 2,
+          "text": "Kiểm URL video theo whitelist host",
+          "line": 44,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.html#L44",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/05-movie-match-movie-night/01-post-create-session.ts#L44"
+        },
+        {
+          "number": 3,
+          "text": "Kiểm tra 2 người đã là bạn (lỗi chung 404, không lộ quan hệ)",
+          "line": 98,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.html#L98",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/05-movie-match-movie-night/01-post-create-session.ts#L98"
+        },
+        {
+          "number": 4,
+          "text": "Chuẩn hóa cặp (low, high), cặp đang xem chung thì trả phiên cũ",
+          "line": 116,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.html#L116",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/05-movie-match-movie-night/01-post-create-session.ts#L116"
+        },
+        {
+          "number": 5,
+          "text": "Trong transaction, ghi phiên rồi 2 participant (PK user_id chặn trùng)",
+          "line": 130,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.html#L130",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/05-movie-match-movie-night/01-post-create-session.ts#L130"
+        },
+        {
+          "number": 6,
+          "text": "Thua race: đọc lại để phân biệt replay với user ở phiên khác",
+          "line": 156,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.html#L156",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/05-movie-match-movie-night/01-post-create-session.ts#L156"
+        },
+        {
+          "number": 7,
+          "text": "Báo movie.session.started qua Redis cho cả 2 người",
+          "line": 169,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.html#L169",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/05-movie-match-movie-night/01-post-create-session.ts#L169"
+        },
+        {
+          "number": 8,
+          "text": "Controller trả phiên theo góc nhìn của người tạo",
+          "line": 187,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.html#L187",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/05-movie-match-movie-night/01-post-create-session.ts#L187"
+        }
+      ]
+    },
+    {
+      "id": "06-palm-match/01-post-join-queue",
+      "title": "Vào hàng đợi ghép ẩn danh; nếu có người chờ phù hợp thì ghép ngay thành 1 phiên Palm Match.",
+      "name": "Vào hàng đợi Palm Match",
+      "feature": "Palm Match",
+      "method": "POST",
+      "route": "/api/v1/palm-match/queue",
+      "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/06-palm-match/01-post-join-queue.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/06-palm-match/01-post-join-queue.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/06-palm-match/01-post-join-queue.ts",
+      "codeSha256": "19853a5869b00d1ed3c9e34e20fb8542065e30d12a3918906d35bd720354e71a",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận request (user lấy từ JWT)",
+          "line": 26,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/06-palm-match/01-post-join-queue.html#L26",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/06-palm-match/01-post-join-queue.ts#L26"
+        },
+        {
+          "number": 2,
+          "text": "Trong transaction, lấy khóa advisory để chọn cặp tuần tự",
+          "line": 38,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/06-palm-match/01-post-join-queue.html#L38",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/06-palm-match/01-post-join-queue.ts#L38"
+        },
+        {
+          "number": 3,
+          "text": "Đóng session đã quá hạn của chính user (hết hạn kiểu lười)",
+          "line": 49,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/06-palm-match/01-post-join-queue.html#L49",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/06-palm-match/01-post-join-queue.ts#L49"
+        },
+        {
+          "number": 4,
+          "text": "Còn session chưa dismiss thì trả lại state đó, không xếp hàng",
+          "line": 54,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/06-palm-match/01-post-join-queue.html#L54",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/06-palm-match/01-post-join-queue.ts#L54"
+        },
+        {
+          "number": 5,
+          "text": "Xóa entry chờ quá hạn, rồi xếp user vào hàng đợi (PK user_id)",
+          "line": 66,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/06-palm-match/01-post-join-queue.html#L66",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/06-palm-match/01-post-join-queue.ts#L66"
+        },
+        {
+          "number": 6,
+          "text": "Lấy tối đa 20 người chờ lâu nhất (FIFO)",
+          "line": 82,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/06-palm-match/01-post-join-queue.html#L82",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/06-palm-match/01-post-join-queue.ts#L82"
+        },
+        {
+          "number": 7,
+          "text": "Duyệt ứng viên: bỏ người đã có session, kiểm block/report",
+          "line": 93,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/06-palm-match/01-post-join-queue.html#L93",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/06-palm-match/01-post-join-queue.ts#L93"
+        },
+        {
+          "number": 8,
+          "text": "Chưa có ứng viên hợp lệ: user ở lại hàng đợi, trả queued",
+          "line": 113,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/06-palm-match/01-post-join-queue.html#L113",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/06-palm-match/01-post-join-queue.ts#L113"
+        },
+        {
+          "number": 9,
+          "text": "Có cặp: tạo session snapshot (seed tất định)",
+          "line": 124,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/06-palm-match/01-post-join-queue.html#L124",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/06-palm-match/01-post-join-queue.ts#L124"
+        },
+        {
+          "number": 10,
+          "text": "Rút cả 2 khỏi hàng đợi, ghi 2 participant (PK user_id)",
+          "line": 181,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/06-palm-match/01-post-join-queue.html#L181",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/06-palm-match/01-post-join-queue.ts#L181"
+        },
+        {
+          "number": 11,
+          "text": "Trả trạng thái đã ghép theo góc nhìn của user",
+          "line": 190,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/06-palm-match/01-post-join-queue.html#L190",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/06-palm-match/01-post-join-queue.ts#L190"
+        }
+      ]
+    },
+    {
+      "id": "09-diamond-top-up-va-vip/01-post-vip-purchase",
+      "title": "Trừ Diamond và gia hạn VIP trong một transaction của sổ kép: idempotent theo key, khóa ví FOR UPDATE, ghi outbox.",
+      "name": "Mua VIP bằng Diamond",
+      "feature": "Diamond, Top-up và VIP",
+      "method": "POST",
+      "route": "/api/v1/economy/vip/purchase",
+      "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [WORKER] → [KAFKA]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/09-diamond-top-up-va-vip/01-post-vip-purchase.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/01-post-vip-purchase.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/01-post-vip-purchase.ts",
+      "codeSha256": "a96aa253a3548cd8b1e42901e7dd876f4017bfab20dc8f9a548a4e34b6cb74ad",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận request (user từ JWT, planId trong body, Idempotency-Key từ header)",
+          "line": 30,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/01-post-vip-purchase.html#L30",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/01-post-vip-purchase.ts#L30"
+        },
+        {
+          "number": 2,
+          "text": "Đọc giá và số ngày của gói từ catalog server",
+          "line": 48,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/01-post-vip-purchase.html#L48",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/01-post-vip-purchase.ts#L48"
+        },
+        {
+          "number": 3,
+          "text": "Dựng bút toán Nợ ví / Có system_revenue, gọi LedgerService.record",
+          "line": 61,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/01-post-vip-purchase.html#L61",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/01-post-vip-purchase.ts#L61"
+        },
+        {
+          "number": 4,
+          "text": "Kiểm sổ kép: mỗi currency tổng Nợ phải bằng tổng Có",
+          "line": 125,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/01-post-vip-purchase.html#L125",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/01-post-vip-purchase.ts#L125"
+        },
+        {
+          "number": 5,
+          "text": "Băm request; key đã có thì trả kết quả cũ, không mở transaction",
+          "line": 161,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/01-post-vip-purchase.html#L161",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/01-post-vip-purchase.ts#L161"
+        },
+        {
+          "number": 6,
+          "text": "Trong transaction, chèn giao dịch (trùng key là replay)",
+          "line": 217,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/01-post-vip-purchase.html#L217",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/01-post-vip-purchase.ts#L217"
+        },
+        {
+          "number": 7,
+          "text": "Tạo hoặc lấy tài khoản sổ, khóa ví FOR UPDATE theo thứ tự userId",
+          "line": 249,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/01-post-vip-purchase.html#L249",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/01-post-vip-purchase.ts#L249"
+        },
+        {
+          "number": 8,
+          "text": "Ghi bút toán, trừ số dư (kiểm đủ tiền) và ghi outbox",
+          "line": 301,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/01-post-vip-purchase.html#L301",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/01-post-vip-purchase.ts#L301"
+        },
+        {
+          "number": 9,
+          "text": "Phần việc riêng của VIP cùng transaction: gia hạn, ghi outbox",
+          "line": 391,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/01-post-vip-purchase.html#L391",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/01-post-vip-purchase.ts#L391"
+        },
+        {
+          "number": 10,
+          "text": "Thua race cùng key: đọc lại dòng của bên thắng, trả như replay",
+          "line": 405,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/01-post-vip-purchase.html#L405",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/01-post-vip-purchase.ts#L405"
+        },
+        {
+          "number": 11,
+          "text": "Service trả hạng và hạn VIP (replay thì không gia hạn lần 2)",
+          "line": 425,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/01-post-vip-purchase.html#L425",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/01-post-vip-purchase.ts#L425"
+        },
+        {
+          "number": 12,
+          "text": "Worker nền: khóa lô outbox chưa gửi, gửi sang Kafka",
+          "line": 461,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/01-post-vip-purchase.html#L461",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/01-post-vip-purchase.ts#L461"
+        }
+      ]
+    },
+    {
+      "id": "09-diamond-top-up-va-vip/02-post-iap-verify",
+      "title": "Xác thực receipt với Apple hoặc Google ở server, rồi cộng Diamond đúng một lần theo id giao dịch của store.",
+      "name": "Nạp Diamond bằng receipt của store",
+      "feature": "Diamond, Top-up và VIP",
+      "method": "POST",
+      "route": "/api/v1/economy/iap/verify",
+      "flow": "[CONTROLLER] → [SERVICE] → [EXTERNAL] → [SERVICE] → [POSTGRES]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/09-diamond-top-up-va-vip/02-post-iap-verify.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts",
+      "codeSha256": "51b5c4a85e6c91260fff193f51cd9fa55bc197175e6e41e55c5c26ff72b7013a",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận receipt từ app (user từ JWT; tối đa 10 lần/phút)",
+          "line": 27,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html#L27",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts#L27"
+        },
+        {
+          "number": 2,
+          "text": "Tra catalog để ra số Diamond (client không gửi số lượng)",
+          "line": 45,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html#L45",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts#L45"
+        },
+        {
+          "number": 3,
+          "text": "Hỏi Apple hoặc Google xác thực receipt ở server",
+          "line": 60,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html#L60",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts#L60"
+        },
+        {
+          "number": 4,
+          "text": "Apple: gọi production trước, receipt sandbox thì gọi lại sandbox",
+          "line": 75,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html#L75",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts#L75"
+        },
+        {
+          "number": 5,
+          "text": "Apple: khớp productId và transactionId trong receipt",
+          "line": 143,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html#L143",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts#L143"
+        },
+        {
+          "number": 6,
+          "text": "Google: hỏi Publisher API, chỉ nhận purchaseState = purchased",
+          "line": 170,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html#L170",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts#L170"
+        },
+        {
+          "number": 7,
+          "text": "Ghi sổ Nợ system_iap / Có ví user, key theo id giao dịch store",
+          "line": 241,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html#L241",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts#L241"
+        },
+        {
+          "number": 8,
+          "text": "Lưu iap_receipts cùng transaction (unique chặn credit đôi)",
+          "line": 271,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html#L271",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts#L271"
+        },
+        {
+          "number": 9,
+          "text": "Trả transactionId, số Diamond và cờ replayed",
+          "line": 289,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html#L289",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts#L289"
+        }
+      ]
+    },
+    {
+      "id": "09-diamond-top-up-va-vip/03-post-webhook-payos",
+      "title": "payOS báo thanh toán thành công: kiểm HMAC, đối chiếu snapshot của đơn, rồi cộng Diamond đúng một lần.",
+      "name": "Webhook payOS cộng Diamond",
+      "feature": "Diamond, Top-up và VIP",
+      "method": "POST",
+      "route": "/api/v1/economy/webhooks/payos",
+      "flow": "[CONTROLLER] → [EXTERNAL] → [SERVICE] → [POSTGRES]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/09-diamond-top-up-va-vip/03-post-webhook-payos.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts",
+      "codeSha256": "8627ed812e6a3b5c61c88f98931bd6c1631103a53469069b0d959a871c4dff60",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận webhook công khai của payOS (tối đa 120 lần/phút)",
+          "line": 27,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html#L27",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts#L27"
+        },
+        {
+          "number": 2,
+          "text": "Kiểm chữ ký HMAC trước mọi truy vấn hoặc ghi",
+          "line": 33,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html#L33",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts#L33"
+        },
+        {
+          "number": 3,
+          "text": "Dựng chuỗi chuẩn từ data (sắp key tăng dần) rồi ký HMAC-SHA256",
+          "line": 61,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html#L61",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts#L61"
+        },
+        {
+          "number": 4,
+          "text": "So chữ ký tính được với chữ ký payOS gửi (timingSafeEqual)",
+          "line": 70,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html#L70",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts#L70"
+        },
+        {
+          "number": 5,
+          "text": "Giao event đã xác thực cho PayosService để cộng Diamond",
+          "line": 125,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html#L125",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts#L125"
+        },
+        {
+          "number": 6,
+          "text": "Tìm đơn theo orderCode, đối chiếu snapshot (lệch thì bỏ qua)",
+          "line": 129,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html#L129",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts#L129"
+        },
+        {
+          "number": 7,
+          "text": "Ghi sổ Nợ system_iap / Có ví user, idempotent theo order_code",
+          "line": 152,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html#L152",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts#L152"
+        },
+        {
+          "number": 8,
+          "text": "Cùng transaction: khóa dòng đơn, đối chiếu lại snapshot",
+          "line": 185,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html#L185",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts#L185"
+        },
+        {
+          "number": 9,
+          "text": "Đánh dấu đơn paid và nối với giao dịch vừa ghi",
+          "line": 202,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html#L202",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts#L202"
+        },
+        {
+          "number": 10,
+          "text": "Trả { received: true } cho payOS",
+          "line": 226,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html#L226",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts#L226"
+        }
+      ]
+    },
+    {
+      "id": "09-diamond-top-up-va-vip/04-post-webhook-apple-refund",
+      "title": "Apple báo REFUND hoặc REVOKE: kiểm chữ ký JWS, rồi đảo bút toán của lần nạp gốc; số dư có thể âm.",
+      "name": "Webhook Apple hoàn tiền",
+      "feature": "Diamond, Top-up và VIP",
+      "method": "POST",
+      "route": "/api/v1/economy/webhooks/apple",
+      "flow": "[CONTROLLER] → [EXTERNAL] → [SERVICE] → [POSTGRES]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts",
+      "codeSha256": "fb45674df7434b507e4874bd039462e72ea4282abc372c832f33cd66e51fa942",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận webhook công khai của Apple (tối đa 60 lần/phút)",
+          "line": 36,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L36",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L36"
+        },
+        {
+          "number": 2,
+          "text": "Kiểm chữ ký JWS trước khi tin bất kỳ trường nào",
+          "line": 44,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L44",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L44"
+        },
+        {
+          "number": 3,
+          "text": "Xác thực chuỗi x5c lên Apple Root CA G3, rồi verify ES256",
+          "line": 60,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L60",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L60"
+        },
+        {
+          "number": 4,
+          "text": "Đối chiếu bundleId, chỉ xử lý REFUND và REVOKE",
+          "line": 106,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L106",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L106"
+        },
+        {
+          "number": 5,
+          "text": "Giao RefundService tìm receipt gốc và hoàn tiền",
+          "line": 132,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L132",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L132"
+        },
+        {
+          "number": 6,
+          "text": "Tìm receipt gốc; không rõ hoặc đã hoàn thì dừng",
+          "line": 145,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L145",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L145"
+        },
+        {
+          "number": 7,
+          "text": "Nhờ LedgerService.reverse đảo bút toán của giao dịch gốc",
+          "line": 174,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L174",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L174"
+        },
+        {
+          "number": 8,
+          "text": "Ghi giao dịch đảo vào sổ; số dư ví được phép âm",
+          "line": 228,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L228",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L228"
+        },
+        {
+          "number": 9,
+          "text": "Đánh dấu giao dịch gốc reversed (UPDATE có điều kiện)",
+          "line": 262,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L262",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L262"
+        },
+        {
+          "number": 10,
+          "text": "Gốc đã bị đảo trước đó: coi là idempotent, nối receipt",
+          "line": 288,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L288",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L288"
+        },
+        {
+          "number": 11,
+          "text": "Luôn ACK 200 cho Apple sau khi đã verify",
+          "line": 309,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html#L309",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts#L309"
+        }
+      ]
+    },
+    {
+      "id": "10-matching-speed-up-detail/01-post-speedup-ticket",
+      "title": "Trả Diamond để vé được ưu tiên: trừ tiền trước, cộng boost vào DB, rồi đặt lại điểm trong Redis.",
+      "name": "Speed-up vé đang chờ ghép",
+      "feature": "Matching Speed-up",
+      "method": "POST",
+      "route": "/api/v1/matching/tickets/:id/speedup",
+      "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/10-matching-speed-up-detail/01-post-speedup-ticket.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/10-matching-speed-up-detail/01-post-speedup-ticket.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/10-matching-speed-up-detail/01-post-speedup-ticket.ts",
+      "codeSha256": "2e9bbe93351c2b0ac3b68e89f0b81c9c57f516b13c8755633cf0ca7aab993cf0",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận request (user từ JWT, id vé từ URL, Idempotency-Key từ header)",
+          "line": 28,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/10-matching-speed-up-detail/01-post-speedup-ticket.html#L28",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/10-matching-speed-up-detail/01-post-speedup-ticket.ts#L28"
+        },
+        {
+          "number": 2,
+          "text": "Kiểm tra vé (đúng chủ vé, còn đang queued)",
+          "line": 41,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/10-matching-speed-up-detail/01-post-speedup-ticket.html#L41",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/10-matching-speed-up-detail/01-post-speedup-ticket.ts#L41"
+        },
+        {
+          "number": 3,
+          "text": "Tính giá speed-up và tạo key idempotent",
+          "line": 51,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/10-matching-speed-up-detail/01-post-speedup-ticket.html#L51",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/10-matching-speed-up-detail/01-post-speedup-ticket.ts#L51"
+        },
+        {
+          "number": 4,
+          "text": "Trừ Diamond qua Economy",
+          "line": 62,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/10-matching-speed-up-detail/01-post-speedup-ticket.html#L62",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/10-matching-speed-up-detail/01-post-speedup-ticket.ts#L62"
+        },
+        {
+          "number": 5,
+          "text": "Cộng boost vào vé trong Postgres",
+          "line": 73,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/10-matching-speed-up-detail/01-post-speedup-ticket.html#L73",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/10-matching-speed-up-detail/01-post-speedup-ticket.ts#L73"
+        },
+        {
+          "number": 6,
+          "text": "Đọc lại tổng boost, rồi đặt lại điểm của vé trong Redis",
+          "line": 85,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/10-matching-speed-up-detail/01-post-speedup-ticket.html#L85",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/10-matching-speed-up-detail/01-post-speedup-ticket.ts#L85"
+        },
+        {
+          "number": 7,
+          "text": "Ghi điểm mới của vé vào sorted set của shard",
+          "line": 97,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/10-matching-speed-up-detail/01-post-speedup-ticket.html#L97",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/10-matching-speed-up-detail/01-post-speedup-ticket.ts#L97"
+        },
+        {
+          "number": 8,
+          "text": "Service trả kết quả về controller",
+          "line": 110,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/10-matching-speed-up-detail/01-post-speedup-ticket.html#L110",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/10-matching-speed-up-detail/01-post-speedup-ticket.ts#L110"
+        },
+        {
+          "number": 9,
+          "text": "Controller trả response kèm giá speed-up hiện hành",
+          "line": 117,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/10-matching-speed-up-detail/01-post-speedup-ticket.html#L117",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/10-matching-speed-up-detail/01-post-speedup-ticket.ts#L117"
+        }
+      ]
+    },
+    {
+      "id": "11-gift/01-post-party-room-gift",
+      "title": "Tặng quà trong Party Room: trừ DIA người tặng, cộng PTS người nhận, ghi GiftEvent trong cùng một transaction.",
+      "name": "Tặng quà trong phòng",
+      "feature": "Gift",
+      "method": "POST",
+      "route": "/api/v1/party/rooms/:roomId/gifts",
+      "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/11-gift/01-post-party-room-gift.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.ts",
+      "codeSha256": "6595e891dd416730fbc2a0bd53a94b567315f8ef40c51de99fed9ba2646972bf",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận request (user từ JWT, roomId từ URL, Idempotency-Key từ header)",
+          "line": 40,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L40",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L40"
+        },
+        {
+          "number": 2,
+          "text": "Chặn tự tặng, đọc giá quà từ DB",
+          "line": 62,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L62",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L62"
+        },
+        {
+          "number": 3,
+          "text": "Kiểm người tặng và người nhận cùng ở trong phòng",
+          "line": 81,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L81",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L81"
+        },
+        {
+          "number": 4,
+          "text": "Tính điểm PTS cho người nhận (guest thì 0)",
+          "line": 106,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L106",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L106"
+        },
+        {
+          "number": 5,
+          "text": "Economy dựng 2 chân sổ kép: DIA người tặng, PTS người nhận",
+          "line": 195,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L195",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L195"
+        },
+        {
+          "number": 6,
+          "text": "Ledger kiểm sổ kép: mỗi currency tự cân Nợ = Có",
+          "line": 265,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L265",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L265"
+        },
+        {
+          "number": 7,
+          "text": "Mở transaction DB, chèn giao dịch idempotent",
+          "line": 319,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L319",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L319"
+        },
+        {
+          "number": 8,
+          "text": "Khóa ví người tặng và người nhận theo thứ tự userId",
+          "line": 372,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L372",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L372"
+        },
+        {
+          "number": 9,
+          "text": "Cập nhật số dư (DIA) và earnings (PTS), ghi outbox",
+          "line": 396,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L396",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L396"
+        },
+        {
+          "number": 10,
+          "text": "Chạy tiếp outbox, GiftEvent, notification trong cùng transaction",
+          "line": 474,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L474",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L474"
+        },
+        {
+          "number": 11,
+          "text": "Sau commit, lần đầu mới phát gift.sent qua Redis và push",
+          "line": 511,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L511",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L511"
+        },
+        {
+          "number": 12,
+          "text": "Controller trả response (GiftEventDto)",
+          "line": 553,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html#L553",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts#L553"
+        }
+      ]
+    },
+    {
+      "id": "12-mini-game/01-post-submit-move",
+      "title": "Mỗi bên nộp đúng 1 nước đi; khi đủ 2 nước thì tính thắng/thua và báo kết quả cho cả hai.",
+      "name": "Nộp nước đi oẳn tù tì",
+      "feature": "Mini Game",
+      "method": "POST",
+      "route": "/api/v1/mini-game/sessions/:id/moves",
+      "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/12-mini-game/01-post-submit-move.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.ts",
+      "codeSha256": "f7363d2ee809139527159f5512ac44953c75997f744a459261e0f3b08313550e",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận request (user từ JWT, id ván từ URL, nước đi trong body)",
+          "line": 25,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html#L25",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/12-mini-game/01-post-submit-move.ts#L25"
+        },
+        {
+          "number": 2,
+          "text": "Kiểm tra user thuộc ván (không thì 404)",
+          "line": 44,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html#L44",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/12-mini-game/01-post-submit-move.ts#L44"
+        },
+        {
+          "number": 3,
+          "text": "Xác định cột move của người nộp (low hay high)",
+          "line": 48,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html#L48",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/12-mini-game/01-post-submit-move.ts#L48"
+        },
+        {
+          "number": 4,
+          "text": "Nộp move bằng UPDATE có điều kiện trong transaction (0 dòng: 409)",
+          "line": 56,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html#L56",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/12-mini-game/01-post-submit-move.ts#L56"
+        },
+        {
+          "number": 5,
+          "text": "Đọc lại ván: mới 1 bên nộp thì trả về, chưa resolve",
+          "line": 80,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html#L80",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/12-mini-game/01-post-submit-move.ts#L80"
+        },
+        {
+          "number": 6,
+          "text": "Đủ 2 move: tính người thắng",
+          "line": 91,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html#L91",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/12-mini-game/01-post-submit-move.ts#L91"
+        },
+        {
+          "number": 7,
+          "text": "Ghi kết quả ván và nhả slot participant của cả 2 người",
+          "line": 116,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html#L116",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/12-mini-game/01-post-submit-move.ts#L116"
+        },
+        {
+          "number": 8,
+          "text": "Sau commit, báo minigame.session.resolved qua Redis cho cả 2",
+          "line": 148,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html#L148",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/12-mini-game/01-post-submit-move.ts#L148"
+        },
+        {
+          "number": 9,
+          "text": "Controller trả ván theo góc nhìn của người nộp",
+          "line": 171,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html#L171",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/12-mini-game/01-post-submit-move.ts#L171"
+        }
+      ]
+    },
+    {
+      "id": "13-trust-safety/01-post-report",
+      "title": "Ghi report và trừ trust score của người bị báo cáo trong 1 transaction, có chống lạm dụng theo cặp và theo ngày.",
+      "name": "Báo cáo một người dùng",
+      "feature": "Trust & Safety",
+      "method": "POST",
+      "route": "/api/v1/safety/reports",
+      "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/13-trust-safety/01-post-report.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.ts",
+      "codeSha256": "71d3e956b6248b61b51725f9cd524cd320811b7fc70d0de24439a47b264df293",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận report (giới hạn 10 lần/giờ; user từ JWT, người bị báo từ body)",
+          "line": 24,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html#L24",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/13-trust-safety/01-post-report.ts#L24"
+        },
+        {
+          "number": 2,
+          "text": "Chặn tự report, kiểm người bị báo cáo có tồn tại",
+          "line": 45,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html#L45",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/13-trust-safety/01-post-report.ts#L45"
+        },
+        {
+          "number": 3,
+          "text": "Mở transaction, khóa dòng user bị báo cáo (FOR UPDATE)",
+          "line": 71,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html#L71",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/13-trust-safety/01-post-report.ts#L71"
+        },
+        {
+          "number": 4,
+          "text": "Đếm report đã trừ điểm của cặp này trong cooldown",
+          "line": 82,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html#L82",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/13-trust-safety/01-post-report.ts#L82"
+        },
+        {
+          "number": 5,
+          "text": "Tính phần trần penalty 24 giờ còn lại của người bị báo",
+          "line": 95,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html#L95",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/13-trust-safety/01-post-report.ts#L95"
+        },
+        {
+          "number": 6,
+          "text": "Tính điểm phạt: 0 nếu cặp đã bị phạt, không vượt trần ngày",
+          "line": 108,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html#L108",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/13-trust-safety/01-post-report.ts#L108"
+        },
+        {
+          "number": 7,
+          "text": "Ghi report (append-only) kèm số điểm đã trừ thật",
+          "line": 113,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html#L113",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/13-trust-safety/01-post-report.ts#L113"
+        },
+        {
+          "number": 8,
+          "text": "Trừ trust score (có sàn) trong cùng transaction",
+          "line": 126,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html#L126",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/13-trust-safety/01-post-report.ts#L126"
+        },
+        {
+          "number": 9,
+          "text": "Controller trả report vừa ghi",
+          "line": 140,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html#L140",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/13-trust-safety/01-post-report.ts#L140"
+        }
+      ]
+    },
+    {
+      "id": "16-friend-va-chat-1-1/01-post-send-message",
+      "title": "Gửi tin nhắn idempotent, cập nhật streak ngày, phát realtime cho 2 người và thông báo cho người nhận.",
+      "name": "Gửi tin nhắn chat 1-1",
+      "feature": "Friend và Chat 1-1",
+      "method": "POST",
+      "route": "/api/v1/conversations/:id/messages",
+      "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/16-friend-va-chat-1-1/01-post-send-message.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.ts",
+      "codeSha256": "29a70a6f4284495552857f9dda03d94dabaf2887087fa6940e5c85226cb4f5cc",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận request (user từ JWT, id hội thoại từ URL, Idempotency-Key)",
+          "line": 42,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L42",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L42"
+        },
+        {
+          "number": 2,
+          "text": "Có ảnh đính kèm thì kiểm quyền sở hữu và đổi thành URL",
+          "line": 52,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L52",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L52"
+        },
+        {
+          "number": 3,
+          "text": "Kiểm user thuộc hội thoại",
+          "line": 80,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L80",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L80"
+        },
+        {
+          "number": 4,
+          "text": "Kiểm block 2 chiều, độ dài tin nhắn, tin rỗng",
+          "line": 86,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L86",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L86"
+        },
+        {
+          "number": 5,
+          "text": "Lưu tin nhắn idempotent (retry trả lại tin cũ, khác nội dung thì 409)",
+          "line": 133,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L133",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L133"
+        },
+        {
+          "number": 6,
+          "text": "Cập nhật streak sau khi tin đã lưu, trong transaction riêng",
+          "line": 178,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L178",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L178"
+        },
+        {
+          "number": 7,
+          "text": "Tạo dòng streak nếu chưa có, khóa dòng FOR UPDATE",
+          "line": 194,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L194",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L194"
+        },
+        {
+          "number": 8,
+          "text": "Cả 2 đã nhắn hôm nay thì tăng streak 1 lần/ngày, cứu lỡ 1 ngày",
+          "line": 216,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L216",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L216"
+        },
+        {
+          "number": 9,
+          "text": "Chạm mốc streak thì phát friend.streak.increased qua Redis",
+          "line": 246,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L246",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L246"
+        },
+        {
+          "number": 10,
+          "text": "Phát friend.message cho cả 2 người qua Redis (sau khi lưu)",
+          "line": 268,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L268",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L268"
+        },
+        {
+          "number": 11,
+          "text": "Tạo thông báo và push cho người nhận, trừ khi đã mute",
+          "line": 290,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L290",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L290"
+        },
+        {
+          "number": 12,
+          "text": "Controller trả tin nhắn vừa lưu",
+          "line": 319,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html#L319",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/16-friend-va-chat-1-1/01-post-send-message.ts#L319"
+        }
+      ]
+    },
+    {
+      "id": "17-dang-ky-onboarding-va-guest/01-post-verify-otp",
+      "title": "Kiểm mã OTP có giới hạn số lần thử và chỉ dùng một lần, rồi tìm hoặc tạo tài khoản và cấp phiên đăng nhập.",
+      "name": "Xác minh OTP và đăng nhập",
+      "feature": "Đăng ký, Onboarding và Guest",
+      "method": "POST",
+      "route": "/api/v1/auth/otp/verify",
+      "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [CONTROLLER]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/17-dang-ky-onboarding-va-guest/01-post-verify-otp.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts",
+      "codeSha256": "3402ccd2aa42ff311d205fdf08bc9f612c8fe9b3181b5f7f30a2c3ec1203bb57",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận số điện thoại và mã OTP (giới hạn 10 lần/phút)",
+          "line": 38,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L38",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L38"
+        },
+        {
+          "number": 2,
+          "text": "Lấy mã OTP chưa dùng mới nhất của số này, kiểm còn hạn",
+          "line": 58,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L58",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L58"
+        },
+        {
+          "number": 3,
+          "text": "Cộng 1 lượt thử cho mã này, vượt giới hạn thì 429",
+          "line": 77,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L77",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L77"
+        },
+        {
+          "number": 4,
+          "text": "So băm HMAC của mã nhập với băm lưu trong DB",
+          "line": 97,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L97",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L97"
+        },
+        {
+          "number": 5,
+          "text": "Đánh dấu mã đã dùng (consumed_at), không dùng lại được",
+          "line": 122,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L122",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L122"
+        },
+        {
+          "number": 6,
+          "text": "Tìm tài khoản theo số điện thoại, chưa có thì tạo",
+          "line": 137,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L137",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L137"
+        },
+        {
+          "number": 7,
+          "text": "Chưa có tài khoản: tạo user và identity trong 1 transaction",
+          "line": 164,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L164",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L164"
+        },
+        {
+          "number": 8,
+          "text": "2 request đầu tiên chạy song song: bên dính unique đọc lại identity",
+          "line": 183,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L183",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L183"
+        },
+        {
+          "number": 9,
+          "text": "Ký access token JWT",
+          "line": 224,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L224",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L224"
+        },
+        {
+          "number": 10,
+          "text": "Sinh refresh token ngẫu nhiên, DB chỉ lưu băm SHA-256",
+          "line": 227,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L227",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L227"
+        },
+        {
+          "number": 11,
+          "text": "Đặt refresh token vào cookie httpOnly, bóc khỏi body trả về",
+          "line": 255,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L255",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L255"
+        },
+        {
+          "number": 12,
+          "text": "Trả access token và csrfToken trong body",
+          "line": 271,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html#L271",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts#L271"
+        }
+      ]
+    },
+    {
+      "id": "17-dang-ky-onboarding-va-guest/02-post-refresh",
+      "title": "Xoay refresh token mỗi lần dùng và phát hiện dùng lại: token đã xoay mà bị dùng lại thì thu hồi cả họ token.",
+      "name": "Đổi refresh token lấy phiên mới",
+      "feature": "Đăng ký, Onboarding và Guest",
+      "method": "POST",
+      "route": "/api/v1/auth/refresh",
+      "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [CONTROLLER]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/17-dang-ky-onboarding-va-guest/02-post-refresh.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts",
+      "codeSha256": "394bda4aff1dd0237c6174ef142e6d8448c1f9bbae71b48161d8dc71e055cd49",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận request: CSRF double-submit, refresh token đọc từ cookie",
+          "line": 33,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L33",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L33"
+        },
+        {
+          "number": 2,
+          "text": "Tìm token theo băm SHA-256, kiểm chưa thu hồi và còn hạn",
+          "line": 55,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L55",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L55"
+        },
+        {
+          "number": 3,
+          "text": "Sinh cặp token mới (chưa lưu vào DB)",
+          "line": 74,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L74",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L74"
+        },
+        {
+          "number": 4,
+          "text": "Giao adapter xoay token trong 1 transaction",
+          "line": 79,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L79",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L79"
+        },
+        {
+          "number": 5,
+          "text": "Đọc lại token cũ và khóa dòng (FOR UPDATE)",
+          "line": 98,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L98",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L98"
+        },
+        {
+          "number": 6,
+          "text": "Token đã xoay mà bị dùng lại thì thu hồi cả family",
+          "line": 109,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L109",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L109"
+        },
+        {
+          "number": 7,
+          "text": "Đánh dấu token cũ đã xoay (UPDATE có điều kiện)",
+          "line": 121,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L121",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L121"
+        },
+        {
+          "number": 8,
+          "text": "Ghi token mới cùng family, cùng transaction",
+          "line": 138,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L138",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L138"
+        },
+        {
+          "number": 9,
+          "text": "Kết quả invalid hoặc reused thì từ chối với 401",
+          "line": 150,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L150",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L150"
+        },
+        {
+          "number": 10,
+          "text": "Kiểm lại trạng thái user, bị khóa thì thu hồi token vừa cấp",
+          "line": 166,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L166",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L166"
+        },
+        {
+          "number": 11,
+          "text": "Đặt refresh token mới vào cookie httpOnly, không trả trong body",
+          "line": 187,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L187",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L187"
+        },
+        {
+          "number": 12,
+          "text": "Trả access token và csrfToken trong body",
+          "line": 203,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html#L203",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts#L203"
+        }
+      ]
+    },
+    {
+      "id": "18-discovery-nearby-va-direct-invite/01-post-accept-invite",
+      "title": "Người được mời chấp nhận: tạo thẳng 2 ticket và 1 session đã confirmed, bỏ qua hàng đợi, idempotent theo (lời mời, vai trò).",
+      "name": "Chấp nhận lời mời ghép trực tiếp",
+      "feature": "Discovery, Nearby và Direct Invite",
+      "method": "POST",
+      "route": "/api/v1/matching/invites/:id/accept",
+      "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES] → [SERVICE] → [POSTGRES] → [REDIS]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/18-discovery-nearby-va-direct-invite/01-post-accept-invite.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts",
+      "codeSha256": "be3a073fbf9b8e5f7c2c99b7ba41ca47e472d0e33576e757241f2d4ff167a01c",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận accept của người được mời (user từ JWT, id lời mời từ URL)",
+          "line": 33,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L33",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L33"
+        },
+        {
+          "number": 2,
+          "text": "Precheck trong transaction riêng, commit xong mới throw",
+          "line": 45,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L45",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L45"
+        },
+        {
+          "number": 3,
+          "text": "Khóa dòng lời mời (FOR UPDATE), kiểm đúng người được mời",
+          "line": 54,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L54",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L54"
+        },
+        {
+          "number": 4,
+          "text": "Kiểm lại block/report, không ghép được thì ghi Declined",
+          "line": 100,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L100",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L100"
+        },
+        {
+          "number": 5,
+          "text": "Precheck thấy đã accept thì trả lại ticket và session cũ",
+          "line": 118,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L118",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L118"
+        },
+        {
+          "number": 6,
+          "text": "Mở transaction chính: tạo ticket, session, đổi lời mời",
+          "line": 141,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L141",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L141"
+        },
+        {
+          "number": 7,
+          "text": "Khóa lại dòng lời mời; replay giữa chừng thì trả session cũ",
+          "line": 146,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L146",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L146"
+        },
+        {
+          "number": 8,
+          "text": "Tạo 2 ticket matched, unique chặn user đang bận và ticket đôi",
+          "line": 193,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L193",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L193"
+        },
+        {
+          "number": 9,
+          "text": "Tạo session confirmed, chuyển 2 ticket sang confirmed",
+          "line": 274,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L274",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L274"
+        },
+        {
+          "number": 10,
+          "text": "Đổi lời mời sang accepted, lưu session_id",
+          "line": 294,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L294",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L294"
+        },
+        {
+          "number": 11,
+          "text": "Sau commit, phát match.confirmed cho cả 2 bên qua Redis",
+          "line": 315,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L315",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L315"
+        },
+        {
+          "number": 12,
+          "text": "Controller trả lời mời, session và inviteeTicketId",
+          "line": 341,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html#L341",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts#L341"
+        }
+      ]
+    },
+    {
+      "id": "18-discovery-nearby-va-direct-invite/02-get-nearby",
+      "title": "Trả danh sách người gần vị trí của mình dưới dạng nhóm khoảng cách, có 3 lớp chống dò vị trí.",
+      "name": "Duyệt người dùng gần mình (Nearby)",
+      "feature": "Discovery, Nearby và Direct Invite",
+      "method": "GET",
+      "route": "/api/v1/discovery/nearby",
+      "flow": "[CONTROLLER] → [SERVICE] → [REDIS] → [POSTGRES] → [SERVICE]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/18-discovery-nearby-va-direct-invite/02-get-nearby.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts",
+      "codeSha256": "9a74ef6039ee634b006ab415986ff18b53e9a794a764df256914feffc6a1a65f",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận bộ lọc (giới tính, tuổi) và cursor từ query",
+          "line": 30,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html#L30",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts#L30"
+        },
+        {
+          "number": 2,
+          "text": "Kiểm hạn mức truy vấn nearby của user qua Redis (429 nếu vượt)",
+          "line": 41,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html#L41",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts#L41"
+        },
+        {
+          "number": 3,
+          "text": "Kiểm user đã bật hiển thị Nearby (opt-in)",
+          "line": 60,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html#L60",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts#L60"
+        },
+        {
+          "number": 4,
+          "text": "Lấy vị trí của mình, vị trí quá hạn coi như chưa có",
+          "line": 74,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html#L74",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts#L74"
+        },
+        {
+          "number": 5,
+          "text": "Lấy tập người cần ẩn (block 2 chiều, report)",
+          "line": 97,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html#L97",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts#L97"
+        },
+        {
+          "number": 6,
+          "text": "Lấy ứng viên: lọc hộp giới hạn trong SQL, haversine ở app",
+          "line": 104,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html#L104",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts#L104"
+        },
+        {
+          "number": 7,
+          "text": "Mỗi ứng viên: haversine + jitter, rồi sắp xếp và lọc theo cursor",
+          "line": 216,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html#L216",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts#L216"
+        },
+        {
+          "number": 8,
+          "text": "Cắt trang theo limit và dựng nextCursor",
+          "line": 271,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html#L271",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts#L271"
+        },
+        {
+          "number": 9,
+          "text": "Trả trang thẻ người dùng kèm nhóm khoảng cách, không trả km hay tọa độ",
+          "line": 277,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html#L277",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts#L277"
+        }
+      ]
+    },
+    {
+      "id": "20-short-video/01-post-record-view",
+      "title": "Ghi watch-time của người xem và cộng viewCount đúng 1 lần khi xem đủ ngưỡng, kể cả khi nhiều request đến cùng lúc.",
+      "name": "Ghi nhận lượt xem video",
+      "feature": "Short Video",
+      "method": "POST",
+      "route": "/api/v1/videos/:id/views",
+      "flow": "[CONTROLLER] → [SERVICE] → [POSTGRES]",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/20-short-video/01-post-record-view.json",
+      "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html",
+      "rawUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.ts",
+      "codeSha256": "46f030fdaf35a4584a51a2780ae4827be07cdac36a5f6d541b2b30b268f88b8a",
+      "steps": [
+        {
+          "number": 1,
+          "text": "Nhận watchTimeMs mà client báo (user từ JWT, id video từ URL), trả 204",
+          "line": 23,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html#L23",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/20-short-video/01-post-record-view.ts#L23"
+        },
+        {
+          "number": 2,
+          "text": "Kiểm video xem được (tác giả hoặc đã published)",
+          "line": 37,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html#L37",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/20-short-video/01-post-record-view.ts#L37"
+        },
+        {
+          "number": 3,
+          "text": "Tác giả tự xem thì không tính lượt xem",
+          "line": 42,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html#L42",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/20-short-video/01-post-record-view.ts#L42"
+        },
+        {
+          "number": 4,
+          "text": "So watch-time với ngưỡng \"xem đủ\"",
+          "line": 50,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html#L50",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/20-short-video/01-post-record-view.ts#L50"
+        },
+        {
+          "number": 5,
+          "text": "Mở transaction DB để đếm đúng 1 lần dưới race",
+          "line": 53,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html#L53",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/20-short-video/01-post-record-view.ts#L53"
+        },
+        {
+          "number": 6,
+          "text": "Tạo dòng video_views nếu chưa có (INSERT ... ON CONFLICT DO NOTHING)",
+          "line": 56,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html#L56",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/20-short-video/01-post-record-view.ts#L56"
+        },
+        {
+          "number": 7,
+          "text": "Khóa dòng (FOR UPDATE) để request song song xếp hàng",
+          "line": 73,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html#L73",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/20-short-video/01-post-record-view.ts#L73"
+        },
+        {
+          "number": 8,
+          "text": "Ghi watch-time lớn nhất và cờ qualified",
+          "line": 84,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html#L84",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/20-short-video/01-post-record-view.ts#L84"
+        },
+        {
+          "number": 9,
+          "text": "Lần đầu đạt ngưỡng thì cộng viewCount nguyên tử",
+          "line": 94,
+          "htmlUrl": "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html#L94",
+          "rawLineUrl": "https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/20-short-video/01-post-record-view.ts#L94"
+        }
+      ]
+    }
+  ],
+  "diagrams": [
+    {
+      "id": "01-matching-engine",
+      "title": "Matching Engine",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/01-matching-engine.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#01-matching-engine"
+    },
+    {
+      "id": "02-soul-match",
+      "title": "Soul Match",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/02-soul-match.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#02-soul-match"
+    },
+    {
+      "id": "03-voice-match",
+      "title": "Voice Match",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/03-voice-match.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#03-voice-match"
+    },
+    {
+      "id": "04-party-room",
+      "title": "Party Room",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/04-party-room.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#04-party-room"
+    },
+    {
+      "id": "05-movie-match-movie-night",
+      "title": "Movie Match / Movie Night",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/05-movie-match-movie-night.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#05-movie-match-movie-night"
+    },
+    {
+      "id": "06-palm-match",
+      "title": "Palm Match",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/06-palm-match.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#06-palm-match"
+    },
+    {
+      "id": "07-feed-va-stories",
+      "title": "Feed và Stories",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/07-feed-va-stories.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#07-feed-va-stories"
+    },
+    {
+      "id": "08-avatar-tuy-chinh",
+      "title": "Avatar tùy chỉnh",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/08-avatar-tuy-chinh.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#08-avatar-tuy-chinh"
+    },
+    {
+      "id": "09-diamond-top-up-va-vip",
+      "title": "Diamond, Top-up và VIP",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/09-diamond-top-up-va-vip.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#09-diamond-top-up-va-vip"
+    },
+    {
+      "id": "10-matching-speed-up-detail",
+      "title": "Matching Speed-up",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/10-matching-speed-up-detail.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#10-matching-speed-up-detail"
+    },
+    {
+      "id": "11-gift",
+      "title": "Gift",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/11-gift.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#11-gift"
+    },
+    {
+      "id": "12-mini-game",
+      "title": "Mini Game",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/12-mini-game.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#12-mini-game"
+    },
+    {
+      "id": "13-trust-safety",
+      "title": "Trust & Safety",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/13-trust-safety.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#13-trust-safety"
+    },
+    {
+      "id": "14-preference-matching-detail",
+      "title": "Preference khi Matching",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/14-preference-matching-detail.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#14-preference-matching-detail"
+    },
+    {
+      "id": "15-runtime-availability",
+      "title": "Runtime Availability",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/15-runtime-availability.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#15-runtime-availability"
+    },
+    {
+      "id": "16-friend-va-chat-1-1",
+      "title": "Friend và Chat 1-1",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/16-friend-va-chat-1-1.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#16-friend-va-chat-1-1"
+    },
+    {
+      "id": "17-dang-ky-onboarding-va-guest",
+      "title": "Đăng ký, Onboarding và Guest",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/17-dang-ky-onboarding-va-guest.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#17-dang-ky-onboarding-va-guest"
+    },
+    {
+      "id": "18-discovery-nearby-va-direct-invite",
+      "title": "Discovery, Nearby và Direct Invite",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/18-discovery-nearby-va-direct-invite.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#18-discovery-nearby-va-direct-invite"
+    },
+    {
+      "id": "19-mood-va-conversation-streak",
+      "title": "Mood và Conversation Streak",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/19-mood-va-conversation-streak.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#19-mood-va-conversation-streak"
+    },
+    {
+      "id": "20-short-video",
+      "title": "Short Video",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/20-short-video.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#20-short-video"
+    },
+    {
+      "id": "21-notification",
+      "title": "Notification",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/21-notification.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#21-notification"
+    },
+    {
+      "id": "22-support-va-admin-operations",
+      "title": "Support và Admin Operations",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/22-support-va-admin-operations.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#22-support-va-admin-operations"
+    },
+    {
+      "id": "23-user-profile-va-privacy",
+      "title": "User Profile và Privacy",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/23-user-profile-va-privacy.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#23-user-profile-va-privacy"
+    },
+    {
+      "id": "24-analytics-consent",
+      "title": "Analytics và thông báo privacy",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/24-analytics-consent.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#24-analytics-consent"
+    },
+    {
+      "id": "25-realtime-fanout",
+      "title": "Realtime Fanout",
+      "chunkUrl": "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/25-realtime-fanout.json",
+      "url": "https://ducmanh001.github.io/litmatch-feature-flows/#25-realtime-fanout"
+    }
+  ],
+  "inventory": {
+    "paths": [
+      "ai/diagrams/01-matching-engine.json",
+      "ai/diagrams/02-soul-match.json",
+      "ai/diagrams/03-voice-match.json",
+      "ai/diagrams/04-party-room.json",
+      "ai/diagrams/05-movie-match-movie-night.json",
+      "ai/diagrams/06-palm-match.json",
+      "ai/diagrams/07-feed-va-stories.json",
+      "ai/diagrams/08-avatar-tuy-chinh.json",
+      "ai/diagrams/09-diamond-top-up-va-vip.json",
+      "ai/diagrams/10-matching-speed-up-detail.json",
+      "ai/diagrams/11-gift.json",
+      "ai/diagrams/12-mini-game.json",
+      "ai/diagrams/13-trust-safety.json",
+      "ai/diagrams/14-preference-matching-detail.json",
+      "ai/diagrams/15-runtime-availability.json",
+      "ai/diagrams/16-friend-va-chat-1-1.json",
+      "ai/diagrams/17-dang-ky-onboarding-va-guest.json",
+      "ai/diagrams/18-discovery-nearby-va-direct-invite.json",
+      "ai/diagrams/19-mood-va-conversation-streak.json",
+      "ai/diagrams/20-short-video.json",
+      "ai/diagrams/21-notification.json",
+      "ai/diagrams/22-support-va-admin-operations.json",
+      "ai/diagrams/23-user-profile-va-privacy.json",
+      "ai/diagrams/24-analytics-consent.json",
+      "ai/diagrams/25-realtime-fanout.json",
+      "ai/flows.json",
+      "ai/flows/02-soul-match/01-post-send-message.json",
+      "ai/flows/02-soul-match/02-post-rating.json",
+      "ai/flows/03-voice-match/01-post-join-queue.json",
+      "ai/flows/03-voice-match/02-post-join-call.json",
+      "ai/flows/03-voice-match/03-post-webhook-livekit.json",
+      "ai/flows/03-voice-match/04-post-like-call.json",
+      "ai/flows/04-party-room/01-post-join-room.json",
+      "ai/flows/04-party-room/02-post-create-room.json",
+      "ai/flows/04-party-room/03-post-accept-speaker-invite.json",
+      "ai/flows/05-movie-match-movie-night/01-post-create-session.json",
+      "ai/flows/06-palm-match/01-post-join-queue.json",
+      "ai/flows/09-diamond-top-up-va-vip/01-post-vip-purchase.json",
+      "ai/flows/09-diamond-top-up-va-vip/02-post-iap-verify.json",
+      "ai/flows/09-diamond-top-up-va-vip/03-post-webhook-payos.json",
+      "ai/flows/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.json",
+      "ai/flows/10-matching-speed-up-detail/01-post-speedup-ticket.json",
+      "ai/flows/11-gift/01-post-party-room-gift.json",
+      "ai/flows/12-mini-game/01-post-submit-move.json",
+      "ai/flows/13-trust-safety/01-post-report.json",
+      "ai/flows/16-friend-va-chat-1-1/01-post-send-message.json",
+      "ai/flows/17-dang-ky-onboarding-va-guest/01-post-verify-otp.json",
+      "ai/flows/17-dang-ky-onboarding-va-guest/02-post-refresh.json",
+      "ai/flows/18-discovery-nearby-va-direct-invite/01-post-accept-invite.json",
+      "ai/flows/18-discovery-nearby-va-direct-invite/02-get-nearby.json",
+      "ai/flows/20-short-video/01-post-record-view.json",
+      "ai/index.html",
+      "ai/index.json",
+      "llms-full.txt",
+      "llms.txt",
+      "sitemap.xml"
+    ],
+    "urls": [
+      "https://ducmanh001.github.io/litmatch-feature-flows/",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/01-matching-engine.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/02-soul-match.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/03-voice-match.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/04-party-room.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/05-movie-match-movie-night.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/06-palm-match.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/07-feed-va-stories.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/08-avatar-tuy-chinh.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/09-diamond-top-up-va-vip.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/10-matching-speed-up-detail.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/11-gift.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/12-mini-game.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/13-trust-safety.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/14-preference-matching-detail.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/15-runtime-availability.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/16-friend-va-chat-1-1.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/17-dang-ky-onboarding-va-guest.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/18-discovery-nearby-va-direct-invite.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/19-mood-va-conversation-streak.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/20-short-video.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/21-notification.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/22-support-va-admin-operations.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/23-user-profile-va-privacy.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/24-analytics-consent.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/25-realtime-fanout.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/02-soul-match/01-post-send-message.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/02-soul-match/02-post-rating.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/03-voice-match/01-post-join-queue.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/03-voice-match/02-post-join-call.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/03-voice-match/03-post-webhook-livekit.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/03-voice-match/04-post-like-call.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/04-party-room/01-post-join-room.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/04-party-room/02-post-create-room.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/04-party-room/03-post-accept-speaker-invite.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/05-movie-match-movie-night/01-post-create-session.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/06-palm-match/01-post-join-queue.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/09-diamond-top-up-va-vip/01-post-vip-purchase.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/09-diamond-top-up-va-vip/02-post-iap-verify.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/09-diamond-top-up-va-vip/03-post-webhook-payos.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/10-matching-speed-up-detail/01-post-speedup-ticket.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/11-gift/01-post-party-room-gift.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/12-mini-game/01-post-submit-move.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/13-trust-safety/01-post-report.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/16-friend-va-chat-1-1/01-post-send-message.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/17-dang-ky-onboarding-va-guest/01-post-verify-otp.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/17-dang-ky-onboarding-va-guest/02-post-refresh.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/18-discovery-nearby-va-direct-invite/01-post-accept-invite.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/18-discovery-nearby-va-direct-invite/02-get-nearby.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/flows/20-short-video/01-post-record-view.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/index.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/ai/index.json",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/README.md",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/index.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/01-post-join-queue.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/01-post-join-queue.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/02-post-join-call.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/02-post-join-call.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/README.md",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/index.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/03-post-accept-speaker-invite.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/03-post-accept-speaker-invite.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/README.md",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/index.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/README.md",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/index.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/06-palm-match/01-post-join-queue.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/06-palm-match/01-post-join-queue.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/06-palm-match/README.md",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/06-palm-match/index.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/01-post-vip-purchase.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/01-post-vip-purchase.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/README.md",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/index.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/10-matching-speed-up-detail/01-post-speedup-ticket.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/10-matching-speed-up-detail/01-post-speedup-ticket.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/10-matching-speed-up-detail/README.md",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/10-matching-speed-up-detail/index.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/README.md",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/index.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/README.md",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/index.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/README.md",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/index.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/README.md",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/index.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/README.md",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/index.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/README.md",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/index.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.ts",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/README.md",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/index.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/README.md",
+      "https://ducmanh001.github.io/litmatch-feature-flows/code/index.html",
+      "https://ducmanh001.github.io/litmatch-feature-flows/llms-full.txt",
+      "https://ducmanh001.github.io/litmatch-feature-flows/llms.txt",
+      "https://ducmanh001.github.io/litmatch-feature-flows/sitemap.xml"
+    ],
+    "flowCount": 25,
+    "diagramCount": 25
+  }
+}
