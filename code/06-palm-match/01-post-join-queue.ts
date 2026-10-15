@@ -29,183 +29,208 @@
 //               bên một khóa riêng (không chép).
 //             flip / rating — bước sau: mỗi bên lật lá, rồi like hoặc skip; mutual-like
 //               tạo Friendship (chưa chép).
+//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
+//             thụt vào ngay dưới dòng gọi nó, không chép class hay chữ ký hàm (tên hàm
+//             nằm ở dòng tiêu đề // [TẦNG]). Constructor gom ở đầu khối service, chỉ
+//             gồm các dependency mà code bên dưới dùng (this.xxx); các dòng const là
+//             tham số truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một
+//             biểu thức được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên
+//             văn trong repo.
 
-// [CONTROLLER] palm-match.controller.ts · L54–64
-@Post('queue')
-@HttpCode(HttpStatus.OK)
-async joinQueue(
-  @CurrentUser() user: AuthenticatedUser,
-): Promise<PalmMatchStateDto> {
-  return this.palmMatchService.joinQueue(user.userId);
-}
+// [CONTROLLER] PalmMatchController.joinQueue  ·  palm-match.controller.ts L33–34, L54–64
+@Controller('palm-match')
+export class PalmMatchController {
+  constructor(private readonly palmMatchService: PalmMatchService) {}
 
-// [SERVICE] palm-match.service.ts · L114–186
-async joinQueue(userId: string): Promise<PalmMatchStateView> {
-  return this.dataSource.transaction(async (manager) => {
-    // [POSTGRES] Khóa advisory theo transaction tuần tự hóa phần chọn cặp: không có 2
-    // người cùng ghép với 1 ứng viên. Đánh đổi: 1 khóa toàn cục nên ghép tuần tự trên
-    // cả hệ thống, đủ cho tải pilot; khi cần thì chuyển hàng đợi sang Redis shard như
-    // Matching.
-    await this.lockMatcher(manager);
-    // Hết hạn kiểu lười: module không có job quét, mỗi lần user vào hoặc hỏi trạng thái
-    // mới đóng session đã quá deadline của chính họ.
-    await this.expireActiveForUser(manager, userId);
+  // Step 1: Nhận request (user lấy từ JWT)
+  @Post('queue')
+  @HttpCode(HttpStatus.OK)
+  async joinQueue(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<PalmMatchStateDto> {
+    return this.palmMatchService.joinQueue(user.userId);
 
-    // Còn trỏ tới 1 session (đang chơi, hoặc đã xong nhưng chưa dismiss) thì trả lại
-    // state đó, không xếp hàng thêm.
-    const activeState = await this.activeState(manager, userId);
-    if (activeState) return activeState;
+      // [SERVICE] PalmMatchService.joinQueue  ·  palm-match.service.ts L114–186
+      constructor(
+        private readonly config: ConfigService<CoreApiEnv, true>,
+        private readonly dataSource: DataSource,
+        private readonly safetyService: SafetyService,
+      ) {}
 
-    const queueMaxWaitSeconds = this.config.getOrThrow(
-      'PALM_MATCH_QUEUE_MAX_WAIT_SECONDS',
-      { infer: true },
-    );
-    const queueCutoff = new Date(Date.now() - queueMaxWaitSeconds * 1000);
-    // Xóa entry chờ quá hạn ngay lúc ghép, để không ghép với người đã bỏ đi.
-    await manager.query(
-      'DELETE FROM palm_match_queue_entries WHERE queued_at < $1',
-      [queueCutoff],
-    );
-    // INSERT ... ON CONFLICT DO NOTHING: PK user_id làm enqueue idempotent, 2 tab hoặc
-    // retry không xếp hàng 2 lần.
-    await manager
-      .createQueryBuilder()
-      .insert()
-      .into(PalmMatchQueueEntry)
-      .values({ userId })
-      .orIgnore()
-      .execute();
+      const userId = user.userId;
+      return this.dataSource.transaction(async (manager) => {
 
-    // FIFO: người chờ lâu nhất trước, user_id làm tie-break cho thứ tự ổn định; chỉ xét
-    // tối đa 20 người.
-    const candidates = (await manager.query(
-      `SELECT user_id FROM palm_match_queue_entries
-       WHERE user_id <> $1 ORDER BY queued_at ASC, user_id ASC LIMIT 20`,
-      [userId],
-    )) as Array<{ user_id: string }>;
+        // Step 2: Trong transaction, lấy khóa advisory để chọn cặp tuần tự
+        // [POSTGRES] Khóa advisory theo transaction tuần tự hóa phần chọn cặp: không có 2 người
+        // cùng ghép với 1 ứng viên. Đánh đổi: 1 khóa toàn cục nên ghép tuần tự trên cả hệ thống,
+        // đủ cho tải pilot; khi cần thì chuyển hàng đợi sang Redis shard như Matching.
+        await this.lockMatcher(manager);
 
-    let partnerId: string | undefined;
-    for (const candidate of candidates) {
-      const candidateActive = await manager.findOneBy(
-        PalmMatchActiveParticipant,
-        { userId: candidate.user_id },
-      );
-      // Ứng viên đã có session active thì entry hàng đợi của họ là thừa: xóa rồi xét
-      // người kế.
-      if (candidateActive) {
-        await manager.delete(PalmMatchQueueEntry, {
-          userId: candidate.user_id,
-        });
-        continue;
-      }
-      // Kiểm lại block/report ĐÚNG LÚC ghép, không tin state ở thời điểm vào hàng đợi.
-      if (await this.safetyService.canPair(userId, candidate.user_id)) {
-        partnerId = candidate.user_id;
-        break;
-      }
-    }
+          // [SERVICE] PalmMatchService.lockMatcher  ·  palm-match.service.ts L328–332
+          await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+            PALM_MATCH_ADVISORY_LOCK_KEY,
+          ]);
 
-    if (!partnerId) {
-      const queued = await manager.findOneByOrFail(PalmMatchQueueEntry, {
-        userId,
+        // Step 3: Đóng session đã quá hạn của chính user (hết hạn kiểu lười)
+        // Hết hạn kiểu lười: module không có job quét, mỗi lần user vào hoặc hỏi trạng thái mới
+        // đóng session đã quá deadline của chính họ.
+        await this.expireActiveForUser(manager, userId);
+
+        // Step 4: Còn session chưa dismiss thì trả lại state đó, không xếp hàng
+        // Còn trỏ tới 1 session (đang chơi, hoặc đã xong nhưng chưa dismiss) thì trả lại state
+        // đó, không xếp hàng thêm.
+        const activeState = await this.activeState(manager, userId);
+        if (activeState) return activeState;
+
+        const queueMaxWaitSeconds = this.config.getOrThrow(
+          'PALM_MATCH_QUEUE_MAX_WAIT_SECONDS',
+          { infer: true },
+        );
+        const queueCutoff = new Date(Date.now() - queueMaxWaitSeconds * 1000);
+
+        // Step 5: Xóa entry chờ quá hạn, rồi xếp user vào hàng đợi (PK user_id)
+        // Xóa entry chờ quá hạn ngay lúc ghép, để không ghép với người đã bỏ đi.
+        await manager.query(
+          'DELETE FROM palm_match_queue_entries WHERE queued_at < $1',
+          [queueCutoff],
+        );
+        // INSERT ... ON CONFLICT DO NOTHING: PK user_id làm enqueue idempotent, 2 tab hoặc retry
+        // không xếp hàng 2 lần.
+        await manager
+          .createQueryBuilder()
+          .insert()
+          .into(PalmMatchQueueEntry)
+          .values({ userId })
+          .orIgnore()
+          .execute();
+
+        // Step 6: Lấy tối đa 20 người chờ lâu nhất (FIFO)
+        // FIFO: người chờ lâu nhất trước, user_id làm tie-break cho thứ tự ổn định; chỉ xét tối
+        // đa 20 người.
+        const candidates = (await manager.query(
+          `SELECT user_id FROM palm_match_queue_entries
+           WHERE user_id <> $1 ORDER BY queued_at ASC, user_id ASC LIMIT 20`,
+          [userId],
+        )) as Array<{ user_id: string }>;
+
+        let partnerId: string | undefined;
+
+        // Step 7: Duyệt ứng viên: bỏ người đã có session, kiểm block/report
+        for (const candidate of candidates) {
+          const candidateActive = await manager.findOneBy(
+            PalmMatchActiveParticipant,
+            { userId: candidate.user_id },
+          );
+          // Ứng viên đã có session active thì entry hàng đợi của họ là thừa: xóa rồi xét người
+          // kế.
+          if (candidateActive) {
+            await manager.delete(PalmMatchQueueEntry, {
+              userId: candidate.user_id,
+            });
+            continue;
+          }
+          // Kiểm lại block/report ĐÚNG LÚC ghép, không tin state ở thời điểm vào hàng đợi.
+          if (await this.safetyService.canPair(userId, candidate.user_id)) {
+            partnerId = candidate.user_id;
+            break;
+          }
+        }
+
+        // Step 8: Chưa có ứng viên hợp lệ: user ở lại hàng đợi, trả queued
+        if (!partnerId) {
+          const queued = await manager.findOneByOrFail(PalmMatchQueueEntry, {
+            userId,
+          });
+          return {
+            state: PalmMatchClientState.Queued,
+            queuedAt: queued.queuedAt.toISOString(),
+          };
+        }
+
+        // Step 9: Có cặp: tạo session snapshot (seed tất định)
+        const session = await this.createSessionSnapshot(
+          manager,
+          userId,
+          partnerId,
+        );
+
+          // [SERVICE] PalmMatchService.createSessionSnapshot  ·  palm-match.service.ts L334–381
+          const userAId = userId;
+          const userBId = partnerId;
+          const templates = await manager.find(PalmReadingTemplate, {
+            where: { category: PalmMatchCategory.Love, isActive: true },
+            order: { id: 'ASC' },
+          });
+          if (templates.length === 0) {
+            throw new DomainException(
+              PalmMatchErrors.CATEGORY_EMPTY,
+              'Không có nội dung Palm Match đang hoạt động',
+              HttpStatus.CONFLICT,
+            );
+          }
+
+          const id = randomUUID();
+          const [userLowId, userHighId] = canonicalPair(userAId, userBId);
+          // Seed tất định (FNV-1a) từ id session và id từng user: cùng session luôn ra cùng kết
+          // quả, session mới ra kết quả khác. Chỉ để giải trí, không dùng cho bảo mật.
+          const lowSeed = fnv1aHash(`${id}:${userLowId}:sign`);
+          const highSeed = fnv1aHash(`${id}:${userHighId}:sign`);
+          const resultSeed = fnv1aHash(`${id}:${userLowId}:${userHighId}:result`);
+          const durationSeconds = this.config.getOrThrow(
+            'PALM_MATCH_SESSION_DURATION_SECONDS',
+            { infer: true },
+          );
+          const template = templates[resultSeed % templates.length];
+
+          // Snapshot: cung hoàng đạo, % hợp và lời bói chốt MỘT lần lúc tạo session, nên reload
+          // hay retry không quay ra kết quả khác.
+          return manager.save(
+            manager.create(PalmMatchSession, {
+              id,
+              userLowId,
+              userHighId,
+              lowSign: PALM_ZODIAC_SIGNS[lowSeed % PALM_ZODIAC_SIGNS.length].key,
+              highSign: PALM_ZODIAC_SIGNS[highSeed % PALM_ZODIAC_SIGNS.length].key,
+              compatibilityPercent: 60 + (resultSeed % 40),
+              fortune: template.content.split('{name}').join('Người ấy'),
+              lowFlippedAt: null,
+              highFlippedAt: null,
+              lowRating: null,
+              highRating: null,
+              status: PalmMatchSessionStatus.Active,
+              outcome: null,
+              expiresAt: new Date(Date.now() + durationSeconds * 1000),
+              closedAt: null,
+            }),
+          );
+
+        // Step 10: Rút cả 2 khỏi hàng đợi, ghi 2 participant (PK user_id)
+        // Cùng transaction: ghép xong thì rút cả 2 khỏi hàng đợi và ghi 2 participant. PK
+        // participant là chốt DB cuối cho "1 user 1 session" dù logic phía trên đổi sau này.
+        await manager.delete(PalmMatchQueueEntry, [userId, partnerId]);
+        await manager.insert(PalmMatchActiveParticipant, [
+          { userId, sessionId: session.id },
+          { userId: partnerId, sessionId: session.id },
+        ]);
+
+        // Step 11: Trả trạng thái đã ghép theo góc nhìn của user
+        return this.sessionView(session, userId);
       });
-      return {
-        state: PalmMatchClientState.Queued,
-        queuedAt: queued.queuedAt.toISOString(),
-      };
-    }
-
-    const session = await this.createSessionSnapshot(
-      manager,
-      userId,
-      partnerId,
-    );
-    // Cùng transaction: ghép xong thì rút cả 2 khỏi hàng đợi và ghi 2 participant. PK
-    // participant là chốt DB cuối cho "1 user 1 session" dù logic phía trên đổi sau
-    // này.
-    await manager.delete(PalmMatchQueueEntry, [userId, partnerId]);
-    await manager.insert(PalmMatchActiveParticipant, [
-      { userId, sessionId: session.id },
-      { userId: partnerId, sessionId: session.id },
-    ]);
-    return this.sessionView(session, userId);
-  });
-}
-
-// [SERVICE] palm-match.service.ts · L328–332
-private async lockMatcher(manager: EntityManager): Promise<void> {
-  await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
-    PALM_MATCH_ADVISORY_LOCK_KEY,
-  ]);
-}
-
-// [SERVICE] palm-match.service.ts · L401–414, L416–427, L472–479
-private async expireActiveForUser(
-  manager: EntityManager,
-  userId: string,
-): Promise<void> {
-  const active = await manager.findOneBy(PalmMatchActiveParticipant, {
-    userId,
-  });
-  if (!active) return;
-  const session = await manager.findOne(PalmMatchSession, {
-    where: { id: active.sessionId },
-    lock: { mode: 'pessimistic_write' },
-  });
-  if (session) await this.expireSession(manager, session);
-}
-
-private async expireSession(
-  manager: EntityManager,
-  session: PalmMatchSession,
-): Promise<void> {
-  if (
-    session.status === PalmMatchSessionStatus.Active &&
-    session.expiresAt.getTime() <= Date.now()
-  ) {
-    this.completeSession(session, PalmMatchOutcome.Expired);
-    await manager.save(session);
   }
 }
 
-private completeSession(
-  session: PalmMatchSession,
-  outcome: PalmMatchOutcome,
-): void {
-  session.status = PalmMatchSessionStatus.Completed;
-  session.outcome = outcome;
-  session.closedAt = new Date();
-}
-
-// [SERVICE] palm-match.service.ts · L383–399
-private async activeState(
-  manager: EntityManager,
-  userId: string,
-): Promise<PalmMatchStateView | null> {
-  const active = await manager.findOneBy(PalmMatchActiveParticipant, {
-    userId,
-  });
-  if (!active) return null;
-  const session = await manager.findOneBy(PalmMatchSession, {
-    id: active.sessionId,
-  });
-  if (!session) {
-    await manager.delete(PalmMatchActiveParticipant, { userId });
-    return null;
-  }
-  return this.sessionView(session, userId);
-}
-
-// [POSTGRES] 1755500000000-palm-match-session.ts · L49–64
+// [POSTGRES] CREATE TABLE palm_match_queue_entries  ·  1755500000000-palm-match-session.ts L49–64
 await queryRunner.query(`
   CREATE TABLE palm_match_queue_entries (
     user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     queued_at timestamptz NOT NULL DEFAULT now()
   )
 `);
+
 await queryRunner.query(`
   CREATE INDEX idx_palm_match_queue_order ON palm_match_queue_entries (queued_at, user_id)
 `);
+
 await queryRunner.query(`
   CREATE TABLE palm_match_active_participants (
     user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -213,57 +238,3 @@ await queryRunner.query(`
     created_at timestamptz NOT NULL DEFAULT now()
   )
 `);
-
-// [SERVICE] palm-match.service.ts · L334–381
-private async createSessionSnapshot(
-  manager: EntityManager,
-  userAId: string,
-  userBId: string,
-): Promise<PalmMatchSession> {
-  const templates = await manager.find(PalmReadingTemplate, {
-    where: { category: PalmMatchCategory.Love, isActive: true },
-    order: { id: 'ASC' },
-  });
-  if (templates.length === 0) {
-    throw new DomainException(
-      PalmMatchErrors.CATEGORY_EMPTY,
-      'Không có nội dung Palm Match đang hoạt động',
-      HttpStatus.CONFLICT,
-    );
-  }
-
-  const id = randomUUID();
-  const [userLowId, userHighId] = canonicalPair(userAId, userBId);
-  // Seed tất định (FNV-1a) từ id session và id từng user: cùng session luôn ra cùng kết
-  // quả, session mới ra kết quả khác. Chỉ để giải trí, không dùng cho bảo mật.
-  const lowSeed = fnv1aHash(`${id}:${userLowId}:sign`);
-  const highSeed = fnv1aHash(`${id}:${userHighId}:sign`);
-  const resultSeed = fnv1aHash(`${id}:${userLowId}:${userHighId}:result`);
-  const durationSeconds = this.config.getOrThrow(
-    'PALM_MATCH_SESSION_DURATION_SECONDS',
-    { infer: true },
-  );
-  const template = templates[resultSeed % templates.length];
-
-  // Snapshot: cung hoàng đạo, % hợp và lời bói chốt MỘT lần lúc tạo session, nên reload
-  // hay retry không quay ra kết quả khác.
-  return manager.save(
-    manager.create(PalmMatchSession, {
-      id,
-      userLowId,
-      userHighId,
-      lowSign: PALM_ZODIAC_SIGNS[lowSeed % PALM_ZODIAC_SIGNS.length].key,
-      highSign: PALM_ZODIAC_SIGNS[highSeed % PALM_ZODIAC_SIGNS.length].key,
-      compatibilityPercent: 60 + (resultSeed % 40),
-      fortune: template.content.split('{name}').join('Người ấy'),
-      lowFlippedAt: null,
-      highFlippedAt: null,
-      lowRating: null,
-      highRating: null,
-      status: PalmMatchSessionStatus.Active,
-      outcome: null,
-      expiresAt: new Date(Date.now() + durationSeconds * 1000),
-      closedAt: null,
-    }),
-  );
-}

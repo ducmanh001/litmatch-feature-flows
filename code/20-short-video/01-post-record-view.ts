@@ -19,96 +19,106 @@
 //               được cộng khi người xem đạt ngưỡng lần đầu.
 //  Liên quan  VideoRankingService — job nền tính rankScore từ viewCount, likeCount,
 //               commentCount, nên đếm đúng 1 lần ảnh hưởng thứ hạng (chưa chép).
+//  Cách đọc   Một file, đi theo thứ tự chạy, Step N đánh số từng bước. Hàm được gọi
+//             thụt vào ngay dưới dòng gọi nó, không chép class hay chữ ký hàm (tên hàm
+//             nằm ở dòng tiêu đề // [TẦNG]). Constructor gom ở đầu khối service, chỉ
+//             gồm các dependency mà code bên dưới dùng (this.xxx); các dòng const là
+//             tham số truyền vào, do công cụ gán từ chỗ gọi (hàm phụ chỉ trả về một
+//             biểu thức được thay thẳng vào giá trị); mọi dòng còn lại là code nguyên
+//             văn trong repo.
 
-// [CONTROLLER] short-video.controller.ts · L132–141
-@Post(':id/views')
-@HttpCode(HttpStatus.NO_CONTENT)
-async recordView(
-  @CurrentUser() user: AuthenticatedUser,
-  @Param('id', ParseUUIDPipe) id: string,
-  @Body() dto: RecordViewDto,
-): Promise<void> {
-  await this.videoService.recordView(user, id, dto.watchTimeMs);
-}
+// [CONTROLLER] ShortVideoController.recordView  ·  short-video.controller.ts L48–49, L132–141
+@Controller('videos')
+export class ShortVideoController {
+  constructor(
+    private readonly videoService: ShortVideoService,
+  ) {}
 
-// [SERVICE] short-video.service.ts · L254–301
-async recordView(
-  user: AuthenticatedUser,
-  videoId: string,
-  watchTimeMs: number,
-): Promise<void> {
-  const video = await this.getVideoOrThrow(user, videoId);
-  if (video.authorUserId === user.userId) return;
+  // Step 1: Nhận watchTimeMs mà client báo (user từ JWT, id video từ URL), trả 204
+  @Post(':id/views')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async recordView(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RecordViewDto,
+  ): Promise<void> {
+    await this.videoService.recordView(user, id, dto.watchTimeMs);
 
-  const qualifiedMinMs = this.config.getOrThrow(
-    'VIDEO_QUALIFIED_VIEW_MIN_MS',
-    { infer: true },
-  );
-  const nowQualifies = watchTimeMs >= qualifiedMinMs;
+      // [SERVICE] ShortVideoService.recordView  ·  short-video.service.ts L254–301
+      constructor(
+        @InjectDataSource() private readonly dataSource: DataSource,
+        private readonly config: ConfigService<CoreApiEnv, true>,
+      ) {}
 
-  await this.dataSource.transaction(async (manager) => {
-    // [POSTGRES] Tạo dòng bằng INSERT ... ON CONFLICT DO NOTHING: không ném unique
-    // violation nên Postgres không hủy transaction (insert lỗi rồi đọc lại trong cùng
-    // transaction sẽ dính "current transaction is aborted").
-    await manager
-      .createQueryBuilder()
-      .insert()
-      .into(VideoView)
-      .values({
-        videoId,
-        viewerId: user.userId,
-        watchTimeMs: 0,
-        qualified: false,
-      })
-      .orIgnore()
-      .execute();
-    // Rồi KHÓA dòng (FOR UPDATE): 2 request đồng thời của cùng người xem chạy tuần tự,
-    // request sau thấy qualified = true của request trước nên không cộng viewCount lần
-    // nữa.
-    const view = await manager.findOneOrFail(VideoView, {
-      where: { videoId, viewerId: user.userId },
-      lock: { mode: 'pessimistic_write' },
-    });
-    // qualified chỉ chuyển false → true đúng 1 lần; các lần cập nhật watch-time sau
-    // không cộng lại (idempotent theo cờ).
-    const shouldQualifyNow = nowQualifies && !view.qualified;
-    await manager.update(
-      VideoView,
-      { id: view.id },
-      {
-        watchTimeMs: Math.max(view.watchTimeMs, watchTimeMs),
-        qualified: view.qualified || nowQualifies,
-      },
-    );
-    if (shouldQualifyNow) {
-      await manager.increment(Video, { id: videoId }, 'viewCount', 1);
-    }
-  });
-}
+      const videoId = id;
+      const watchTimeMs = dto.watchTimeMs;
 
-// [SERVICE] short-video.service.ts · L170–187
-async getVideoOrThrow(
-  user: AuthenticatedUser,
-  videoId: string,
-): Promise<Video> {
-  const video = await this.videoRepo.findOneBy({ id: videoId });
-  const visible =
-    video &&
-    (video.authorUserId === user.userId ||
-      video.status === VideoStatus.Published);
-  if (!visible) {
-    // Không tồn tại, removed, rejected, hoặc chưa published (với người không phải tác
-    // giả) đều trả CÙNG mã 404.
-    throw new DomainException(
-      ShortVideoErrors.VIDEO_NOT_FOUND,
-      'Không tìm thấy video',
-      HttpStatus.NOT_FOUND,
-    );
+      // Step 2: Kiểm video xem được (tác giả hoặc đã published)
+      // Không tồn tại, removed, rejected, hoặc chưa published (với người không phải tác giả) đều
+      // trả CÙNG mã 404.
+      const video = await this.getVideoOrThrow(user, videoId);
+
+      // Step 3: Tác giả tự xem thì không tính lượt xem
+      if (video.authorUserId === user.userId) return;
+
+      const qualifiedMinMs = this.config.getOrThrow(
+        'VIDEO_QUALIFIED_VIEW_MIN_MS',
+        { infer: true },
+      );
+
+      // Step 4: So watch-time với ngưỡng "xem đủ"
+      const nowQualifies = watchTimeMs >= qualifiedMinMs;
+
+      // Step 5: Mở transaction DB để đếm đúng 1 lần dưới race
+      await this.dataSource.transaction(async (manager) => {
+
+        // Step 6: Tạo dòng video_views nếu chưa có (INSERT ... ON CONFLICT DO NOTHING)
+        // [POSTGRES] Tạo dòng bằng INSERT ... ON CONFLICT DO NOTHING: không ném unique violation
+        // nên Postgres không hủy transaction (insert lỗi rồi đọc lại trong cùng transaction sẽ
+        // dính "current transaction is aborted").
+        await manager
+          .createQueryBuilder()
+          .insert()
+          .into(VideoView)
+          .values({
+            videoId,
+            viewerId: user.userId,
+            watchTimeMs: 0,
+            qualified: false,
+          })
+          .orIgnore()
+          .execute();
+
+        // Step 7: Khóa dòng (FOR UPDATE) để request song song xếp hàng
+        // Rồi KHÓA dòng (FOR UPDATE): 2 request đồng thời của cùng người xem chạy tuần tự,
+        // request sau thấy qualified = true của request trước nên không cộng viewCount lần nữa.
+        const view = await manager.findOneOrFail(VideoView, {
+          where: { videoId, viewerId: user.userId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        // qualified chỉ chuyển false → true đúng 1 lần; các lần cập nhật watch-time sau không
+        // cộng lại (idempotent theo cờ).
+        const shouldQualifyNow = nowQualifies && !view.qualified;
+
+        // Step 8: Ghi watch-time lớn nhất và cờ qualified
+        await manager.update(
+          VideoView,
+          { id: view.id },
+          {
+            watchTimeMs: Math.max(view.watchTimeMs, watchTimeMs),
+            qualified: view.qualified || nowQualifies,
+          },
+        );
+
+        // Step 9: Lần đầu đạt ngưỡng thì cộng viewCount nguyên tử
+        if (shouldQualifyNow) {
+          await manager.increment(Video, { id: videoId }, 'viewCount', 1);
+        }
+      });
   }
-  return video;
 }
 
-// [POSTGRES] 1754800000000-short-video.ts · L41–51
+// [POSTGRES] CREATE TABLE video_views  ·  1754800000000-short-video.ts L41–51
 await queryRunner.query(`
   CREATE TABLE video_views (
     id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
