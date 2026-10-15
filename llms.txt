@@ -1,0 +1,75 @@
+# Litmatch feature flows
+
+> Source-backed architecture diagrams and annotated walkthroughs of the difficult backend flows. Generated reading aids; source, service contracts and ADRs own behavior. These files are not executable applications or production-readiness evidence.
+
+## Site structure
+
+- [Feature diagrams](https://ducmanh001.github.io/litmatch-feature-flows/): architecture and business/layer flow diagrams, grouped by feature.
+- [Code overview](https://ducmanh001.github.io/litmatch-feature-flows/code/): difficult endpoint walkthroughs; basic CRUD is intentionally omitted.
+- [Structured flows and diagrams](https://ducmanh001.github.io/litmatch-feature-flows/ai/flows.json): roles, tables, Redis, related modules, flow order, actual numbered Steps with raw-file line numbers, why-comment evidence (src), and diagram catalogs plus architecture components/protocol edges.
+
+## How to read an annotated flow
+
+- Read from top to bottom in runtime call order. A called function body appears after its call, with a tier header; braces preserve source nesting.
+- [CONTROLLER], [SERVICE], [WORKER], [POSTGRES], [REDIS], [KAFKA], [BULLMQ], [EXTERNAL], and [GATEWAY] identify responsibility or infrastructure. Headers name the function and show its source path when the file changes.
+- Step N marks the numbered narrative sequence. Use steps in flows.json (generated from each raw .ts) to locate the exact raw-file line; declaredSteps retains catalog anchors.
+- Project service, port and helper calls expand into their implementations once per page. The constructor scaffold gathers only used infrastructure dependencies (for example logger, repository, Redis, config), grouped by declaring owner.
+- Generated const bindings connect call arguments to expanded function parameters. Simple helper return expressions may be substituted directly. Other implementation lines come from repository source.
+- Inline comments answer why a guard, lock, idempotency rule, or side effect exists. Their src evidence is in flows.json whyComments and in the annotated catalog; source headers and the sources list point back to implementation.
+- PostgreSQL owns durable state. Redis coordinates queues, indexes and realtime where the flow declares it. Business domains run inside core-api; signaling-gateway transports/fanouts and media-server handles media.
+
+## All 25 raw TypeScript flows
+
+- [Soul Match — Gửi tin nhắn ẩn danh](https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/01-post-send-message.ts): POST /api/v1/soul-match/sessions/:id/messages
+- [Soul Match — Đánh giá đối phương và thành bạn](https://ducmanh001.github.io/litmatch-feature-flows/code/02-soul-match/02-post-rating.ts): POST /api/v1/soul-match/sessions/:id/rating
+- [Voice Match — Vào hàng đợi ghép Voice Match](https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/01-post-join-queue.ts): POST /api/v1/matching/tickets
+- [Voice Match — Vào cuộc gọi Voice Match](https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/02-post-join-call.ts): POST /api/v1/calling/match-sessions/:matchSessionId/join
+- [Voice Match — Webhook LiveKit và đồng hồ cuộc gọi](https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/03-post-webhook-livekit.ts): POST /api/v1/calling/webhooks/livekit
+- [Voice Match — Thích đối phương sau Voice Match](https://ducmanh001.github.io/litmatch-feature-flows/code/03-voice-match/04-post-like-call.ts): POST /api/v1/calling/calls/:id/like
+- [Party Room — Vào phòng Party (join hoặc join lại)](https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/01-post-join-room.ts): POST /api/v1/party/rooms/:id/join
+- [Party Room — Tạo phòng Party](https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/02-post-create-room.ts): POST /api/v1/party/rooms
+- [Party Room — Đồng ý lời mời lên speaker](https://ducmanh001.github.io/litmatch-feature-flows/code/04-party-room/03-post-accept-speaker-invite.ts): POST /api/v1/party/rooms/:id/speaker-invite/accept
+- [Movie Match / Movie Night — Tạo phiên xem chung với một người bạn](https://ducmanh001.github.io/litmatch-feature-flows/code/05-movie-match-movie-night/01-post-create-session.ts): POST /api/v1/movie-match/sessions
+- [Palm Match — Vào hàng đợi Palm Match](https://ducmanh001.github.io/litmatch-feature-flows/code/06-palm-match/01-post-join-queue.ts): POST /api/v1/palm-match/queue
+- [Diamond, Top-up và VIP — Mua VIP bằng Diamond](https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/01-post-vip-purchase.ts): POST /api/v1/economy/vip/purchase
+- [Diamond, Top-up và VIP — Nạp Diamond bằng receipt của store](https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/02-post-iap-verify.ts): POST /api/v1/economy/iap/verify
+- [Diamond, Top-up và VIP — Webhook payOS cộng Diamond](https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/03-post-webhook-payos.ts): POST /api/v1/economy/webhooks/payos
+- [Diamond, Top-up và VIP — Webhook Apple hoàn tiền](https://ducmanh001.github.io/litmatch-feature-flows/code/09-diamond-top-up-va-vip/04-post-webhook-apple-refund.ts): POST /api/v1/economy/webhooks/apple
+- [Matching Speed-up — Speed-up vé đang chờ ghép](https://ducmanh001.github.io/litmatch-feature-flows/code/10-matching-speed-up-detail/01-post-speedup-ticket.ts): POST /api/v1/matching/tickets/:id/speedup
+- [Gift — Tặng quà trong phòng](https://ducmanh001.github.io/litmatch-feature-flows/code/11-gift/01-post-party-room-gift.ts): POST /api/v1/party/rooms/:roomId/gifts
+- [Mini Game — Nộp nước đi oẳn tù tì](https://ducmanh001.github.io/litmatch-feature-flows/code/12-mini-game/01-post-submit-move.ts): POST /api/v1/mini-game/sessions/:id/moves
+- [Trust & Safety — Báo cáo một người dùng](https://ducmanh001.github.io/litmatch-feature-flows/code/13-trust-safety/01-post-report.ts): POST /api/v1/safety/reports
+- [Friend và Chat 1-1 — Gửi tin nhắn chat 1-1](https://ducmanh001.github.io/litmatch-feature-flows/code/16-friend-va-chat-1-1/01-post-send-message.ts): POST /api/v1/conversations/:id/messages
+- [Đăng ký, Onboarding và Guest — Xác minh OTP và đăng nhập](https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/01-post-verify-otp.ts): POST /api/v1/auth/otp/verify
+- [Đăng ký, Onboarding và Guest — Đổi refresh token lấy phiên mới](https://ducmanh001.github.io/litmatch-feature-flows/code/17-dang-ky-onboarding-va-guest/02-post-refresh.ts): POST /api/v1/auth/refresh
+- [Discovery, Nearby và Direct Invite — Chấp nhận lời mời ghép trực tiếp](https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/01-post-accept-invite.ts): POST /api/v1/matching/invites/:id/accept
+- [Discovery, Nearby và Direct Invite — Duyệt người dùng gần mình (Nearby)](https://ducmanh001.github.io/litmatch-feature-flows/code/18-discovery-nearby-va-direct-invite/02-get-nearby.ts): GET /api/v1/discovery/nearby
+- [Short Video — Ghi nhận lượt xem video](https://ducmanh001.github.io/litmatch-feature-flows/code/20-short-video/01-post-record-view.ts): POST /api/v1/videos/:id/views
+
+## Diagram coverage
+
+- [Matching Engine](https://ducmanh001.github.io/litmatch-feature-flows/#01-matching-engine): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Soul Match](https://ducmanh001.github.io/litmatch-feature-flows/#02-soul-match): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Voice Match](https://ducmanh001.github.io/litmatch-feature-flows/#03-voice-match): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Party Room](https://ducmanh001.github.io/litmatch-feature-flows/#04-party-room): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Movie Match / Movie Night](https://ducmanh001.github.io/litmatch-feature-flows/#05-movie-match-movie-night): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Palm Match](https://ducmanh001.github.io/litmatch-feature-flows/#06-palm-match): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Feed và Stories](https://ducmanh001.github.io/litmatch-feature-flows/#07-feed-va-stories): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Avatar tùy chỉnh](https://ducmanh001.github.io/litmatch-feature-flows/#08-avatar-tuy-chinh): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Diamond, Top-up và VIP](https://ducmanh001.github.io/litmatch-feature-flows/#09-diamond-top-up-va-vip): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Matching Speed-up](https://ducmanh001.github.io/litmatch-feature-flows/#10-matching-speed-up-detail): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Gift](https://ducmanh001.github.io/litmatch-feature-flows/#11-gift): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Mini Game](https://ducmanh001.github.io/litmatch-feature-flows/#12-mini-game): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Trust & Safety](https://ducmanh001.github.io/litmatch-feature-flows/#13-trust-safety): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Preference khi Matching](https://ducmanh001.github.io/litmatch-feature-flows/#14-preference-matching-detail): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Runtime Availability](https://ducmanh001.github.io/litmatch-feature-flows/#15-runtime-availability): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Friend và Chat 1-1](https://ducmanh001.github.io/litmatch-feature-flows/#16-friend-va-chat-1-1): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Đăng ký, Onboarding và Guest](https://ducmanh001.github.io/litmatch-feature-flows/#17-dang-ky-onboarding-va-guest): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Discovery, Nearby và Direct Invite](https://ducmanh001.github.io/litmatch-feature-flows/#18-discovery-nearby-va-direct-invite): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Mood và Conversation Streak](https://ducmanh001.github.io/litmatch-feature-flows/#19-mood-va-conversation-streak): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Short Video](https://ducmanh001.github.io/litmatch-feature-flows/#20-short-video): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Notification](https://ducmanh001.github.io/litmatch-feature-flows/#21-notification): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Support và Admin Operations](https://ducmanh001.github.io/litmatch-feature-flows/#22-support-va-admin-operations): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [User Profile và Privacy](https://ducmanh001.github.io/litmatch-feature-flows/#23-user-profile-va-privacy): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Analytics và thông báo privacy](https://ducmanh001.github.io/litmatch-feature-flows/#24-analytics-consent): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
+- [Realtime Fanout](https://ducmanh001.github.io/litmatch-feature-flows/#25-realtime-fanout): feature flow, explicit actor stages, module/entity/Redis/provider dependencies, architecture components and protocol edges in ai/flows.json.
