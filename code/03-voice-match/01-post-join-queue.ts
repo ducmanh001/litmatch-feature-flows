@@ -4,14 +4,45 @@
 // ════════════════════════════════════════════════════════════════════════════
 //  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [REDIS] → [WORKER] → [POSTGRES] →
 //             [REDIS]
-//  Bảng       match_tickets, match_sessions, match_daily_quotas, users
-//  Redis      matching:queue:{matchType}:{region}:{ageBand} (sorted set) ·
-//             matching:shards:active (set) · pub/sub theo user cho event
-//             match.confirmed
-//  Liên quan  Economy (trừ Diamond), Notification, signaling-gateway (đẩy event cho
-//             client). Tiếp theo: client gọi calling/match-sessions/:id/join (chưa
-//             chép).
-//  Nguồn      litmatch @ d3cb28c · 2026-10-15
+//
+//  Vai trò từng tầng
+//    [CONTROLLER] Nhận request vào hàng đợi (giới hạn 10 lần/phút), gom user, body,
+//                 header Idempotency-Key và thiết bị guest rồi giao cho service; trả
+//                 ticket kèm giá speed-up.
+//    [SERVICE]    Kiểm tra user (bị khóa, guest), nhận ra retry, trừ lượt miễn phí theo
+//                 ngày hoặc trừ Diamond, ghi ticket; chỉ sau khi DB commit mới đẩy vào
+//                 Redis.
+//    [POSTGRES]   Nguồn sự thật của ticket, session và quota; khóa dòng (FOR UPDATE) và
+//                 unique index chống ghi trùng.
+//    [REDIS]      Hàng đợi dẫn xuất: mỗi nhóm (loại ghép, vùng, nhóm tuổi) một sorted
+//                 set, điểm nhỏ ghép trước; một set liệt kê nhóm đang có người chờ;
+//                 pub/sub báo kết quả ghép cho client.
+//    [WORKER]     Job nền lấy 2 vé điểm thấp nhất từ Redis, kiểm lại trong Postgres rồi
+//                 tạo MatchSession; không ghép được thì trả vé về hàng đợi.
+//
+//  Bảng       match_tickets — 1 dòng cho mỗi lượt vào hàng đợi: trạng thái (queued,
+//               confirmed, expired...), nhóm ghép, độ ưu tiên, key idempotency.
+//             match_sessions — 1 dòng cho mỗi cặp đã ghép (2 user, 2 ticket, trạng thái
+//               confirmed).
+//             match_daily_quotas — số lượt miễn phí đã dùng theo user, ngày UTC và loại
+//               ghép (voice hoặc soul).
+//             users — hồ sơ được khóa và đọc: vùng, ngày sinh, giới tính, trust score,
+//               trạng thái, isGuest.
+//  Redis      matching:queue:{matchType}:{region}:{ageBand} — sorted set; member =
+//               ticketId, score = độ ưu tiên (nhỏ ghép trước).
+//             matching:shards:active — set các nhóm đang có người chờ, để worker không
+//               quét cả keyspace.
+//             pub/sub theo user — đẩy event match.confirmed cho signaling-gateway
+//               chuyển xuống client.
+//  Liên quan  Economy — trừ Diamond khi user trả thêm lượt (cùng transaction với tạo
+//               vé); ghi sổ kép, idempotent theo key.
+//             Safety — canPair: nếu hai người đã block hoặc report nhau thì không ghép.
+//             Notification — tạo thông báo "đã ghép được" trong transaction ghép cặp và
+//               gửi push sau commit.
+//             signaling-gateway — subscribe pub/sub, đẩy match.confirmed xuống socket
+//               của user.
+//             Calling — bước kế tiếp: client gọi POST calling/match-sessions/:id/join
+//               để vào cuộc gọi (chưa chép).
 
 // [CONTROLLER] matching.controller.ts · L46–72
 @Post('tickets')

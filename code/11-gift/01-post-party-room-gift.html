@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>POST /api/v1/party/rooms/:roomId/gifts — Gift</title>
+<style>
+:root{color-scheme:light;--bg:#fff;--fg:#1f2328;--muted:#59636e;--border:#d1d9e0;--subtle:#f6f8fa;--accent:#0969da;--lnum:#818b98;--target:#fff8c5;--sec:#ddf4ff;--secfg:#0550ae;
+--pl-c:#6e7781;--pl-k:#cf222e;--pl-en:#8250df;--pl-c1:#0550ae;--pl-s:#0a3069;--ok:#1a7f37;--info:#0969da;--warn:#bc4c00;--t-controller:#1a7f37;--t-service:#bc4c00;--t-worker:#8250df;--t-postgres:#0969da;--t-redis:#cf222e;--t-kafka:#57606a;--t-bullmq:#bf3989;--t-external:#0a7a6b;--t-gateway:#9a6700}
+:root[data-theme=dark]{color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--lnum:#6e7681;--target:#3b2e0b;--sec:#10294a;--secfg:#79c0ff;
+--pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--lnum:#6e7681;--target:#3b2e0b;--sec:#10294a;--secfg:#79c0ff;
+--pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341}}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:24px 16px 48px}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.box{border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--bg)}
+.bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--subtle);border-bottom:1px solid var(--border)}
+.path{font-size:14px}.path b{font-weight:600}.meta{margin-left:12px;color:var(--muted);font-size:12px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:500 12px/20px -apple-system,"Segoe UI",sans-serif;padding:3px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer}
+.btn:hover{background:var(--subtle);text-decoration:none}
+.toc{display:flex;flex-wrap:wrap;gap:4px 16px;padding:8px 16px;border-bottom:1px solid var(--border);font-size:13px}
+.toc a.cur{color:var(--fg);font-weight:600;text-decoration:underline}
+.legend{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--border);font-size:12px;color:var(--muted)}
+.lg{font:700 11px/18px ui-monospace,SFMono-Regular,Consolas,monospace;padding:0 8px;border:1px solid currentColor;border-radius:999px}
+.src{overflow-x:auto;padding:8px 0;font:12px/20px ui-monospace,SFMono-Regular,"SF Mono","Cascadia Mono",Menlo,Consolas,"Liberation Mono",monospace;tab-size:2}
+.ln{display:flex;min-width:max-content}
+.ln .n{flex:none;width:56px;padding:0 16px 0 0;text-align:right;color:var(--lnum);user-select:none;text-decoration:none}
+.ln .n::before{content:attr(data-n)}.ln .n:hover{color:var(--fg)}
+.ln .t{white-space:pre;padding-right:24px}
+.ln:target{background:var(--target)}
+.ln.tag{background:var(--subtle);border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-top:2px}
+.ln.sec{background:var(--sec)}.ln.sec .pl-c{color:var(--secfg);font-weight:600}.ln.rule .pl-c{color:var(--border)}
+.pl-c{color:var(--pl-c)}.pl-k{color:var(--pl-k)}.pl-en{color:var(--pl-en)}.pl-c1{color:var(--pl-c1)}.pl-s{color:var(--pl-s)}
+.tg{font-weight:700}.tg-controller{color:var(--t-controller)}.ln.tag.tier-controller{box-shadow:inset 4px 0 0 var(--t-controller)}.tg-service{color:var(--t-service)}.ln.tag.tier-service{box-shadow:inset 4px 0 0 var(--t-service)}.tg-worker{color:var(--t-worker)}.ln.tag.tier-worker{box-shadow:inset 4px 0 0 var(--t-worker)}.tg-postgres{color:var(--t-postgres)}.ln.tag.tier-postgres{box-shadow:inset 4px 0 0 var(--t-postgres)}.tg-redis{color:var(--t-redis)}.ln.tag.tier-redis{box-shadow:inset 4px 0 0 var(--t-redis)}.tg-kafka{color:var(--t-kafka)}.ln.tag.tier-kafka{box-shadow:inset 4px 0 0 var(--t-kafka)}.tg-bullmq{color:var(--t-bullmq)}.ln.tag.tier-bullmq{box-shadow:inset 4px 0 0 var(--t-bullmq)}.tg-external{color:var(--t-external)}.ln.tag.tier-external{box-shadow:inset 4px 0 0 var(--t-external)}.tg-gateway{color:var(--t-gateway)}.ln.tag.tier-gateway{box-shadow:inset 4px 0 0 var(--t-gateway)}
+.idx{padding:20px 24px 28px}.idx h1{margin:0 0 8px;font-size:22px;font-weight:600}.idx p{margin:0 0 16px;color:var(--muted);max-width:820px}
+.idx h2{margin:30px 0 4px;font-size:17px;font-weight:600}.idx .sum{margin:0 0 10px}
+.tbl td.fn>a{font-weight:600}.tbl td.fn .rt{margin-top:3px;color:var(--muted)}.tbl td.tiers .lg{display:inline-block;margin:0 4px 4px 0}
+.tbl.ov{table-layout:fixed}.tbl.ov th:nth-child(1){width:32%}.tbl.ov th:nth-child(2){width:40%}.tbl.ov th:nth-child(3){width:28%}.tbl.ov code{overflow-wrap:anywhere}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}.tbl th,.tbl td{padding:8px 12px;text-align:left;border-top:1px solid var(--border);vertical-align:top}
+.tbl th{background:var(--subtle);font-size:12px;color:var(--muted);font-weight:600}.tbl td.num{color:var(--muted);font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.tbl td.tb{color:var(--muted);font-size:12px}.tbl td.lk,.tbl td.ep{white-space:nowrap}
+.tbl code{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--subtle);border:1px solid var(--border);border-radius:6px;padding:1px 6px}
+.m{display:inline-block;min-width:44px;text-align:center;font:700 11px/18px ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:4px;border:1px solid var(--border);padding:0 6px}
+.m-get{color:var(--ok)}.m-post{color:var(--info)}.m-put{color:var(--warn)}
+@media (max-width:700px){main{padding:12px 8px}.ln .n{width:44px;padding-right:10px}.idx{padding:16px 12px}}
+</style>
+</head>
+<body>
+<main>
+<div class="box">
+  <div class="bar">
+    <div class="path"><a href="https://github.com/ducmanh001/litmatch-feature-flows">litmatch-feature-flows</a> / <a href="https://github.com/ducmanh001/litmatch-feature-flows/tree/main/code/11-gift">11-gift</a> / <b>01-post-party-room-gift.ts</b><span class="meta">460 dòng · 350 dòng code · litmatch @ d3cb28c</span></div>
+    <div class="actions">
+      <a class="btn" href="../index.html">Tổng quan</a>
+      <a class="btn" href="index.html">Các endpoint</a>
+      <a class="btn" href="../../index.html#11-gift">Sơ đồ luồng</a>
+      <a class="btn" href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/11-gift/01-post-party-room-gift.ts">GitHub</a>
+      <a class="btn" href="https://raw.githubusercontent.com/ducmanh001/litmatch-feature-flows/main/code/11-gift/01-post-party-room-gift.ts">Raw</a>
+      <button class="btn" id="copy" type="button">Sao chép</button>
+      <button class="btn" id="theme" type="button" title="Đổi theme">Theme: Tự động</button>
+    </div>
+  </div>
+  <nav class="toc"><a href="01-post-party-room-gift.html" class="cur">01 POST /party/rooms/:roomId/gifts</a></nav>
+  <div class="legend"><span>Tầng:</span><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-redis">REDIS</b></div>
+  <div class="src">
+<div class="ln rule" id="L1"><a class="n" href="#L1" data-n="1"></a><span class="t"><span class="pl-c">// ════════════════════════════════════════════════════════════════════════════</span></span></div>
+<div class="ln sec" id="L2"><a class="n" href="#L2" data-n="2"></a><span class="t"><span class="pl-c">//  POST /api/v1/party/rooms/:roomId/gifts</span></span></div>
+<div class="ln sec" id="L3"><a class="n" href="#L3" data-n="3"></a><span class="t"><span class="pl-c">//  Tặng quà trong Party Room: trừ DIA người tặng, cộng PTS người nhận, ghi GiftEvent trong cùng một transaction.</span></span></div>
+<div class="ln rule" id="L4"><a class="n" href="#L4" data-n="4"></a><span class="t"><span class="pl-c">// ════════════════════════════════════════════════════════════════════════════</span></span></div>
+<div class="ln head" id="L5"><a class="n" href="#L5" data-n="5"></a><span class="t"><span class="pl-c">//  Luồng      <b class="tg tg-controller">[CONTROLLER]</b> → <b class="tg tg-service">[SERVICE]</b> → <b class="tg tg-postgres">[POSTGRES]</b> → <b class="tg tg-redis">[REDIS]</b></span></span></div>
+<div class="ln head" id="L6"><a class="n" href="#L6" data-n="6"></a><span class="t"><span class="pl-c">//</span></span></div>
+<div class="ln head" id="L7"><a class="n" href="#L7" data-n="7"></a><span class="t"><span class="pl-c">//  Vai trò từng tầng</span></span></div>
+<div class="ln head" id="L8"><a class="n" href="#L8" data-n="8"></a><span class="t"><span class="pl-c">//    <b class="tg tg-controller">[CONTROLLER]</b> Nhận yêu cầu tặng quà (giới hạn 30 lần/phút) kèm Idempotency-Key bắt</span></span></div>
+<div class="ln head" id="L9"><a class="n" href="#L9" data-n="9"></a><span class="t"><span class="pl-c">//                 buộc; user lấy từ JWT, giftId và người nhận từ body.</span></span></div>
+<div class="ln head" id="L10"><a class="n" href="#L10" data-n="10"></a><span class="t"><span class="pl-c">//    <b class="tg tg-service">[SERVICE]</b>    GiftService đọc giá quà từ DB, kiểm 2 người cùng ở trong phòng và</span></span></div>
+<div class="ln head" id="L11"><a class="n" href="#L11" data-n="11"></a><span class="t"><span class="pl-c">//                 tính điểm PTS; EconomyService dựng 2 chân sổ kép (DIA và PTS) rồi</span></span></div>
+<div class="ln head" id="L12"><a class="n" href="#L12" data-n="12"></a><span class="t"><span class="pl-c">//                 giao cho LedgerService ghi.</span></span></div>
+<div class="ln head" id="L13"><a class="n" href="#L13" data-n="13"></a><span class="t"><span class="pl-c">//    <b class="tg tg-postgres">[POSTGRES]</b>   Một transaction ghi giao dịch, bút toán DIA và PTS, số dư và điểm của</span></span></div>
+<div class="ln head" id="L14"><a class="n" href="#L14" data-n="14"></a><span class="t"><span class="pl-c">//                 ví, outbox, GiftEvent, notification; bước nào lỗi thì rollback tất</span></span></div>
+<div class="ln head" id="L15"><a class="n" href="#L15" data-n="15"></a><span class="t"><span class="pl-c">//                 cả.</span></span></div>
+<div class="ln head" id="L16"><a class="n" href="#L16" data-n="16"></a><span class="t"><span class="pl-c">//    <b class="tg tg-redis">[REDIS]</b>      Sau khi commit, phát gift.sent tới từng thành viên đang ở phòng qua</span></span></div>
+<div class="ln head" id="L17"><a class="n" href="#L17" data-n="17"></a><span class="t"><span class="pl-c">//                 pub/sub để client chạy hiệu ứng.</span></span></div>
+<div class="ln head" id="L18"><a class="n" href="#L18" data-n="18"></a><span class="t"><span class="pl-c">//</span></span></div>
+<div class="ln head" id="L19"><a class="n" href="#L19" data-n="19"></a><span class="t"><span class="pl-c">//  Bảng       gifts — catalog quà: giá Diamond là dữ liệu trong DB, server đọc lại đúng</span></span></div>
+<div class="ln head" id="L20"><a class="n" href="#L20" data-n="20"></a><span class="t"><span class="pl-c">//               lúc tặng.</span></span></div>
+<div class="ln head" id="L21"><a class="n" href="#L21" data-n="21"></a><span class="t"><span class="pl-c">//             transactions — 1 giao dịch gift_send; key idempotency gift:send:{người</span></span></div>
+<div class="ln head" id="L22"><a class="n" href="#L22" data-n="22"></a><span class="t"><span class="pl-c">//               tặng}:{key client}.</span></span></div>
+<div class="ln head" id="L23"><a class="n" href="#L23" data-n="23"></a><span class="t"><span class="pl-c">//             ledger_entries — bút toán nhiều chân: DIA Nợ ví người tặng / Có</span></span></div>
+<div class="ln head" id="L24"><a class="n" href="#L24" data-n="24"></a><span class="t"><span class="pl-c">//               system_gift_pool; PTS Nợ system_points_mint / Có user_earnings của</span></span></div>
+<div class="ln head" id="L25"><a class="n" href="#L25" data-n="25"></a><span class="t"><span class="pl-c">//               người nhận.</span></span></div>
+<div class="ln head" id="L26"><a class="n" href="#L26" data-n="26"></a><span class="t"><span class="pl-c">//             wallets — ví người tặng bị trừ DIA (khóa FOR UPDATE); ví người nhận được</span></span></div>
+<div class="ln head" id="L27"><a class="n" href="#L27" data-n="27"></a><span class="t"><span class="pl-c">//               cộng điểm PTS vào earnings.</span></span></div>
+<div class="ln head" id="L28"><a class="n" href="#L28" data-n="28"></a><span class="t"><span class="pl-c">//             gift_events — 1 dòng cho mỗi lần tặng, unique transaction_id; chỉ là</span></span></div>
+<div class="ln head" id="L29"><a class="n" href="#L29" data-n="29"></a><span class="t"><span class="pl-c">//               snapshot hiển thị, nguồn sự thật là sổ cái.</span></span></div>
+<div class="ln head" id="L30"><a class="n" href="#L30" data-n="30"></a><span class="t"><span class="pl-c">//             outbox_events — event economy.gift.sent và economy.diamond.debited, ghi</span></span></div>
+<div class="ln head" id="L31"><a class="n" href="#L31" data-n="31"></a><span class="t"><span class="pl-c">//               cùng transaction.</span></span></div>
+<div class="ln head" id="L32"><a class="n" href="#L32" data-n="32"></a><span class="t"><span class="pl-c">//             notifications — thông báo gift_received cho người nhận, tạo trong cùng</span></span></div>
+<div class="ln head" id="L33"><a class="n" href="#L33" data-n="33"></a><span class="t"><span class="pl-c">//               transaction.</span></span></div>
+<div class="ln head" id="L34"><a class="n" href="#L34" data-n="34"></a><span class="t"><span class="pl-c">//             party_rooms — chỉ đọc: phòng phải đang mở (active) mới tặng được quà.</span></span></div>
+<div class="ln head" id="L35"><a class="n" href="#L35" data-n="35"></a><span class="t"><span class="pl-c">//             party_room_members — chỉ đọc: người tặng và người nhận phải là thành viên</span></span></div>
+<div class="ln head" id="L36"><a class="n" href="#L36" data-n="36"></a><span class="t"><span class="pl-c">//               đang ở trong phòng.</span></span></div>
+<div class="ln head" id="L37"><a class="n" href="#L37" data-n="37"></a><span class="t"><span class="pl-c">//  Redis      realtime:user:{userId} — kênh pub/sub theo người nhận; core-api phát</span></span></div>
+<div class="ln head" id="L38"><a class="n" href="#L38" data-n="38"></a><span class="t"><span class="pl-c">//               gift.sent cho từng thành viên trong phòng, signaling-gateway chuyển</span></span></div>
+<div class="ln head" id="L39"><a class="n" href="#L39" data-n="39"></a><span class="t"><span class="pl-c">//               xuống socket.</span></span></div>
+<div class="ln head" id="L40"><a class="n" href="#L40" data-n="40"></a><span class="t"><span class="pl-c">//  Liên quan  Economy (LedgerService) — record: idempotency theo key, khóa ví FOR</span></span></div>
+<div class="ln head" id="L41"><a class="n" href="#L41" data-n="41"></a><span class="t"><span class="pl-c">//               UPDATE, check số dư và earnings, outbox; phần lõi này có trong luồng</span></span></div>
+<div class="ln head" id="L42"><a class="n" href="#L42" data-n="42"></a><span class="t"><span class="pl-c">//               Mua VIP.</span></span></div>
+<div class="ln head" id="L43"><a class="n" href="#L43" data-n="43"></a><span class="t"><span class="pl-c">//             Party Room — getActiveRoomMembers: danh sách thành viên của phòng đang</span></span></div>
+<div class="ln head" id="L44"><a class="n" href="#L44" data-n="44"></a><span class="t"><span class="pl-c">//               mở.</span></span></div>
+<div class="ln head" id="L45"><a class="n" href="#L45" data-n="45"></a><span class="t"><span class="pl-c">//             User — getByIdOrThrow: đọc người nhận để biết có phải guest không.</span></span></div>
+<div class="ln head" id="L46"><a class="n" href="#L46" data-n="46"></a><span class="t"><span class="pl-c">//             Notification — createWithManager tạo thông báo trong transaction,</span></span></div>
+<div class="ln head" id="L47"><a class="n" href="#L47" data-n="47"></a><span class="t"><span class="pl-c">//               sendPush gửi push sau commit.</span></span></div>
+<div class="ln head" id="L48"><a class="n" href="#L48" data-n="48"></a><span class="t"><span class="pl-c">//             signaling-gateway — subscribe kênh realtime của user, đẩy gift.sent xuống</span></span></div>
+<div class="ln head" id="L49"><a class="n" href="#L49" data-n="49"></a><span class="t"><span class="pl-c">//               client.</span></span></div>
+<div class="ln blank" id="L50"><a class="n" href="#L50" data-n="50"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag tier-controller" id="L51"><a class="n" href="#L51" data-n="51"></a><span class="t"><span class="pl-c">// <b class="tg tg-controller">[CONTROLLER]</b> gift.controller.ts · L50–73</span></span></div>
+<div class="ln code" id="L52"><a class="n" href="#L52" data-n="52"></a><span class="t">@<span class="pl-en">Post</span>(<span class="pl-s">'party/rooms/:roomId/gifts'</span>)</span></div>
+<div class="ln code" id="L53"><a class="n" href="#L53" data-n="53"></a><span class="t">@<span class="pl-en">HttpCode</span>(HttpStatus.<span class="pl-c1">OK</span>)</span></div>
+<div class="ln code" id="L54"><a class="n" href="#L54" data-n="54"></a><span class="t">@<span class="pl-en">Throttle</span>({ <span class="pl-k">default</span>: { limit: <span class="pl-c1">30</span>, ttl: <span class="pl-en">minutes</span>(<span class="pl-c1">1</span>) } })</span></div>
+<div class="ln code" id="L55"><a class="n" href="#L55" data-n="55"></a><span class="t"><span class="pl-k">async</span> <span class="pl-en">sendGift</span>(</span></div>
+<div class="ln code" id="L56"><a class="n" href="#L56" data-n="56"></a><span class="t">  @<span class="pl-en">CurrentUser</span>() user: <span class="pl-en">AuthenticatedUser</span>,</span></div>
+<div class="ln code" id="L57"><a class="n" href="#L57" data-n="57"></a><span class="t">  @<span class="pl-en">Param</span>(<span class="pl-s">'roomId'</span>, <span class="pl-en">ParseUUIDPipe</span>) roomId: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L58"><a class="n" href="#L58" data-n="58"></a><span class="t">  @<span class="pl-en">Body</span>() body: <span class="pl-en">SendGiftDto</span>,</span></div>
+<div class="ln code" id="L59"><a class="n" href="#L59" data-n="59"></a><span class="t">  @<span class="pl-en">IdempotencyKey</span>() idempotencyKey: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L60"><a class="n" href="#L60" data-n="60"></a><span class="t">): <span class="pl-en">Promise</span>&lt;<span class="pl-en">GiftEventDto</span>&gt; {</span></div>
+<div class="ln code" id="L61"><a class="n" href="#L61" data-n="61"></a><span class="t">  <span class="pl-k">const</span> { giftEvent, gift, replayed } = <span class="pl-k">await</span> <span class="pl-c1">this</span>.giftService.<span class="pl-en">sendGift</span>(</span></div>
+<div class="ln code" id="L62"><a class="n" href="#L62" data-n="62"></a><span class="t">    user,</span></div>
+<div class="ln code" id="L63"><a class="n" href="#L63" data-n="63"></a><span class="t">    roomId,</span></div>
+<div class="ln code" id="L64"><a class="n" href="#L64" data-n="64"></a><span class="t">    body.giftId,</span></div>
+<div class="ln code" id="L65"><a class="n" href="#L65" data-n="65"></a><span class="t">    body.receiverUserId,</span></div>
+<div class="ln code" id="L66"><a class="n" href="#L66" data-n="66"></a><span class="t">    idempotencyKey,</span></div>
+<div class="ln code" id="L67"><a class="n" href="#L67" data-n="67"></a><span class="t">  );</span></div>
+<div class="ln code" id="L68"><a class="n" href="#L68" data-n="68"></a><span class="t">  <span class="pl-k">return</span> GiftEventDto.<span class="pl-en">from</span>(giftEvent, gift.code, replayed);</span></div>
+<div class="ln code" id="L69"><a class="n" href="#L69" data-n="69"></a><span class="t">}</span></div>
+<div class="ln blank" id="L70"><a class="n" href="#L70" data-n="70"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag tier-service" id="L71"><a class="n" href="#L71" data-n="71"></a><span class="t"><span class="pl-c">// <b class="tg tg-service">[SERVICE]</b> gift.service.ts · L156–264</span></span></div>
+<div class="ln code" id="L72"><a class="n" href="#L72" data-n="72"></a><span class="t"><span class="pl-k">async</span> <span class="pl-en">sendGift</span>(</span></div>
+<div class="ln code" id="L73"><a class="n" href="#L73" data-n="73"></a><span class="t">  user: <span class="pl-en">AuthenticatedUser</span>,</span></div>
+<div class="ln code" id="L74"><a class="n" href="#L74" data-n="74"></a><span class="t">  roomId: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L75"><a class="n" href="#L75" data-n="75"></a><span class="t">  giftId: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L76"><a class="n" href="#L76" data-n="76"></a><span class="t">  receiverUserId: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L77"><a class="n" href="#L77" data-n="77"></a><span class="t">  idempotencyKey: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L78"><a class="n" href="#L78" data-n="78"></a><span class="t">): <span class="pl-en">Promise</span>&lt;<span class="pl-en">SendGiftResult</span>&gt; {</span></div>
+<div class="ln code" id="L79"><a class="n" href="#L79" data-n="79"></a><span class="t">  <span class="pl-k">if</span> (receiverUserId === user.userId) {</span></div>
+<div class="ln code" id="L80"><a class="n" href="#L80" data-n="80"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
+<div class="ln code" id="L81"><a class="n" href="#L81" data-n="81"></a><span class="t">      GiftErrors.<span class="pl-c1">SELF_GIFT_FORBIDDEN</span>,</span></div>
+<div class="ln code" id="L82"><a class="n" href="#L82" data-n="82"></a><span class="t">      <span class="pl-s">'Không tự tặng quà cho chính mình'</span>,</span></div>
+<div class="ln code" id="L83"><a class="n" href="#L83" data-n="83"></a><span class="t">      HttpStatus.<span class="pl-c1">BAD_REQUEST</span>,</span></div>
+<div class="ln code" id="L84"><a class="n" href="#L84" data-n="84"></a><span class="t">    );</span></div>
+<div class="ln code" id="L85"><a class="n" href="#L85" data-n="85"></a><span class="t">  }</span></div>
+<div class="ln code" id="L86"><a class="n" href="#L86" data-n="86"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L87"><a class="n" href="#L87" data-n="87"></a><span class="t">  <span class="pl-c">// Giá đọc từ DB đúng lúc tặng; client chỉ gửi giftId, không bao giờ gửi giá.</span></span></div>
+<div class="ln code" id="L88"><a class="n" href="#L88" data-n="88"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">gift</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.giftRepo.<span class="pl-en">findOneBy</span>({ id: giftId, active: <span class="pl-c1">true</span> });</span></div>
+<div class="ln code" id="L89"><a class="n" href="#L89" data-n="89"></a><span class="t">  <span class="pl-k">if</span> (!gift) {</span></div>
+<div class="ln code" id="L90"><a class="n" href="#L90" data-n="90"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
+<div class="ln code" id="L91"><a class="n" href="#L91" data-n="91"></a><span class="t">      GiftErrors.<span class="pl-c1">GIFT_NOT_FOUND</span>,</span></div>
+<div class="ln code" id="L92"><a class="n" href="#L92" data-n="92"></a><span class="t">      <span class="pl-s">'Quà không tồn tại hoặc đã ngừng bán'</span>,</span></div>
+<div class="ln code" id="L93"><a class="n" href="#L93" data-n="93"></a><span class="t">      HttpStatus.<span class="pl-c1">NOT_FOUND</span>,</span></div>
+<div class="ln code" id="L94"><a class="n" href="#L94" data-n="94"></a><span class="t">    );</span></div>
+<div class="ln code" id="L95"><a class="n" href="#L95" data-n="95"></a><span class="t">  }</span></div>
+<div class="ln code" id="L96"><a class="n" href="#L96" data-n="96"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L97"><a class="n" href="#L97" data-n="97"></a><span class="t">  <span class="pl-c">// Kiểm thành viên chỉ là luật nghiệp vụ, KHÔNG phải chốt an toàn tiền: tiền vẫn đúng</span></span></div>
+<div class="ln code" id="L98"><a class="n" href="#L98" data-n="98"></a><span class="t">  <span class="pl-c">// dù có race rời phòng nhờ transaction và idempotency của Economy.</span></span></div>
+<div class="ln code" id="L99"><a class="n" href="#L99" data-n="99"></a><span class="t">  <span class="pl-k">const</span> { members } =</span></div>
+<div class="ln code" id="L100"><a class="n" href="#L100" data-n="100"></a><span class="t">    <span class="pl-k">await</span> <span class="pl-c1">this</span>.partyRoomService.<span class="pl-en">getActiveRoomMembers</span>(roomId);</span></div>
+<div class="ln code" id="L101"><a class="n" href="#L101" data-n="101"></a><span class="t">  <span class="pl-k">if</span> (!members.<span class="pl-en">some</span>((m) =&gt; m.userId === user.userId)) {</span></div>
+<div class="ln code" id="L102"><a class="n" href="#L102" data-n="102"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
+<div class="ln code" id="L103"><a class="n" href="#L103" data-n="103"></a><span class="t">      GiftErrors.<span class="pl-c1">SENDER_NOT_IN_ROOM</span>,</span></div>
+<div class="ln code" id="L104"><a class="n" href="#L104" data-n="104"></a><span class="t">      <span class="pl-s">'Bạn không ở trong phòng này'</span>,</span></div>
+<div class="ln code" id="L105"><a class="n" href="#L105" data-n="105"></a><span class="t">      HttpStatus.<span class="pl-c1">FORBIDDEN</span>,</span></div>
+<div class="ln code" id="L106"><a class="n" href="#L106" data-n="106"></a><span class="t">    );</span></div>
+<div class="ln code" id="L107"><a class="n" href="#L107" data-n="107"></a><span class="t">  }</span></div>
+<div class="ln code" id="L108"><a class="n" href="#L108" data-n="108"></a><span class="t">  <span class="pl-k">if</span> (!members.<span class="pl-en">some</span>((m) =&gt; m.userId === receiverUserId)) {</span></div>
+<div class="ln code" id="L109"><a class="n" href="#L109" data-n="109"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
+<div class="ln code" id="L110"><a class="n" href="#L110" data-n="110"></a><span class="t">      GiftErrors.<span class="pl-c1">RECEIVER_NOT_IN_ROOM</span>,</span></div>
+<div class="ln code" id="L111"><a class="n" href="#L111" data-n="111"></a><span class="t">      <span class="pl-s">'Người nhận không ở trong phòng này'</span>,</span></div>
+<div class="ln code" id="L112"><a class="n" href="#L112" data-n="112"></a><span class="t">      HttpStatus.<span class="pl-c1">CONFLICT</span>,</span></div>
+<div class="ln code" id="L113"><a class="n" href="#L113" data-n="113"></a><span class="t">    );</span></div>
+<div class="ln code" id="L114"><a class="n" href="#L114" data-n="114"></a><span class="t">  }</span></div>
+<div class="ln code" id="L115"><a class="n" href="#L115" data-n="115"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L116"><a class="n" href="#L116" data-n="116"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">receiver</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.userService.<span class="pl-en">getByIdOrThrow</span>(receiverUserId);</span></div>
+<div class="ln code" id="L117"><a class="n" href="#L117" data-n="117"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">ratePercent</span> = <span class="pl-c1">this</span>.config.<span class="pl-en">getOrThrow</span>(<span class="pl-s">'GIFT_POINTS_RATE_PERCENT'</span>, {</span></div>
+<div class="ln code" id="L118"><a class="n" href="#L118" data-n="118"></a><span class="t">    <span class="pl-k">infer</span>: <span class="pl-c1">true</span>,</span></div>
+<div class="ln code" id="L119"><a class="n" href="#L119" data-n="119"></a><span class="t">  });</span></div>
+<div class="ln code" id="L120"><a class="n" href="#L120" data-n="120"></a><span class="t">  <span class="pl-c">// Người nhận là guest thì chân PTS = 0 (quà vẫn tặng được); còn lại điểm = giá × tỉ</span></span></div>
+<div class="ln code" id="L121"><a class="n" href="#L121" data-n="121"></a><span class="t">  <span class="pl-c">// lệ%, làm tròn xuống.</span></span></div>
+<div class="ln code" id="L122"><a class="n" href="#L122" data-n="122"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">pointsAwarded</span> = receiver.isGuest</span></div>
+<div class="ln code" id="L123"><a class="n" href="#L123" data-n="123"></a><span class="t">    ? <span class="pl-c1">0</span></span></div>
+<div class="ln code" id="L124"><a class="n" href="#L124" data-n="124"></a><span class="t">    : Math.<span class="pl-en">floor</span>((gift.priceDiamond * ratePercent) / <span class="pl-c1">100</span>);</span></div>
+<div class="ln code" id="L125"><a class="n" href="#L125" data-n="125"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L126"><a class="n" href="#L126" data-n="126"></a><span class="t">  <span class="pl-k">let</span> notification: <span class="pl-en">Notification</span> | <span class="pl-c1">undefined</span>;</span></div>
+<div class="ln code" id="L127"><a class="n" href="#L127" data-n="127"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">result</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.economy.<span class="pl-en">sendGift</span>({</span></div>
+<div class="ln code" id="L128"><a class="n" href="#L128" data-n="128"></a><span class="t">    senderUserId: user.userId,</span></div>
+<div class="ln code" id="L129"><a class="n" href="#L129" data-n="129"></a><span class="t">    receiverUserId,</span></div>
+<div class="ln code" id="L130"><a class="n" href="#L130" data-n="130"></a><span class="t">    priceDiamond: gift.priceDiamond,</span></div>
+<div class="ln code" id="L131"><a class="n" href="#L131" data-n="131"></a><span class="t">    pointsAwarded,</span></div>
+<div class="ln code" id="L132"><a class="n" href="#L132" data-n="132"></a><span class="t">    <span class="pl-c">// Key = gift:send:{người tặng}:{key client}, unique ở DB trên transactions: retry</span></span></div>
+<div class="ln code" id="L133"><a class="n" href="#L133" data-n="133"></a><span class="t">    <span class="pl-c">// không trừ tiền hai lần.</span></span></div>
+<div class="ln code" id="L134"><a class="n" href="#L134" data-n="134"></a><span class="t">    idempotencyKey: <span class="pl-en">giftSendIdempotencyKey</span>(user.userId, idempotencyKey),</span></div>
+<div class="ln code" id="L135"><a class="n" href="#L135" data-n="135"></a><span class="t">    <span class="pl-c">// Snapshot tỉ lệ quy đổi vào metadata của giao dịch; đổi cấu hình sau này không</span></span></div>
+<div class="ln code" id="L136"><a class="n" href="#L136" data-n="136"></a><span class="t">    <span class="pl-c">// diễn giải lại giao dịch cũ.</span></span></div>
+<div class="ln code" id="L137"><a class="n" href="#L137" data-n="137"></a><span class="t">    metadata: {</span></div>
+<div class="ln code" id="L138"><a class="n" href="#L138" data-n="138"></a><span class="t">      giftId: gift.id,</span></div>
+<div class="ln code" id="L139"><a class="n" href="#L139" data-n="139"></a><span class="t">      giftCode: gift.code,</span></div>
+<div class="ln code" id="L140"><a class="n" href="#L140" data-n="140"></a><span class="t">      roomId,</span></div>
+<div class="ln code" id="L141"><a class="n" href="#L141" data-n="141"></a><span class="t">      pointsRatePercent: ratePercent,</span></div>
+<div class="ln code" id="L142"><a class="n" href="#L142" data-n="142"></a><span class="t">      receiverIsGuest: receiver.isGuest,</span></div>
+<div class="ln code" id="L143"><a class="n" href="#L143" data-n="143"></a><span class="t">    },</span></div>
+<div class="ln code" id="L144"><a class="n" href="#L144" data-n="144"></a><span class="t">    <span class="pl-c">// <b class="tg tg-postgres">[POSTGRES]</b> GiftEvent và notification ghi CÙNG transaction với các bút toán: bước</span></span></div>
+<div class="ln code" id="L145"><a class="n" href="#L145" data-n="145"></a><span class="t">    <span class="pl-c">// nào lỗi thì rollback hết, không có chuyện trừ tiền mà không có quà.</span></span></div>
+<div class="ln code" id="L146"><a class="n" href="#L146" data-n="146"></a><span class="t">    withinTransaction: <span class="pl-k">async</span> (manager, transactionId) =&gt; {</span></div>
+<div class="ln code" id="L147"><a class="n" href="#L147" data-n="147"></a><span class="t">      <span class="pl-k">await</span> manager.<span class="pl-en">save</span>(</span></div>
+<div class="ln code" id="L148"><a class="n" href="#L148" data-n="148"></a><span class="t">        manager.<span class="pl-en">create</span>(<span class="pl-en">GiftEvent</span>, {</span></div>
+<div class="ln code" id="L149"><a class="n" href="#L149" data-n="149"></a><span class="t">          giftId: gift.id,</span></div>
+<div class="ln code" id="L150"><a class="n" href="#L150" data-n="150"></a><span class="t">          roomId,</span></div>
+<div class="ln code" id="L151"><a class="n" href="#L151" data-n="151"></a><span class="t">          senderUserId: user.userId,</span></div>
+<div class="ln code" id="L152"><a class="n" href="#L152" data-n="152"></a><span class="t">          receiverUserId,</span></div>
+<div class="ln code" id="L153"><a class="n" href="#L153" data-n="153"></a><span class="t">          priceDiamond: gift.priceDiamond,</span></div>
+<div class="ln code" id="L154"><a class="n" href="#L154" data-n="154"></a><span class="t">          pointsAwarded,</span></div>
+<div class="ln code" id="L155"><a class="n" href="#L155" data-n="155"></a><span class="t">          pointsRatePercent: ratePercent,</span></div>
+<div class="ln code" id="L156"><a class="n" href="#L156" data-n="156"></a><span class="t">          transactionId,</span></div>
+<div class="ln code" id="L157"><a class="n" href="#L157" data-n="157"></a><span class="t">        }),</span></div>
+<div class="ln code" id="L158"><a class="n" href="#L158" data-n="158"></a><span class="t">      );</span></div>
+<div class="ln code" id="L159"><a class="n" href="#L159" data-n="159"></a><span class="t">      notification = <span class="pl-k">await</span> <span class="pl-c1">this</span>.notificationService.<span class="pl-en">createWithManager</span>(</span></div>
+<div class="ln code" id="L160"><a class="n" href="#L160" data-n="160"></a><span class="t">        manager,</span></div>
+<div class="ln code" id="L161"><a class="n" href="#L161" data-n="161"></a><span class="t">        {</span></div>
+<div class="ln code" id="L162"><a class="n" href="#L162" data-n="162"></a><span class="t">          userId: receiverUserId,</span></div>
+<div class="ln code" id="L163"><a class="n" href="#L163" data-n="163"></a><span class="t">          type: NotificationType.<span class="pl-en">GiftReceived</span>,</span></div>
+<div class="ln code" id="L164"><a class="n" href="#L164" data-n="164"></a><span class="t">          payload: {</span></div>
+<div class="ln code" id="L165"><a class="n" href="#L165" data-n="165"></a><span class="t">            roomId,</span></div>
+<div class="ln code" id="L166"><a class="n" href="#L166" data-n="166"></a><span class="t">            senderUserId: user.userId,</span></div>
+<div class="ln code" id="L167"><a class="n" href="#L167" data-n="167"></a><span class="t">            giftCode: gift.code,</span></div>
+<div class="ln code" id="L168"><a class="n" href="#L168" data-n="168"></a><span class="t">            priceDiamond: gift.priceDiamond,</span></div>
+<div class="ln code" id="L169"><a class="n" href="#L169" data-n="169"></a><span class="t">          },</span></div>
+<div class="ln code" id="L170"><a class="n" href="#L170" data-n="170"></a><span class="t">        },</span></div>
+<div class="ln code" id="L171"><a class="n" href="#L171" data-n="171"></a><span class="t">      );</span></div>
+<div class="ln code" id="L172"><a class="n" href="#L172" data-n="172"></a><span class="t">    },</span></div>
+<div class="ln code" id="L173"><a class="n" href="#L173" data-n="173"></a><span class="t">  });</span></div>
+<div class="ln code" id="L174"><a class="n" href="#L174" data-n="174"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L175"><a class="n" href="#L175" data-n="175"></a><span class="t">  <span class="pl-c">// Replay trả lại đúng GiftEvent cũ nhờ unique transaction_id, không tạo event mới.</span></span></div>
+<div class="ln code" id="L176"><a class="n" href="#L176" data-n="176"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">giftEvent</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.giftEventRepo.<span class="pl-en">findOneByOrFail</span>({</span></div>
+<div class="ln code" id="L177"><a class="n" href="#L177" data-n="177"></a><span class="t">    transactionId: result.transactionId,</span></div>
+<div class="ln code" id="L178"><a class="n" href="#L178" data-n="178"></a><span class="t">  });</span></div>
+<div class="ln code" id="L179"><a class="n" href="#L179" data-n="179"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L180"><a class="n" href="#L180" data-n="180"></a><span class="t">  <span class="pl-c">// Chỉ lần đầu mới phát realtime và push, và chỉ SAU khi giao dịch tiền đã commit:</span></span></div>
+<div class="ln code" id="L181"><a class="n" href="#L181" data-n="181"></a><span class="t">  <span class="pl-c">// retry không bắn hiệu ứng lần hai.</span></span></div>
+<div class="ln code" id="L182"><a class="n" href="#L182" data-n="182"></a><span class="t">  <span class="pl-k">if</span> (!result.replayed) {</span></div>
+<div class="ln code" id="L183"><a class="n" href="#L183" data-n="183"></a><span class="t">    <span class="pl-k">await</span> <span class="pl-c1">this</span>.<span class="pl-en">publishGiftSent</span>(roomId, gift, giftEvent);</span></div>
+<div class="ln code" id="L184"><a class="n" href="#L184" data-n="184"></a><span class="t">    <span class="pl-k">if</span> (notification) <span class="pl-k">await</span> <span class="pl-c1">this</span>.notificationService.<span class="pl-en">sendPush</span>(notification);</span></div>
+<div class="ln code" id="L185"><a class="n" href="#L185" data-n="185"></a><span class="t">  }</span></div>
+<div class="ln code" id="L186"><a class="n" href="#L186" data-n="186"></a><span class="t">  <span class="pl-k">return</span> { giftEvent, gift, replayed: result.replayed };</span></div>
+<div class="ln code" id="L187"><a class="n" href="#L187" data-n="187"></a><span class="t">}</span></div>
+<div class="ln blank" id="L188"><a class="n" href="#L188" data-n="188"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag tier-service" id="L189"><a class="n" href="#L189" data-n="189"></a><span class="t"><span class="pl-c">// <b class="tg tg-service">[SERVICE]</b> economy.service.ts · L559–666</span></span></div>
+<div class="ln code" id="L190"><a class="n" href="#L190" data-n="190"></a><span class="t"><span class="pl-k">async</span> <span class="pl-en">sendGift</span>(input: {</span></div>
+<div class="ln code" id="L191"><a class="n" href="#L191" data-n="191"></a><span class="t">  senderUserId: <span class="pl-c1">string</span>;</span></div>
+<div class="ln code" id="L192"><a class="n" href="#L192" data-n="192"></a><span class="t">  receiverUserId: <span class="pl-c1">string</span>;</span></div>
+<div class="ln code" id="L193"><a class="n" href="#L193" data-n="193"></a><span class="t">  priceDiamond: <span class="pl-c1">number</span>;</span></div>
+<div class="ln code" id="L194"><a class="n" href="#L194" data-n="194"></a><span class="t">  pointsAwarded: <span class="pl-c1">number</span>;</span></div>
+<div class="ln code" id="L195"><a class="n" href="#L195" data-n="195"></a><span class="t">  idempotencyKey: <span class="pl-c1">string</span>;</span></div>
+<div class="ln code" id="L196"><a class="n" href="#L196" data-n="196"></a><span class="t">  metadata: <span class="pl-en">Record</span>&lt;<span class="pl-c1">string</span>, <span class="pl-c1">unknown</span>&gt;;</span></div>
+<div class="ln code" id="L197"><a class="n" href="#L197" data-n="197"></a><span class="t">  withinTransaction?: (</span></div>
+<div class="ln code" id="L198"><a class="n" href="#L198" data-n="198"></a><span class="t">    manager: <span class="pl-en">EntityManager</span>,</span></div>
+<div class="ln code" id="L199"><a class="n" href="#L199" data-n="199"></a><span class="t">    transactionId: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L200"><a class="n" href="#L200" data-n="200"></a><span class="t">  ) =&gt; <span class="pl-en">Promise</span>&lt;<span class="pl-c1">void</span>&gt;;</span></div>
+<div class="ln code" id="L201"><a class="n" href="#L201" data-n="201"></a><span class="t">}): <span class="pl-en">Promise</span>&lt;{ transactionId: <span class="pl-c1">string</span>; replayed: <span class="pl-c1">boolean</span> }&gt; {</span></div>
+<div class="ln code" id="L202"><a class="n" href="#L202" data-n="202"></a><span class="t">  <span class="pl-k">const</span> {</span></div>
+<div class="ln code" id="L203"><a class="n" href="#L203" data-n="203"></a><span class="t">    senderUserId,</span></div>
+<div class="ln code" id="L204"><a class="n" href="#L204" data-n="204"></a><span class="t">    receiverUserId,</span></div>
+<div class="ln code" id="L205"><a class="n" href="#L205" data-n="205"></a><span class="t">    priceDiamond,</span></div>
+<div class="ln code" id="L206"><a class="n" href="#L206" data-n="206"></a><span class="t">    pointsAwarded,</span></div>
+<div class="ln code" id="L207"><a class="n" href="#L207" data-n="207"></a><span class="t">    idempotencyKey,</span></div>
+<div class="ln code" id="L208"><a class="n" href="#L208" data-n="208"></a><span class="t">    metadata,</span></div>
+<div class="ln code" id="L209"><a class="n" href="#L209" data-n="209"></a><span class="t">  } = input;</span></div>
+<div class="ln code" id="L210"><a class="n" href="#L210" data-n="210"></a><span class="t">  <span class="pl-k">if</span> (!Number.<span class="pl-en">isSafeInteger</span>(priceDiamond) || priceDiamond &lt;= <span class="pl-c1">0</span>) {</span></div>
+<div class="ln code" id="L211"><a class="n" href="#L211" data-n="211"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">Error</span>(</span></div>
+<div class="ln code" id="L212"><a class="n" href="#L212" data-n="212"></a><span class="t">      <span class="pl-s">`sendGift: priceDiamond phải là số nguyên dương, nhận ${</span>priceDiamond<span class="pl-s">}`</span>,</span></div>
+<div class="ln code" id="L213"><a class="n" href="#L213" data-n="213"></a><span class="t">    );</span></div>
+<div class="ln code" id="L214"><a class="n" href="#L214" data-n="214"></a><span class="t">  }</span></div>
+<div class="ln code" id="L215"><a class="n" href="#L215" data-n="215"></a><span class="t">  <span class="pl-k">if</span> (!Number.<span class="pl-en">isSafeInteger</span>(pointsAwarded) || pointsAwarded &lt; <span class="pl-c1">0</span>) {</span></div>
+<div class="ln code" id="L216"><a class="n" href="#L216" data-n="216"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">Error</span>(</span></div>
+<div class="ln code" id="L217"><a class="n" href="#L217" data-n="217"></a><span class="t">      <span class="pl-s">`sendGift: pointsAwarded phải là số nguyên &gt;= 0, nhận ${</span>pointsAwarded<span class="pl-s">}`</span>,</span></div>
+<div class="ln code" id="L218"><a class="n" href="#L218" data-n="218"></a><span class="t">    );</span></div>
+<div class="ln code" id="L219"><a class="n" href="#L219" data-n="219"></a><span class="t">  }</span></div>
+<div class="ln code" id="L220"><a class="n" href="#L220" data-n="220"></a><span class="t">  <span class="pl-c">// Bất biến chống nhân đôi giá trị: điểm quy đổi không bao giờ vượt giá quà (tỉ lệ</span></span></div>
+<div class="ln code" id="L221"><a class="n" href="#L221" data-n="221"></a><span class="t">  <span class="pl-c">// dưới 1:1).</span></span></div>
+<div class="ln code" id="L222"><a class="n" href="#L222" data-n="222"></a><span class="t">  <span class="pl-k">if</span> (pointsAwarded &gt; priceDiamond) {</span></div>
+<div class="ln code" id="L223"><a class="n" href="#L223" data-n="223"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">Error</span>(</span></div>
+<div class="ln code" id="L224"><a class="n" href="#L224" data-n="224"></a><span class="t">      <span class="pl-s">`sendGift: pointsAwarded (${</span>pointsAwarded<span class="pl-s">}) không được vượt priceDiamond (${</span>priceDiamond<span class="pl-s">})`</span>,</span></div>
+<div class="ln code" id="L225"><a class="n" href="#L225" data-n="225"></a><span class="t">    );</span></div>
+<div class="ln code" id="L226"><a class="n" href="#L226" data-n="226"></a><span class="t">  }</span></div>
+<div class="ln code" id="L227"><a class="n" href="#L227" data-n="227"></a><span class="t">  <span class="pl-k">if</span> (senderUserId === receiverUserId) {</span></div>
+<div class="ln code" id="L228"><a class="n" href="#L228" data-n="228"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">Error</span>(<span class="pl-s">'sendGift: không tự tặng quà cho chính mình'</span>);</span></div>
+<div class="ln code" id="L229"><a class="n" href="#L229" data-n="229"></a><span class="t">  }</span></div>
+<div class="ln code" id="L230"><a class="n" href="#L230" data-n="230"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L231"><a class="n" href="#L231" data-n="231"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">price</span> = <span class="pl-en">BigInt</span>(priceDiamond);</span></div>
+<div class="ln code" id="L232"><a class="n" href="#L232" data-n="232"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">points</span> = <span class="pl-en">BigInt</span>(pointsAwarded);</span></div>
+<div class="ln code" id="L233"><a class="n" href="#L233" data-n="233"></a><span class="t">  <span class="pl-c">// Hai chân độc lập, mỗi chân tự cân theo currency: DIA từ người tặng vào quỹ quà, PTS</span></span></div>
+<div class="ln code" id="L234"><a class="n" href="#L234" data-n="234"></a><span class="t">  <span class="pl-c">// do hệ thống mint cho người nhận. Diamond không bao giờ chuyển thẳng user sang user;</span></span></div>
+<div class="ln code" id="L235"><a class="n" href="#L235" data-n="235"></a><span class="t">  <span class="pl-c">// phần chênh (giá trừ điểm) ở lại system_gift_pool.</span></span></div>
+<div class="ln code" id="L236"><a class="n" href="#L236" data-n="236"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">entries</span> = [</span></div>
+<div class="ln code" id="L237"><a class="n" href="#L237" data-n="237"></a><span class="t">    {</span></div>
+<div class="ln code" id="L238"><a class="n" href="#L238" data-n="238"></a><span class="t">      accountKind: LedgerAccountKind.<span class="pl-en">UserWallet</span>,</span></div>
+<div class="ln code" id="L239"><a class="n" href="#L239" data-n="239"></a><span class="t">      userId: senderUserId,</span></div>
+<div class="ln code" id="L240"><a class="n" href="#L240" data-n="240"></a><span class="t">      direction: LedgerDirection.<span class="pl-en">Debit</span>,</span></div>
+<div class="ln code" id="L241"><a class="n" href="#L241" data-n="241"></a><span class="t">      amount: price,</span></div>
+<div class="ln code" id="L242"><a class="n" href="#L242" data-n="242"></a><span class="t">      currency: LedgerCurrency.<span class="pl-en">Diamond</span>,</span></div>
+<div class="ln code" id="L243"><a class="n" href="#L243" data-n="243"></a><span class="t">    },</span></div>
+<div class="ln code" id="L244"><a class="n" href="#L244" data-n="244"></a><span class="t">    {</span></div>
+<div class="ln code" id="L245"><a class="n" href="#L245" data-n="245"></a><span class="t">      accountKind: LedgerAccountKind.<span class="pl-en">SystemGiftPool</span>,</span></div>
+<div class="ln code" id="L246"><a class="n" href="#L246" data-n="246"></a><span class="t">      direction: LedgerDirection.<span class="pl-en">Credit</span>,</span></div>
+<div class="ln code" id="L247"><a class="n" href="#L247" data-n="247"></a><span class="t">      amount: price,</span></div>
+<div class="ln code" id="L248"><a class="n" href="#L248" data-n="248"></a><span class="t">      currency: LedgerCurrency.<span class="pl-en">Diamond</span>,</span></div>
+<div class="ln code" id="L249"><a class="n" href="#L249" data-n="249"></a><span class="t">    },</span></div>
+<div class="ln code" id="L250"><a class="n" href="#L250" data-n="250"></a><span class="t">    <span class="pl-c">// Chân PTS chỉ có khi điểm lớn hơn 0: bút toán amount 0 bị validateEntries chặn.</span></span></div>
+<div class="ln code" id="L251"><a class="n" href="#L251" data-n="251"></a><span class="t">    ...(points &gt; <span class="pl-c1">0n</span></span></div>
+<div class="ln code" id="L252"><a class="n" href="#L252" data-n="252"></a><span class="t">      ? [</span></div>
+<div class="ln code" id="L253"><a class="n" href="#L253" data-n="253"></a><span class="t">          {</span></div>
+<div class="ln code" id="L254"><a class="n" href="#L254" data-n="254"></a><span class="t">            accountKind: LedgerAccountKind.<span class="pl-en">SystemPointsMint</span>,</span></div>
+<div class="ln code" id="L255"><a class="n" href="#L255" data-n="255"></a><span class="t">            direction: LedgerDirection.<span class="pl-en">Debit</span>,</span></div>
+<div class="ln code" id="L256"><a class="n" href="#L256" data-n="256"></a><span class="t">            amount: points,</span></div>
+<div class="ln code" id="L257"><a class="n" href="#L257" data-n="257"></a><span class="t">            currency: LedgerCurrency.<span class="pl-en">Points</span>,</span></div>
+<div class="ln code" id="L258"><a class="n" href="#L258" data-n="258"></a><span class="t">          },</span></div>
+<div class="ln code" id="L259"><a class="n" href="#L259" data-n="259"></a><span class="t">          {</span></div>
+<div class="ln code" id="L260"><a class="n" href="#L260" data-n="260"></a><span class="t">            accountKind: LedgerAccountKind.<span class="pl-en">UserEarnings</span>,</span></div>
+<div class="ln code" id="L261"><a class="n" href="#L261" data-n="261"></a><span class="t">            userId: receiverUserId,</span></div>
+<div class="ln code" id="L262"><a class="n" href="#L262" data-n="262"></a><span class="t">            direction: LedgerDirection.<span class="pl-en">Credit</span>,</span></div>
+<div class="ln code" id="L263"><a class="n" href="#L263" data-n="263"></a><span class="t">            amount: points,</span></div>
+<div class="ln code" id="L264"><a class="n" href="#L264" data-n="264"></a><span class="t">            currency: LedgerCurrency.<span class="pl-en">Points</span>,</span></div>
+<div class="ln code" id="L265"><a class="n" href="#L265" data-n="265"></a><span class="t">          },</span></div>
+<div class="ln code" id="L266"><a class="n" href="#L266" data-n="266"></a><span class="t">        ]</span></div>
+<div class="ln code" id="L267"><a class="n" href="#L267" data-n="267"></a><span class="t">      : []),</span></div>
+<div class="ln code" id="L268"><a class="n" href="#L268" data-n="268"></a><span class="t">  ];</span></div>
+<div class="ln code" id="L269"><a class="n" href="#L269" data-n="269"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L270"><a class="n" href="#L270" data-n="270"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">result</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.ledger.<span class="pl-en">record</span>({</span></div>
+<div class="ln code" id="L271"><a class="n" href="#L271" data-n="271"></a><span class="t">    type: TransactionType.<span class="pl-en">GiftSend</span>,</span></div>
+<div class="ln code" id="L272"><a class="n" href="#L272" data-n="272"></a><span class="t">    idempotencyKey,</span></div>
+<div class="ln code" id="L273"><a class="n" href="#L273" data-n="273"></a><span class="t">    actorUserId: senderUserId,</span></div>
+<div class="ln code" id="L274"><a class="n" href="#L274" data-n="274"></a><span class="t">    metadata: { ...metadata, receiverUserId },</span></div>
+<div class="ln code" id="L275"><a class="n" href="#L275" data-n="275"></a><span class="t">    entries,</span></div>
+<div class="ln code" id="L276"><a class="n" href="#L276" data-n="276"></a><span class="t">    <span class="pl-c">// Event economy.gift.sent riêng vì consumer cần người nhận (event mặc định chỉ nói</span></span></div>
+<div class="ln code" id="L277"><a class="n" href="#L277" data-n="277"></a><span class="t">    <span class="pl-c">// về ví người tặng); rồi chạy tiếp phần việc của module Gift (GiftEvent,</span></span></div>
+<div class="ln code" id="L278"><a class="n" href="#L278" data-n="278"></a><span class="t">    <span class="pl-c">// notification) trong cùng transaction.</span></span></div>
+<div class="ln code" id="L279"><a class="n" href="#L279" data-n="279"></a><span class="t">    withinTransaction: <span class="pl-k">async</span> (manager, txn) =&gt; {</span></div>
+<div class="ln code" id="L280"><a class="n" href="#L280" data-n="280"></a><span class="t">      <span class="pl-k">await</span> manager.<span class="pl-en">save</span>(</span></div>
+<div class="ln code" id="L281"><a class="n" href="#L281" data-n="281"></a><span class="t">        manager.<span class="pl-en">create</span>(<span class="pl-en">OutboxEvent</span>, {</span></div>
+<div class="ln code" id="L282"><a class="n" href="#L282" data-n="282"></a><span class="t">          topic: <span class="pl-c1">ECONOMY_EVENTS_TOPIC</span>,</span></div>
+<div class="ln code" id="L283"><a class="n" href="#L283" data-n="283"></a><span class="t">          eventType: <span class="pl-s">'economy.gift.sent'</span>,</span></div>
+<div class="ln code" id="L284"><a class="n" href="#L284" data-n="284"></a><span class="t">          payload: {</span></div>
+<div class="ln code" id="L285"><a class="n" href="#L285" data-n="285"></a><span class="t">            version: <span class="pl-c1">1</span>,</span></div>
+<div class="ln code" id="L286"><a class="n" href="#L286" data-n="286"></a><span class="t">            transactionId: txn.id,</span></div>
+<div class="ln code" id="L287"><a class="n" href="#L287" data-n="287"></a><span class="t">            senderUserId,</span></div>
+<div class="ln code" id="L288"><a class="n" href="#L288" data-n="288"></a><span class="t">            receiverUserId,</span></div>
+<div class="ln code" id="L289"><a class="n" href="#L289" data-n="289"></a><span class="t">            priceDiamond: price.<span class="pl-en">toString</span>(),</span></div>
+<div class="ln code" id="L290"><a class="n" href="#L290" data-n="290"></a><span class="t">            pointsAwarded: points.<span class="pl-en">toString</span>(),</span></div>
+<div class="ln code" id="L291"><a class="n" href="#L291" data-n="291"></a><span class="t">            ...metadata,</span></div>
+<div class="ln code" id="L292"><a class="n" href="#L292" data-n="292"></a><span class="t">          },</span></div>
+<div class="ln code" id="L293"><a class="n" href="#L293" data-n="293"></a><span class="t">        }),</span></div>
+<div class="ln code" id="L294"><a class="n" href="#L294" data-n="294"></a><span class="t">      );</span></div>
+<div class="ln code" id="L295"><a class="n" href="#L295" data-n="295"></a><span class="t">      <span class="pl-k">await</span> input.withinTransaction?.(manager, txn.id);</span></div>
+<div class="ln code" id="L296"><a class="n" href="#L296" data-n="296"></a><span class="t">    },</span></div>
+<div class="ln code" id="L297"><a class="n" href="#L297" data-n="297"></a><span class="t">  });</span></div>
+<div class="ln code" id="L298"><a class="n" href="#L298" data-n="298"></a><span class="t">  <span class="pl-k">return</span> { transactionId: result.transaction.id, replayed: result.replayed };</span></div>
+<div class="ln code" id="L299"><a class="n" href="#L299" data-n="299"></a><span class="t">}</span></div>
+<div class="ln blank" id="L300"><a class="n" href="#L300" data-n="300"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag tier-service" id="L301"><a class="n" href="#L301" data-n="301"></a><span class="t"><span class="pl-c">// <b class="tg tg-service">[SERVICE]</b> ledger.service.ts · L322–343, L427–499</span></span></div>
+<div class="ln code" id="L302"><a class="n" href="#L302" data-n="302"></a><span class="t"><span class="pl-k">private</span> <span class="pl-en">validateEntries</span>(entries: <span class="pl-en">LedgerEntryInput</span>[]): <span class="pl-c1">void</span> {</span></div>
+<div class="ln code" id="L303"><a class="n" href="#L303" data-n="303"></a><span class="t">  <span class="pl-k">if</span> (entries.length &lt; <span class="pl-c1">2</span>)</span></div>
+<div class="ln code" id="L304"><a class="n" href="#L304" data-n="304"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">Error</span>(<span class="pl-s">'Giao dịch double-entry cần tối thiểu 2 bút toán'</span>);</span></div>
+<div class="ln code" id="L305"><a class="n" href="#L305" data-n="305"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">sums</span> = <span class="pl-k">new</span> <span class="pl-en">Map</span>&lt;<span class="pl-c1">string</span>, <span class="pl-c1">bigint</span>&gt;();</span></div>
+<div class="ln code" id="L306"><a class="n" href="#L306" data-n="306"></a><span class="t">  <span class="pl-k">for</span> (<span class="pl-k">const</span> <span class="pl-c1">e</span> <span class="pl-k">of</span> entries) {</span></div>
+<div class="ln code" id="L307"><a class="n" href="#L307" data-n="307"></a><span class="t">    <span class="pl-k">if</span> (e.amount &lt;= <span class="pl-c1">0n</span>)</span></div>
+<div class="ln code" id="L308"><a class="n" href="#L308" data-n="308"></a><span class="t">      <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">Error</span>(<span class="pl-s">'Bút toán phải có amount nguyên dương'</span>);</span></div>
+<div class="ln code" id="L309"><a class="n" href="#L309" data-n="309"></a><span class="t">    <span class="pl-k">if</span> (<span class="pl-c1">USER_ACCOUNT_KINDS</span>.<span class="pl-en">has</span>(e.accountKind) &amp;&amp; !e.userId) {</span></div>
+<div class="ln code" id="L310"><a class="n" href="#L310" data-n="310"></a><span class="t">      <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">Error</span>(<span class="pl-s">`Tài khoản ${</span>e.accountKind<span class="pl-s">} bắt buộc có userId`</span>);</span></div>
+<div class="ln code" id="L311"><a class="n" href="#L311" data-n="311"></a><span class="t">    }</span></div>
+<div class="ln code" id="L312"><a class="n" href="#L312" data-n="312"></a><span class="t">    <span class="pl-k">const</span> <span class="pl-c1">delta</span> =</span></div>
+<div class="ln code" id="L313"><a class="n" href="#L313" data-n="313"></a><span class="t">      e.direction === LedgerDirection.<span class="pl-en">Debit</span> ? e.amount : -e.amount;</span></div>
+<div class="ln code" id="L314"><a class="n" href="#L314" data-n="314"></a><span class="t">    sums.<span class="pl-en">set</span>(e.currency, (sums.<span class="pl-en">get</span>(e.currency) ?? <span class="pl-c1">0n</span>) + delta);</span></div>
+<div class="ln code" id="L315"><a class="n" href="#L315" data-n="315"></a><span class="t">  }</span></div>
+<div class="ln code" id="L316"><a class="n" href="#L316" data-n="316"></a><span class="t">  <span class="pl-c">// Mỗi currency phải tự cân (tổng Nợ bằng tổng Có): giao dịch 2 currency được tách</span></span></div>
+<div class="ln code" id="L317"><a class="n" href="#L317" data-n="317"></a><span class="t">  <span class="pl-c">// thành các chân độc lập, DIA và PTS không bù trừ cho nhau.</span></span></div>
+<div class="ln code" id="L318"><a class="n" href="#L318" data-n="318"></a><span class="t">  <span class="pl-k">for</span> (<span class="pl-k">const</span> [currency, sum] <span class="pl-k">of</span> sums) {</span></div>
+<div class="ln code" id="L319"><a class="n" href="#L319" data-n="319"></a><span class="t">    <span class="pl-k">if</span> (sum !== <span class="pl-c1">0n</span>) {</span></div>
+<div class="ln code" id="L320"><a class="n" href="#L320" data-n="320"></a><span class="t">      <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">Error</span>(</span></div>
+<div class="ln code" id="L321"><a class="n" href="#L321" data-n="321"></a><span class="t">        <span class="pl-s">`Tổng Nợ != tổng Có cho currency ${</span>currency<span class="pl-s">} — vi phạm bất biến double-entry`</span>,</span></div>
+<div class="ln code" id="L322"><a class="n" href="#L322" data-n="322"></a><span class="t">      );</span></div>
+<div class="ln code" id="L323"><a class="n" href="#L323" data-n="323"></a><span class="t">    }</span></div>
+<div class="ln code" id="L324"><a class="n" href="#L324" data-n="324"></a><span class="t">  }</span></div>
+<div class="ln code" id="L325"><a class="n" href="#L325" data-n="325"></a><span class="t">}</span></div>
+<div class="ln code" id="L326"><a class="n" href="#L326" data-n="326"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L327"><a class="n" href="#L327" data-n="327"></a><span class="t"><span class="pl-k">private</span> <span class="pl-k">async</span> <span class="pl-en">applyWalletDeltas</span>(</span></div>
+<div class="ln code" id="L328"><a class="n" href="#L328" data-n="328"></a><span class="t">  manager: <span class="pl-en">EntityManager</span>,</span></div>
+<div class="ln code" id="L329"><a class="n" href="#L329" data-n="329"></a><span class="t">  txn: <span class="pl-en">LedgerTransaction</span>,</span></div>
+<div class="ln code" id="L330"><a class="n" href="#L330" data-n="330"></a><span class="t">  entries: <span class="pl-en">LedgerEntryInput</span>[],</span></div>
+<div class="ln code" id="L331"><a class="n" href="#L331" data-n="331"></a><span class="t">  wallets: <span class="pl-en">Map</span>&lt;<span class="pl-c1">string</span>, <span class="pl-en">Wallet</span>&gt;,</span></div>
+<div class="ln code" id="L332"><a class="n" href="#L332" data-n="332"></a><span class="t">  outboxEventTypeOverride?: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L333"><a class="n" href="#L333" data-n="333"></a><span class="t">): <span class="pl-en">Promise</span>&lt;<span class="pl-c1">void</span>&gt; {</span></div>
+<div class="ln code" id="L334"><a class="n" href="#L334" data-n="334"></a><span class="t">  <span class="pl-k">for</span> (<span class="pl-k">const</span> [userId, wallet] <span class="pl-k">of</span> wallets) {</span></div>
+<div class="ln code" id="L335"><a class="n" href="#L335" data-n="335"></a><span class="t">    <span class="pl-k">let</span> balanceDelta = <span class="pl-c1">0n</span>;</span></div>
+<div class="ln code" id="L336"><a class="n" href="#L336" data-n="336"></a><span class="t">    <span class="pl-k">let</span> earningsDelta = <span class="pl-c1">0n</span>;</span></div>
+<div class="ln code" id="L337"><a class="n" href="#L337" data-n="337"></a><span class="t">    <span class="pl-k">for</span> (<span class="pl-k">const</span> <span class="pl-c1">e</span> <span class="pl-k">of</span> entries) {</span></div>
+<div class="ln code" id="L338"><a class="n" href="#L338" data-n="338"></a><span class="t">      <span class="pl-k">if</span> (e.userId !== userId) <span class="pl-k">continue</span>;</span></div>
+<div class="ln code" id="L339"><a class="n" href="#L339" data-n="339"></a><span class="t">      <span class="pl-k">const</span> <span class="pl-c1">signed</span> =</span></div>
+<div class="ln code" id="L340"><a class="n" href="#L340" data-n="340"></a><span class="t">        e.direction === LedgerDirection.<span class="pl-en">Credit</span> ? e.amount : -e.amount;</span></div>
+<div class="ln code" id="L341"><a class="n" href="#L341" data-n="341"></a><span class="t">      <span class="pl-k">if</span> (e.accountKind === LedgerAccountKind.<span class="pl-en">UserWallet</span>)</span></div>
+<div class="ln code" id="L342"><a class="n" href="#L342" data-n="342"></a><span class="t">        balanceDelta += signed;</span></div>
+<div class="ln code" id="L343"><a class="n" href="#L343" data-n="343"></a><span class="t">      <span class="pl-k">if</span> (e.accountKind === LedgerAccountKind.<span class="pl-en">UserEarnings</span>)</span></div>
+<div class="ln code" id="L344"><a class="n" href="#L344" data-n="344"></a><span class="t">        earningsDelta += signed;</span></div>
+<div class="ln code" id="L345"><a class="n" href="#L345" data-n="345"></a><span class="t">    }</span></div>
+<div class="ln code" id="L346"><a class="n" href="#L346" data-n="346"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L347"><a class="n" href="#L347" data-n="347"></a><span class="t">    <span class="pl-k">const</span> <span class="pl-c1">newBalance</span> = <span class="pl-en">BigInt</span>(wallet.balance) + balanceDelta;</span></div>
+<div class="ln code" id="L348"><a class="n" href="#L348" data-n="348"></a><span class="t">    <span class="pl-c">// <b class="tg tg-postgres">[POSTGRES]</b> Ví người tặng đổi balance (DIA), ví người nhận đổi earnings (PTS),</span></span></div>
+<div class="ln code" id="L349"><a class="n" href="#L349" data-n="349"></a><span class="t">    <span class="pl-c">// cùng một vòng lặp trong cùng transaction: không thể trừ DIA mà không cộng PTS.</span></span></div>
+<div class="ln code" id="L350"><a class="n" href="#L350" data-n="350"></a><span class="t">    <span class="pl-k">const</span> <span class="pl-c1">newEarnings</span> = <span class="pl-en">BigInt</span>(wallet.earnings) + earningsDelta;</span></div>
+<div class="ln code" id="L351"><a class="n" href="#L351" data-n="351"></a><span class="t">    <span class="pl-k">const</span> <span class="pl-c1">mayGoNegative</span> =</span></div>
+<div class="ln code" id="L352"><a class="n" href="#L352" data-n="352"></a><span class="t">      txn.type === TransactionType.<span class="pl-en">Reversal</span> ||</span></div>
+<div class="ln code" id="L353"><a class="n" href="#L353" data-n="353"></a><span class="t">      txn.type === TransactionType.<span class="pl-en">Adjustment</span>;</span></div>
+<div class="ln code" id="L354"><a class="n" href="#L354" data-n="354"></a><span class="t">    <span class="pl-k">if</span> (newBalance &lt; <span class="pl-c1">0n</span> &amp;&amp; !mayGoNegative) {</span></div>
+<div class="ln code" id="L355"><a class="n" href="#L355" data-n="355"></a><span class="t">      <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
+<div class="ln code" id="L356"><a class="n" href="#L356" data-n="356"></a><span class="t">        EconomyErrors.<span class="pl-c1">WALLET_INSUFFICIENT_BALANCE</span>,</span></div>
+<div class="ln code" id="L357"><a class="n" href="#L357" data-n="357"></a><span class="t">        <span class="pl-s">'Không đủ diamond'</span>,</span></div>
+<div class="ln code" id="L358"><a class="n" href="#L358" data-n="358"></a><span class="t">        HttpStatus.<span class="pl-c1">UNPROCESSABLE_ENTITY</span>,</span></div>
+<div class="ln code" id="L359"><a class="n" href="#L359" data-n="359"></a><span class="t">        { required: (-newBalance).<span class="pl-en">toString</span>() },</span></div>
+<div class="ln code" id="L360"><a class="n" href="#L360" data-n="360"></a><span class="t">      );</span></div>
+<div class="ln code" id="L361"><a class="n" href="#L361" data-n="361"></a><span class="t">    }</span></div>
+<div class="ln code" id="L362"><a class="n" href="#L362" data-n="362"></a><span class="t">    <span class="pl-c">// Điểm earnings không bao giờ âm (DB cũng có CHECK earnings &gt;= 0), nên hoàn quà sau</span></span></div>
+<div class="ln code" id="L363"><a class="n" href="#L363" data-n="363"></a><span class="t">    <span class="pl-c">// khi người nhận đã tiêu điểm sẽ bị chặn ở đây; luồng hoàn quà chưa làm.</span></span></div>
+<div class="ln code" id="L364"><a class="n" href="#L364" data-n="364"></a><span class="t">    <span class="pl-k">if</span> (newEarnings &lt; <span class="pl-c1">0n</span>) {</span></div>
+<div class="ln code" id="L365"><a class="n" href="#L365" data-n="365"></a><span class="t">      <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
+<div class="ln code" id="L366"><a class="n" href="#L366" data-n="366"></a><span class="t">        EconomyErrors.<span class="pl-c1">WALLET_INSUFFICIENT_BALANCE</span>,</span></div>
+<div class="ln code" id="L367"><a class="n" href="#L367" data-n="367"></a><span class="t">        <span class="pl-s">'Không đủ điểm quy đổi'</span>,</span></div>
+<div class="ln code" id="L368"><a class="n" href="#L368" data-n="368"></a><span class="t">        HttpStatus.<span class="pl-c1">UNPROCESSABLE_ENTITY</span>,</span></div>
+<div class="ln code" id="L369"><a class="n" href="#L369" data-n="369"></a><span class="t">      );</span></div>
+<div class="ln code" id="L370"><a class="n" href="#L370" data-n="370"></a><span class="t">    }</span></div>
+<div class="ln code" id="L371"><a class="n" href="#L371" data-n="371"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L372"><a class="n" href="#L372" data-n="372"></a><span class="t">    wallet.balance = newBalance.<span class="pl-en">toString</span>();</span></div>
+<div class="ln code" id="L373"><a class="n" href="#L373" data-n="373"></a><span class="t">    wallet.earnings = newEarnings.<span class="pl-en">toString</span>();</span></div>
+<div class="ln code" id="L374"><a class="n" href="#L374" data-n="374"></a><span class="t">    <span class="pl-k">await</span> manager.<span class="pl-en">save</span>(wallet);</span></div>
+<div class="ln code" id="L375"><a class="n" href="#L375" data-n="375"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L376"><a class="n" href="#L376" data-n="376"></a><span class="t">    <span class="pl-k">if</span> (balanceDelta !== <span class="pl-c1">0n</span>) {</span></div>
+<div class="ln code" id="L377"><a class="n" href="#L377" data-n="377"></a><span class="t">      <span class="pl-k">await</span> manager.<span class="pl-en">save</span>(</span></div>
+<div class="ln code" id="L378"><a class="n" href="#L378" data-n="378"></a><span class="t">        manager.<span class="pl-en">create</span>(<span class="pl-en">OutboxEvent</span>, {</span></div>
+<div class="ln code" id="L379"><a class="n" href="#L379" data-n="379"></a><span class="t">          topic: <span class="pl-c1">ECONOMY_EVENTS_TOPIC</span>,</span></div>
+<div class="ln code" id="L380"><a class="n" href="#L380" data-n="380"></a><span class="t">          eventType:</span></div>
+<div class="ln code" id="L381"><a class="n" href="#L381" data-n="381"></a><span class="t">            outboxEventTypeOverride ??</span></div>
+<div class="ln code" id="L382"><a class="n" href="#L382" data-n="382"></a><span class="t">            (balanceDelta &gt; <span class="pl-c1">0n</span></span></div>
+<div class="ln code" id="L383"><a class="n" href="#L383" data-n="383"></a><span class="t">              ? <span class="pl-s">'economy.diamond.credited'</span></span></div>
+<div class="ln code" id="L384"><a class="n" href="#L384" data-n="384"></a><span class="t">              : <span class="pl-s">'economy.diamond.debited'</span>),</span></div>
+<div class="ln code" id="L385"><a class="n" href="#L385" data-n="385"></a><span class="t">          payload: {</span></div>
+<div class="ln code" id="L386"><a class="n" href="#L386" data-n="386"></a><span class="t">            version: <span class="pl-c1">1</span>,</span></div>
+<div class="ln code" id="L387"><a class="n" href="#L387" data-n="387"></a><span class="t">            transactionId: txn.id,</span></div>
+<div class="ln code" id="L388"><a class="n" href="#L388" data-n="388"></a><span class="t">            transactionType: txn.type,</span></div>
+<div class="ln code" id="L389"><a class="n" href="#L389" data-n="389"></a><span class="t">            userId,</span></div>
+<div class="ln code" id="L390"><a class="n" href="#L390" data-n="390"></a><span class="t">            amount: (balanceDelta &gt; <span class="pl-c1">0n</span></span></div>
+<div class="ln code" id="L391"><a class="n" href="#L391" data-n="391"></a><span class="t">              ? balanceDelta</span></div>
+<div class="ln code" id="L392"><a class="n" href="#L392" data-n="392"></a><span class="t">              : -balanceDelta</span></div>
+<div class="ln code" id="L393"><a class="n" href="#L393" data-n="393"></a><span class="t">            ).<span class="pl-en">toString</span>(),</span></div>
+<div class="ln code" id="L394"><a class="n" href="#L394" data-n="394"></a><span class="t">          },</span></div>
+<div class="ln code" id="L395"><a class="n" href="#L395" data-n="395"></a><span class="t">        }),</span></div>
+<div class="ln code" id="L396"><a class="n" href="#L396" data-n="396"></a><span class="t">      );</span></div>
+<div class="ln code" id="L397"><a class="n" href="#L397" data-n="397"></a><span class="t">    }</span></div>
+<div class="ln code" id="L398"><a class="n" href="#L398" data-n="398"></a><span class="t">  }</span></div>
+<div class="ln code" id="L399"><a class="n" href="#L399" data-n="399"></a><span class="t">}</span></div>
+<div class="ln blank" id="L400"><a class="n" href="#L400" data-n="400"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag tier-postgres" id="L401"><a class="n" href="#L401" data-n="401"></a><span class="t"><span class="pl-c">// <b class="tg tg-postgres">[POSTGRES]</b> 1752700000000-party-room-gift.ts · L77–93</span></span></div>
+<div class="ln code" id="L402"><a class="n" href="#L402" data-n="402"></a><span class="t"><span class="pl-c">// Các bất biến của Economy cũng được khóa ở DB: unique transaction_id (1 GiftEvent ứng</span></span></div>
+<div class="ln code" id="L403"><a class="n" href="#L403" data-n="403"></a><span class="t"><span class="pl-c">// 1 giao dịch), không tự tặng, điểm không vượt giá. Đây là bản gốc của bảng; sau đó</span></span></div>
+<div class="ln code" id="L404"><a class="n" href="#L404" data-n="404"></a><span class="t"><span class="pl-c">// thêm video_id và profile_user_id (CHECK đúng 1 ngữ cảnh).</span></span></div>
+<div class="ln code" id="L405"><a class="n" href="#L405" data-n="405"></a><span class="t"><span class="pl-k">await</span> queryRunner.<span class="pl-en">query</span>(<span class="pl-s">`</span></span></div>
+<div class="ln code" id="L406"><a class="n" href="#L406" data-n="406"></a><span class="t"><span class="pl-s">  CREATE TABLE gift_events (</span></span></div>
+<div class="ln code" id="L407"><a class="n" href="#L407" data-n="407"></a><span class="t"><span class="pl-s">    id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),</span></span></div>
+<div class="ln code" id="L408"><a class="n" href="#L408" data-n="408"></a><span class="t"><span class="pl-s">    gift_id             uuid        NOT NULL REFERENCES gifts(id),</span></span></div>
+<div class="ln code" id="L409"><a class="n" href="#L409" data-n="409"></a><span class="t"><span class="pl-s">    room_id             uuid        NOT NULL REFERENCES party_rooms(id),</span></span></div>
+<div class="ln code" id="L410"><a class="n" href="#L410" data-n="410"></a><span class="t"><span class="pl-s">    sender_user_id      uuid        NOT NULL REFERENCES users(id),</span></span></div>
+<div class="ln code" id="L411"><a class="n" href="#L411" data-n="411"></a><span class="t"><span class="pl-s">    receiver_user_id    uuid        NOT NULL REFERENCES users(id),</span></span></div>
+<div class="ln code" id="L412"><a class="n" href="#L412" data-n="412"></a><span class="t"><span class="pl-s">    price_diamond       int         NOT NULL,</span></span></div>
+<div class="ln code" id="L413"><a class="n" href="#L413" data-n="413"></a><span class="t"><span class="pl-s">    points_awarded      int         NOT NULL,</span></span></div>
+<div class="ln code" id="L414"><a class="n" href="#L414" data-n="414"></a><span class="t"><span class="pl-s">    points_rate_percent int         NOT NULL,</span></span></div>
+<div class="ln code" id="L415"><a class="n" href="#L415" data-n="415"></a><span class="t"><span class="pl-s">    transaction_id      uuid        NOT NULL REFERENCES transactions(id),</span></span></div>
+<div class="ln code" id="L416"><a class="n" href="#L416" data-n="416"></a><span class="t"><span class="pl-s">    created_at          timestamptz NOT NULL DEFAULT now(),</span></span></div>
+<div class="ln code" id="L417"><a class="n" href="#L417" data-n="417"></a><span class="t"><span class="pl-s">    CONSTRAINT uq_gift_events_transaction UNIQUE (transaction_id),</span></span></div>
+<div class="ln code" id="L418"><a class="n" href="#L418" data-n="418"></a><span class="t"><span class="pl-s">    CONSTRAINT chk_gift_events_no_self_gift CHECK (sender_user_id &lt;&gt; receiver_user_id),</span></span></div>
+<div class="ln code" id="L419"><a class="n" href="#L419" data-n="419"></a><span class="t"><span class="pl-s">    CONSTRAINT chk_gift_events_points_lte_price CHECK (points_awarded &lt;= price_diamond)</span></span></div>
+<div class="ln code" id="L420"><a class="n" href="#L420" data-n="420"></a><span class="t"><span class="pl-s">  )</span></span></div>
+<div class="ln code" id="L421"><a class="n" href="#L421" data-n="421"></a><span class="t"><span class="pl-s">`</span>);</span></div>
+<div class="ln blank" id="L422"><a class="n" href="#L422" data-n="422"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag tier-service" id="L423"><a class="n" href="#L423" data-n="423"></a><span class="t"><span class="pl-c">// <b class="tg tg-service">[SERVICE]</b> gift.service.ts · L475–507</span></span></div>
+<div class="ln code" id="L424"><a class="n" href="#L424" data-n="424"></a><span class="t"><span class="pl-k">private</span> <span class="pl-k">async</span> <span class="pl-en">publishGiftSent</span>(</span></div>
+<div class="ln code" id="L425"><a class="n" href="#L425" data-n="425"></a><span class="t">  roomId: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L426"><a class="n" href="#L426" data-n="426"></a><span class="t">  gift: <span class="pl-en">Gift</span>,</span></div>
+<div class="ln code" id="L427"><a class="n" href="#L427" data-n="427"></a><span class="t">  event: <span class="pl-en">GiftEvent</span>,</span></div>
+<div class="ln code" id="L428"><a class="n" href="#L428" data-n="428"></a><span class="t">): <span class="pl-en">Promise</span>&lt;<span class="pl-c1">void</span>&gt; {</span></div>
+<div class="ln code" id="L429"><a class="n" href="#L429" data-n="429"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">envelope</span>: <span class="pl-en">RealtimeEnvelope</span>&lt;<span class="pl-en">GiftSentEventData</span>&gt; = {</span></div>
+<div class="ln code" id="L430"><a class="n" href="#L430" data-n="430"></a><span class="t">    event: RealtimeEvents.<span class="pl-en">GiftSent</span>,</span></div>
+<div class="ln code" id="L431"><a class="n" href="#L431" data-n="431"></a><span class="t">    data: {</span></div>
+<div class="ln code" id="L432"><a class="n" href="#L432" data-n="432"></a><span class="t">      roomId,</span></div>
+<div class="ln code" id="L433"><a class="n" href="#L433" data-n="433"></a><span class="t">      giftEventId: event.id,</span></div>
+<div class="ln code" id="L434"><a class="n" href="#L434" data-n="434"></a><span class="t">      giftCode: gift.code,</span></div>
+<div class="ln code" id="L435"><a class="n" href="#L435" data-n="435"></a><span class="t">      senderUserId: event.senderUserId,</span></div>
+<div class="ln code" id="L436"><a class="n" href="#L436" data-n="436"></a><span class="t">      receiverUserId: event.receiverUserId,</span></div>
+<div class="ln code" id="L437"><a class="n" href="#L437" data-n="437"></a><span class="t">      priceDiamond: event.priceDiamond,</span></div>
+<div class="ln code" id="L438"><a class="n" href="#L438" data-n="438"></a><span class="t">      pointsAwarded: event.pointsAwarded,</span></div>
+<div class="ln code" id="L439"><a class="n" href="#L439" data-n="439"></a><span class="t">      sentAt: event.createdAt.<span class="pl-en">toISOString</span>(),</span></div>
+<div class="ln code" id="L440"><a class="n" href="#L440" data-n="440"></a><span class="t">    },</span></div>
+<div class="ln code" id="L441"><a class="n" href="#L441" data-n="441"></a><span class="t">  };</span></div>
+<div class="ln code" id="L442"><a class="n" href="#L442" data-n="442"></a><span class="t">  <span class="pl-k">try</span> {</span></div>
+<div class="ln code" id="L443"><a class="n" href="#L443" data-n="443"></a><span class="t">    <span class="pl-k">const</span> { members } =</span></div>
+<div class="ln code" id="L444"><a class="n" href="#L444" data-n="444"></a><span class="t">      <span class="pl-k">await</span> <span class="pl-c1">this</span>.partyRoomService.<span class="pl-en">getActiveRoomMembers</span>(roomId);</span></div>
+<div class="ln code" id="L445"><a class="n" href="#L445" data-n="445"></a><span class="t">    <span class="pl-c">// <b class="tg tg-redis">[REDIS]</b> Phát gift.sent cho từng thành viên đang ở phòng qua kênh</span></span></div>
+<div class="ln code" id="L446"><a class="n" href="#L446" data-n="446"></a><span class="t">    <span class="pl-c">// realtime:user:{id}, SAU khi giao dịch commit: client chỉ thấy hiệu ứng khi tiền</span></span></div>
+<div class="ln code" id="L447"><a class="n" href="#L447" data-n="447"></a><span class="t">    <span class="pl-c">// đã trừ.</span></span></div>
+<div class="ln code" id="L448"><a class="n" href="#L448" data-n="448"></a><span class="t">    <span class="pl-k">await</span> Promise.<span class="pl-en">all</span>(</span></div>
+<div class="ln code" id="L449"><a class="n" href="#L449" data-n="449"></a><span class="t">      members.<span class="pl-en">map</span>((m) =&gt;</span></div>
+<div class="ln code" id="L450"><a class="n" href="#L450" data-n="450"></a><span class="t">        <span class="pl-en">publishRealtimeEvent</span>(<span class="pl-c1">this</span>.redis, <span class="pl-c1">this</span>.logger, m.userId, envelope),</span></div>
+<div class="ln code" id="L451"><a class="n" href="#L451" data-n="451"></a><span class="t">      ),</span></div>
+<div class="ln code" id="L452"><a class="n" href="#L452" data-n="452"></a><span class="t">    );</span></div>
+<div class="ln code" id="L453"><a class="n" href="#L453" data-n="453"></a><span class="t">  } <span class="pl-k">catch</span> (err) {</span></div>
+<div class="ln code" id="L454"><a class="n" href="#L454" data-n="454"></a><span class="t">    <span class="pl-c">// Phòng vừa đóng giữa chừng thì chỉ mất hiệu ứng realtime, giao dịch quà vẫn hợp</span></span></div>
+<div class="ln code" id="L455"><a class="n" href="#L455" data-n="455"></a><span class="t">    <span class="pl-c">// lệ.</span></span></div>
+<div class="ln code" id="L456"><a class="n" href="#L456" data-n="456"></a><span class="t">    <span class="pl-c1">this</span>.logger.<span class="pl-en">warn</span>(</span></div>
+<div class="ln code" id="L457"><a class="n" href="#L457" data-n="457"></a><span class="t">      <span class="pl-s">`Fanout gift.sent phòng ${</span>roomId<span class="pl-s">} bỏ qua: ${</span>err <span class="pl-k">instanceof</span> <span class="pl-en">Error</span> ? err.message : <span class="pl-en">String</span>(err)<span class="pl-s">}`</span>,</span></div>
+<div class="ln code" id="L458"><a class="n" href="#L458" data-n="458"></a><span class="t">    );</span></div>
+<div class="ln code" id="L459"><a class="n" href="#L459" data-n="459"></a><span class="t">  }</span></div>
+<div class="ln code" id="L460"><a class="n" href="#L460" data-n="460"></a><span class="t">}</span></div>
+  </div>
+</div>
+</main>
+<script>(function(){
+var root=document.documentElement,key='litmatch-code-theme',btn=document.getElementById('theme'),labels={auto:'Tự động',light:'Sáng',dark:'Tối'};
+var mode='auto';try{var s=localStorage.getItem(key);if(s==='light'||s==='dark')mode=s}catch(e){}
+function apply(){if(mode==='auto')root.removeAttribute('data-theme');else root.setAttribute('data-theme',mode);btn.textContent='Theme: '+labels[mode]}
+apply();
+btn.addEventListener('click',function(){mode=mode==='auto'?'light':mode==='light'?'dark':'auto';try{if(mode==='auto')localStorage.removeItem(key);else localStorage.setItem(key,mode)}catch(e){}apply()});
+})();
+(function(){
+var copy=document.getElementById('copy');
+copy.addEventListener('click',function(){
+var text=Array.prototype.map.call(document.querySelectorAll('.ln .t'),function(n){return n.textContent.replace(/\u00a0/g,'')}).join('\n')+'\n';
+var done=function(){copy.textContent='Đã sao chép';setTimeout(function(){copy.textContent='Sao chép'},1500)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done,function(){})}
+else{var a=document.createElement('textarea');a.value=text;document.body.appendChild(a);a.select();try{document.execCommand('copy');done()}catch(e){}document.body.removeChild(a)}
+});
+})();</script>
+</body>
+</html>

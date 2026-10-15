@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>POST /api/v1/economy/vip/purchase — Diamond, Top-up và VIP</title>
+<style>
+:root{color-scheme:light;--bg:#fff;--fg:#1f2328;--muted:#59636e;--border:#d1d9e0;--subtle:#f6f8fa;--accent:#0969da;--lnum:#818b98;--target:#fff8c5;--sec:#ddf4ff;--secfg:#0550ae;
+--pl-c:#6e7781;--pl-k:#cf222e;--pl-en:#8250df;--pl-c1:#0550ae;--pl-s:#0a3069;--ok:#1a7f37;--info:#0969da;--warn:#bc4c00;--t-controller:#1a7f37;--t-service:#bc4c00;--t-worker:#8250df;--t-postgres:#0969da;--t-redis:#cf222e;--t-kafka:#57606a;--t-bullmq:#bf3989;--t-external:#0a7a6b;--t-gateway:#9a6700}
+:root[data-theme=dark]{color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--lnum:#6e7681;--target:#3b2e0b;--sec:#10294a;--secfg:#79c0ff;
+--pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--lnum:#6e7681;--target:#3b2e0b;--sec:#10294a;--secfg:#79c0ff;
+--pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341}}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:24px 16px 48px}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.box{border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--bg)}
+.bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--subtle);border-bottom:1px solid var(--border)}
+.path{font-size:14px}.path b{font-weight:600}.meta{margin-left:12px;color:var(--muted);font-size:12px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:500 12px/20px -apple-system,"Segoe UI",sans-serif;padding:3px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer}
+.btn:hover{background:var(--subtle);text-decoration:none}
+.toc{display:flex;flex-wrap:wrap;gap:4px 16px;padding:8px 16px;border-bottom:1px solid var(--border);font-size:13px}
+.toc a.cur{color:var(--fg);font-weight:600;text-decoration:underline}
+.legend{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--border);font-size:12px;color:var(--muted)}
+.lg{font:700 11px/18px ui-monospace,SFMono-Regular,Consolas,monospace;padding:0 8px;border:1px solid currentColor;border-radius:999px}
+.src{overflow-x:auto;padding:8px 0;font:12px/20px ui-monospace,SFMono-Regular,"SF Mono","Cascadia Mono",Menlo,Consolas,"Liberation Mono",monospace;tab-size:2}
+.ln{display:flex;min-width:max-content}
+.ln .n{flex:none;width:56px;padding:0 16px 0 0;text-align:right;color:var(--lnum);user-select:none;text-decoration:none}
+.ln .n::before{content:attr(data-n)}.ln .n:hover{color:var(--fg)}
+.ln .t{white-space:pre;padding-right:24px}
+.ln:target{background:var(--target)}
+.ln.tag{background:var(--subtle);border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-top:2px}
+.ln.sec{background:var(--sec)}.ln.sec .pl-c{color:var(--secfg);font-weight:600}.ln.rule .pl-c{color:var(--border)}
+.pl-c{color:var(--pl-c)}.pl-k{color:var(--pl-k)}.pl-en{color:var(--pl-en)}.pl-c1{color:var(--pl-c1)}.pl-s{color:var(--pl-s)}
+.tg{font-weight:700}.tg-controller{color:var(--t-controller)}.ln.tag.tier-controller{box-shadow:inset 4px 0 0 var(--t-controller)}.tg-service{color:var(--t-service)}.ln.tag.tier-service{box-shadow:inset 4px 0 0 var(--t-service)}.tg-worker{color:var(--t-worker)}.ln.tag.tier-worker{box-shadow:inset 4px 0 0 var(--t-worker)}.tg-postgres{color:var(--t-postgres)}.ln.tag.tier-postgres{box-shadow:inset 4px 0 0 var(--t-postgres)}.tg-redis{color:var(--t-redis)}.ln.tag.tier-redis{box-shadow:inset 4px 0 0 var(--t-redis)}.tg-kafka{color:var(--t-kafka)}.ln.tag.tier-kafka{box-shadow:inset 4px 0 0 var(--t-kafka)}.tg-bullmq{color:var(--t-bullmq)}.ln.tag.tier-bullmq{box-shadow:inset 4px 0 0 var(--t-bullmq)}.tg-external{color:var(--t-external)}.ln.tag.tier-external{box-shadow:inset 4px 0 0 var(--t-external)}.tg-gateway{color:var(--t-gateway)}.ln.tag.tier-gateway{box-shadow:inset 4px 0 0 var(--t-gateway)}
+.idx{padding:20px 24px 28px}.idx h1{margin:0 0 8px;font-size:22px;font-weight:600}.idx p{margin:0 0 16px;color:var(--muted);max-width:820px}
+.idx h2{margin:30px 0 4px;font-size:17px;font-weight:600}.idx .sum{margin:0 0 10px}
+.tbl td.fn>a{font-weight:600}.tbl td.fn .rt{margin-top:3px;color:var(--muted)}.tbl td.tiers .lg{display:inline-block;margin:0 4px 4px 0}
+.tbl.ov{table-layout:fixed}.tbl.ov th:nth-child(1){width:32%}.tbl.ov th:nth-child(2){width:40%}.tbl.ov th:nth-child(3){width:28%}.tbl.ov code{overflow-wrap:anywhere}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}.tbl th,.tbl td{padding:8px 12px;text-align:left;border-top:1px solid var(--border);vertical-align:top}
+.tbl th{background:var(--subtle);font-size:12px;color:var(--muted);font-weight:600}.tbl td.num{color:var(--muted);font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.tbl td.tb{color:var(--muted);font-size:12px}.tbl td.lk,.tbl td.ep{white-space:nowrap}
+.tbl code{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--subtle);border:1px solid var(--border);border-radius:6px;padding:1px 6px}
+.m{display:inline-block;min-width:44px;text-align:center;font:700 11px/18px ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:4px;border:1px solid var(--border);padding:0 6px}
+.m-get{color:var(--ok)}.m-post{color:var(--info)}.m-put{color:var(--warn)}
+@media (max-width:700px){main{padding:12px 8px}.ln .n{width:44px;padding-right:10px}.idx{padding:16px 12px}}
+</style>
+</head>
+<body>
+<main>
+<div class="box">
+  <div class="bar">
+    <div class="path"><a href="https://github.com/ducmanh001/litmatch-feature-flows">litmatch-feature-flows</a> / <a href="https://github.com/ducmanh001/litmatch-feature-flows/tree/main/code/09-diamond-top-up-va-vip">09-diamond-top-up-va-vip</a> / <b>01-post-vip-purchase.ts</b><span class="meta">624 dòng · 508 dòng code · litmatch @ d3cb28c</span></div>
+    <div class="actions">
+      <a class="btn" href="../index.html">Tổng quan</a>
+      <a class="btn" href="index.html">Các endpoint</a>
+      <a class="btn" href="../../index.html#09-diamond-top-up-va-vip">Sơ đồ luồng</a>
+      <a class="btn" href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/09-diamond-top-up-va-vip/01-post-vip-purchase.ts">GitHub</a>
+      <a class="btn" href="https://raw.githubusercontent.com/ducmanh001/litmatch-feature-flows/main/code/09-diamond-top-up-va-vip/01-post-vip-purchase.ts">Raw</a>
+      <button class="btn" id="copy" type="button">Sao chép</button>
+      <button class="btn" id="theme" type="button" title="Đổi theme">Theme: Tự động</button>
+    </div>
+  </div>
+  <nav class="toc"><a href="01-post-vip-purchase.html" class="cur">01 POST /economy/vip/purchase</a><a href="02-post-iap-verify.html">02 POST /economy/iap/verify</a><a href="03-post-webhook-payos.html">03 POST /economy/webhooks/payos</a><a href="04-post-webhook-apple-refund.html">04 POST /economy/webhooks/apple</a></nav>
+  <div class="legend"><span>Tầng:</span><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-worker">WORKER</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-kafka">KAFKA</b></div>
+  <div class="src">
+<div class="ln rule" id="L1"><a class="n" href="#L1" data-n="1"></a><span class="t"><span class="pl-c">// ════════════════════════════════════════════════════════════════════════════</span></span></div>
+<div class="ln sec" id="L2"><a class="n" href="#L2" data-n="2"></a><span class="t"><span class="pl-c">//  POST /api/v1/economy/vip/purchase</span></span></div>
+<div class="ln sec" id="L3"><a class="n" href="#L3" data-n="3"></a><span class="t"><span class="pl-c">//  Trừ Diamond và gia hạn VIP trong một transaction của sổ kép: idempotent theo key, khóa ví FOR UPDATE, ghi outbox.</span></span></div>
+<div class="ln rule" id="L4"><a class="n" href="#L4" data-n="4"></a><span class="t"><span class="pl-c">// ════════════════════════════════════════════════════════════════════════════</span></span></div>
+<div class="ln head" id="L5"><a class="n" href="#L5" data-n="5"></a><span class="t"><span class="pl-c">//  Luồng      <b class="tg tg-controller">[CONTROLLER]</b> → <b class="tg tg-service">[SERVICE]</b> → <b class="tg tg-postgres">[POSTGRES]</b> → <b class="tg tg-worker">[WORKER]</b> → <b class="tg tg-kafka">[KAFKA]</b></span></span></div>
+<div class="ln head" id="L6"><a class="n" href="#L6" data-n="6"></a><span class="t"><span class="pl-c">//</span></span></div>
+<div class="ln head" id="L7"><a class="n" href="#L7" data-n="7"></a><span class="t"><span class="pl-c">//  Vai trò từng tầng</span></span></div>
+<div class="ln head" id="L8"><a class="n" href="#L8" data-n="8"></a><span class="t"><span class="pl-c">//    <b class="tg tg-controller">[CONTROLLER]</b> Nhận yêu cầu mua gói VIP kèm header Idempotency-Key bắt buộc; user</span></span></div>
+<div class="ln head" id="L9"><a class="n" href="#L9" data-n="9"></a><span class="t"><span class="pl-c">//                 lấy từ JWT, planId từ body.</span></span></div>
+<div class="ln head" id="L10"><a class="n" href="#L10" data-n="10"></a><span class="t"><span class="pl-c">//    <b class="tg tg-service">[SERVICE]</b>    EconomyService đọc giá gói từ catalog rồi dựng bút toán Nợ ví / Có</span></span></div>
+<div class="ln head" id="L11"><a class="n" href="#L11" data-n="11"></a><span class="t"><span class="pl-c">//                 system_revenue kèm phần gia hạn VIP; LedgerService là nơi duy nhất</span></span></div>
+<div class="ln head" id="L12"><a class="n" href="#L12" data-n="12"></a><span class="t"><span class="pl-c">//                 được ghi vào sổ cái và ví.</span></span></div>
+<div class="ln head" id="L13"><a class="n" href="#L13" data-n="13"></a><span class="t"><span class="pl-c">//    <b class="tg tg-postgres">[POSTGRES]</b>   Một transaction làm tất cả: chèn giao dịch (unique idempotency_key),</span></span></div>
+<div class="ln head" id="L14"><a class="n" href="#L14" data-n="14"></a><span class="t"><span class="pl-c">//                 khóa ví FOR UPDATE, ghi bút toán, trừ số dư, gia hạn VIP, ghi outbox.</span></span></div>
+<div class="ln head" id="L15"><a class="n" href="#L15" data-n="15"></a><span class="t"><span class="pl-c">//    <b class="tg tg-worker">[WORKER]</b>     OutboxRelayService (bật bằng ECONOMY_OUTBOX_RELAY_ENABLED, mặc định</span></span></div>
+<div class="ln head" id="L16"><a class="n" href="#L16" data-n="16"></a><span class="t"><span class="pl-c">//                 tắt) quét outbox_events chưa gửi theo lô (FOR UPDATE SKIP LOCKED) rồi</span></span></div>
+<div class="ln head" id="L17"><a class="n" href="#L17" data-n="17"></a><span class="t"><span class="pl-c">//                 chuyển cho EventBus.</span></span></div>
+<div class="ln head" id="L18"><a class="n" href="#L18" data-n="18"></a><span class="t"><span class="pl-c">//    <b class="tg tg-kafka">[KAFKA]</b>      Topic litmatch.economy.events nhận event economy.vip.purchased và</span></span></div>
+<div class="ln head" id="L19"><a class="n" href="#L19" data-n="19"></a><span class="t"><span class="pl-c">//                 economy.diamond.debited.</span></span></div>
+<div class="ln head" id="L20"><a class="n" href="#L20" data-n="20"></a><span class="t"><span class="pl-c">//</span></span></div>
+<div class="ln head" id="L21"><a class="n" href="#L21" data-n="21"></a><span class="t"><span class="pl-c">//  Bảng       transactions — 1 dòng cho mỗi giao dịch: type vip_purchase, key</span></span></div>
+<div class="ln head" id="L22"><a class="n" href="#L22" data-n="22"></a><span class="t"><span class="pl-c">//               idempotency unique, request_hash, snapshot giá gói trong metadata.</span></span></div>
+<div class="ln head" id="L23"><a class="n" href="#L23" data-n="23"></a><span class="t"><span class="pl-c">//             ledger_entries — bút toán sổ kép chỉ thêm, không sửa (trigger chặn UPDATE</span></span></div>
+<div class="ln head" id="L24"><a class="n" href="#L24" data-n="24"></a><span class="t"><span class="pl-c">//               và DELETE): Nợ user_wallet, Có system_revenue.</span></span></div>
+<div class="ln head" id="L25"><a class="n" href="#L25" data-n="25"></a><span class="t"><span class="pl-c">//             ledger_accounts — tài khoản nội bộ tạo khi cần: ví của user và</span></span></div>
+<div class="ln head" id="L26"><a class="n" href="#L26" data-n="26"></a><span class="t"><span class="pl-c">//               system_revenue.</span></span></div>
+<div class="ln head" id="L27"><a class="n" href="#L27" data-n="27"></a><span class="t"><span class="pl-c">//             wallets — số dư Diamond và hạn VIP của user; bị khóa FOR UPDATE; gia hạn</span></span></div>
+<div class="ln head" id="L28"><a class="n" href="#L28" data-n="28"></a><span class="t"><span class="pl-c">//               cộng dồn.</span></span></div>
+<div class="ln head" id="L29"><a class="n" href="#L29" data-n="29"></a><span class="t"><span class="pl-c">//             vip_plans — catalog gói VIP: hạng, số ngày, giá Diamond (chỉ đọc).</span></span></div>
+<div class="ln head" id="L30"><a class="n" href="#L30" data-n="30"></a><span class="t"><span class="pl-c">//             outbox_events — event economy.diamond.debited và economy.vip.purchased,</span></span></div>
+<div class="ln head" id="L31"><a class="n" href="#L31" data-n="31"></a><span class="t"><span class="pl-c">//               ghi cùng transaction để relay gửi Kafka sau.</span></span></div>
+<div class="ln head" id="L32"><a class="n" href="#L32" data-n="32"></a><span class="t"><span class="pl-c">//  Liên quan  Kafka (litmatch.economy.events) — hiện chưa có module nào subscribe topic</span></span></div>
+<div class="ln head" id="L33"><a class="n" href="#L33" data-n="33"></a><span class="t"><span class="pl-c">//               này; khi relay tắt thì outbox_events chỉ tích lũy dòng chưa gửi.</span></span></div>
+<div class="ln head" id="L34"><a class="n" href="#L34" data-n="34"></a><span class="t"><span class="pl-c">//             Các luồng Diamond khác — speed-up, quà, nạp IAP, payOS, hoàn tiền đều ghi</span></span></div>
+<div class="ln head" id="L35"><a class="n" href="#L35" data-n="35"></a><span class="t"><span class="pl-c">//               sổ qua LedgerService.record ở trên (các trang kia chỉ nhắc tới nó).</span></span></div>
+<div class="ln blank" id="L36"><a class="n" href="#L36" data-n="36"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag tier-controller" id="L37"><a class="n" href="#L37" data-n="37"></a><span class="t"><span class="pl-c">// <b class="tg tg-controller">[CONTROLLER]</b> economy.controller.ts · L134–151</span></span></div>
+<div class="ln code" id="L38"><a class="n" href="#L38" data-n="38"></a><span class="t">@<span class="pl-en">Post</span>(<span class="pl-s">'vip/purchase'</span>)</span></div>
+<div class="ln code" id="L39"><a class="n" href="#L39" data-n="39"></a><span class="t">@<span class="pl-en">HttpCode</span>(HttpStatus.<span class="pl-c1">OK</span>)</span></div>
+<div class="ln code" id="L40"><a class="n" href="#L40" data-n="40"></a><span class="t"><span class="pl-en">purchaseVip</span>(</span></div>
+<div class="ln code" id="L41"><a class="n" href="#L41" data-n="41"></a><span class="t">  @<span class="pl-en">CurrentUser</span>() user: <span class="pl-en">AuthenticatedUser</span>,</span></div>
+<div class="ln code" id="L42"><a class="n" href="#L42" data-n="42"></a><span class="t">  @<span class="pl-en">Body</span>() dto: <span class="pl-en">PurchaseVipDto</span>,</span></div>
+<div class="ln code" id="L43"><a class="n" href="#L43" data-n="43"></a><span class="t">  @<span class="pl-en">IdempotencyKey</span>() idempotencyKey: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L44"><a class="n" href="#L44" data-n="44"></a><span class="t">): <span class="pl-en">Promise</span>&lt;<span class="pl-en">VipPurchaseResultDto</span>&gt; {</span></div>
+<div class="ln code" id="L45"><a class="n" href="#L45" data-n="45"></a><span class="t">  <span class="pl-k">return</span> <span class="pl-c1">this</span>.economyService.<span class="pl-en">purchaseVip</span>(</span></div>
+<div class="ln code" id="L46"><a class="n" href="#L46" data-n="46"></a><span class="t">    user.userId,</span></div>
+<div class="ln code" id="L47"><a class="n" href="#L47" data-n="47"></a><span class="t">    dto.planId,</span></div>
+<div class="ln code" id="L48"><a class="n" href="#L48" data-n="48"></a><span class="t">    idempotencyKey,</span></div>
+<div class="ln code" id="L49"><a class="n" href="#L49" data-n="49"></a><span class="t">  );</span></div>
+<div class="ln code" id="L50"><a class="n" href="#L50" data-n="50"></a><span class="t">}</span></div>
+<div class="ln blank" id="L51"><a class="n" href="#L51" data-n="51"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag tier-service" id="L52"><a class="n" href="#L52" data-n="52"></a><span class="t"><span class="pl-c">// <b class="tg tg-service">[SERVICE]</b> economy.service.ts · L367–460</span></span></div>
+<div class="ln code" id="L53"><a class="n" href="#L53" data-n="53"></a><span class="t"><span class="pl-k">async</span> <span class="pl-en">purchaseVip</span>(</span></div>
+<div class="ln code" id="L54"><a class="n" href="#L54" data-n="54"></a><span class="t">  userId: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L55"><a class="n" href="#L55" data-n="55"></a><span class="t">  planId: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L56"><a class="n" href="#L56" data-n="56"></a><span class="t">  idempotencyKey: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L57"><a class="n" href="#L57" data-n="57"></a><span class="t">): <span class="pl-en">Promise</span>&lt;{</span></div>
+<div class="ln code" id="L58"><a class="n" href="#L58" data-n="58"></a><span class="t">  transactionId: <span class="pl-c1">string</span>;</span></div>
+<div class="ln code" id="L59"><a class="n" href="#L59" data-n="59"></a><span class="t">  tier: <span class="pl-en">VipTier</span>;</span></div>
+<div class="ln code" id="L60"><a class="n" href="#L60" data-n="60"></a><span class="t">  vipExpiresAt: <span class="pl-en">Date</span>;</span></div>
+<div class="ln code" id="L61"><a class="n" href="#L61" data-n="61"></a><span class="t">  replayed: <span class="pl-c1">boolean</span>;</span></div>
+<div class="ln code" id="L62"><a class="n" href="#L62" data-n="62"></a><span class="t">}&gt; {</span></div>
+<div class="ln code" id="L63"><a class="n" href="#L63" data-n="63"></a><span class="t">  <span class="pl-c">// Giá và số ngày đọc từ catalog server; client chỉ gửi planId, không gửi giá.</span></span></div>
+<div class="ln code" id="L64"><a class="n" href="#L64" data-n="64"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">plan</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.planRepo.<span class="pl-en">findOneBy</span>({ id: planId, active: <span class="pl-c1">true</span> });</span></div>
+<div class="ln code" id="L65"><a class="n" href="#L65" data-n="65"></a><span class="t">  <span class="pl-k">if</span> (!plan) {</span></div>
+<div class="ln code" id="L66"><a class="n" href="#L66" data-n="66"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
+<div class="ln code" id="L67"><a class="n" href="#L67" data-n="67"></a><span class="t">      EconomyErrors.<span class="pl-c1">VIP_PLAN_UNKNOWN</span>,</span></div>
+<div class="ln code" id="L68"><a class="n" href="#L68" data-n="68"></a><span class="t">      <span class="pl-s">`Gói VIP ${</span>planId<span class="pl-s">} không tồn tại`</span>,</span></div>
+<div class="ln code" id="L69"><a class="n" href="#L69" data-n="69"></a><span class="t">      HttpStatus.<span class="pl-c1">NOT_FOUND</span>,</span></div>
+<div class="ln code" id="L70"><a class="n" href="#L70" data-n="70"></a><span class="t">    );</span></div>
+<div class="ln code" id="L71"><a class="n" href="#L71" data-n="71"></a><span class="t">  }</span></div>
+<div class="ln code" id="L72"><a class="n" href="#L72" data-n="72"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L73"><a class="n" href="#L73" data-n="73"></a><span class="t">  <span class="pl-k">let</span> newExpiry = <span class="pl-k">new</span> <span class="pl-en">Date</span>();</span></div>
+<div class="ln code" id="L74"><a class="n" href="#L74" data-n="74"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">result</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.ledger.<span class="pl-en">record</span>({</span></div>
+<div class="ln code" id="L75"><a class="n" href="#L75" data-n="75"></a><span class="t">    type: TransactionType.<span class="pl-en">VipPurchase</span>,</span></div>
+<div class="ln code" id="L76"><a class="n" href="#L76" data-n="76"></a><span class="t">    idempotencyKey: <span class="pl-s">`vip:${</span>userId<span class="pl-s">}:${</span>idempotencyKey<span class="pl-s">}`</span>,</span></div>
+<div class="ln code" id="L77"><a class="n" href="#L77" data-n="77"></a><span class="t">    actorUserId: userId,</span></div>
+<div class="ln code" id="L78"><a class="n" href="#L78" data-n="78"></a><span class="t">    <span class="pl-c">// Snapshot giá và thời hạn đã áp dụng; đổi catalog sau này không diễn giải lại giao</span></span></div>
+<div class="ln code" id="L79"><a class="n" href="#L79" data-n="79"></a><span class="t">    <span class="pl-c">// dịch cũ.</span></span></div>
+<div class="ln code" id="L80"><a class="n" href="#L80" data-n="80"></a><span class="t">    metadata: {</span></div>
+<div class="ln code" id="L81"><a class="n" href="#L81" data-n="81"></a><span class="t">      planId,</span></div>
+<div class="ln code" id="L82"><a class="n" href="#L82" data-n="82"></a><span class="t">      tier: plan.tier,</span></div>
+<div class="ln code" id="L83"><a class="n" href="#L83" data-n="83"></a><span class="t">      days: plan.days,</span></div>
+<div class="ln code" id="L84"><a class="n" href="#L84" data-n="84"></a><span class="t">      priceDiamond: plan.priceDiamond,</span></div>
+<div class="ln code" id="L85"><a class="n" href="#L85" data-n="85"></a><span class="t">    },</span></div>
+<div class="ln code" id="L86"><a class="n" href="#L86" data-n="86"></a><span class="t">    entries: [</span></div>
+<div class="ln code" id="L87"><a class="n" href="#L87" data-n="87"></a><span class="t">      {</span></div>
+<div class="ln code" id="L88"><a class="n" href="#L88" data-n="88"></a><span class="t">        accountKind: LedgerAccountKind.<span class="pl-en">UserWallet</span>,</span></div>
+<div class="ln code" id="L89"><a class="n" href="#L89" data-n="89"></a><span class="t">        userId,</span></div>
+<div class="ln code" id="L90"><a class="n" href="#L90" data-n="90"></a><span class="t">        direction: LedgerDirection.<span class="pl-en">Debit</span>,</span></div>
+<div class="ln code" id="L91"><a class="n" href="#L91" data-n="91"></a><span class="t">        amount: <span class="pl-en">BigInt</span>(plan.priceDiamond),</span></div>
+<div class="ln code" id="L92"><a class="n" href="#L92" data-n="92"></a><span class="t">        currency: LedgerCurrency.<span class="pl-en">Diamond</span>,</span></div>
+<div class="ln code" id="L93"><a class="n" href="#L93" data-n="93"></a><span class="t">      },</span></div>
+<div class="ln code" id="L94"><a class="n" href="#L94" data-n="94"></a><span class="t">      {</span></div>
+<div class="ln code" id="L95"><a class="n" href="#L95" data-n="95"></a><span class="t">        accountKind: LedgerAccountKind.<span class="pl-en">SystemRevenue</span>,</span></div>
+<div class="ln code" id="L96"><a class="n" href="#L96" data-n="96"></a><span class="t">        direction: LedgerDirection.<span class="pl-en">Credit</span>,</span></div>
+<div class="ln code" id="L97"><a class="n" href="#L97" data-n="97"></a><span class="t">        amount: <span class="pl-en">BigInt</span>(plan.priceDiamond),</span></div>
+<div class="ln code" id="L98"><a class="n" href="#L98" data-n="98"></a><span class="t">        currency: LedgerCurrency.<span class="pl-en">Diamond</span>,</span></div>
+<div class="ln code" id="L99"><a class="n" href="#L99" data-n="99"></a><span class="t">      },</span></div>
+<div class="ln code" id="L100"><a class="n" href="#L100" data-n="100"></a><span class="t">    ],</span></div>
+<div class="ln code" id="L101"><a class="n" href="#L101" data-n="101"></a><span class="t">    <span class="pl-c">// Chạy ở cuối recordInManager, khi ví đã khóa FOR UPDATE: gia hạn VIP và outbox nằm</span></span></div>
+<div class="ln code" id="L102"><a class="n" href="#L102" data-n="102"></a><span class="t">    <span class="pl-c">// CÙNG transaction với bút toán, nên lỗi thì rollback cả tiền.</span></span></div>
+<div class="ln code" id="L103"><a class="n" href="#L103" data-n="103"></a><span class="t">    withinTransaction: <span class="pl-k">async</span> (manager) =&gt; {</span></div>
+<div class="ln code" id="L104"><a class="n" href="#L104" data-n="104"></a><span class="t">      <span class="pl-k">const</span> <span class="pl-c1">wallet</span> = <span class="pl-k">await</span> manager</span></div>
+<div class="ln code" id="L105"><a class="n" href="#L105" data-n="105"></a><span class="t">        .<span class="pl-en">getRepository</span>(<span class="pl-en">Wallet</span>)</span></div>
+<div class="ln code" id="L106"><a class="n" href="#L106" data-n="106"></a><span class="t">        .<span class="pl-en">findOneByOrFail</span>({ userId });</span></div>
+<div class="ln code" id="L107"><a class="n" href="#L107" data-n="107"></a><span class="t">      <span class="pl-k">const</span> <span class="pl-c1">base</span> =</span></div>
+<div class="ln code" id="L108"><a class="n" href="#L108" data-n="108"></a><span class="t">        wallet.vipExpiresAt &amp;&amp; wallet.vipExpiresAt &gt; <span class="pl-k">new</span> <span class="pl-en">Date</span>()</span></div>
+<div class="ln code" id="L109"><a class="n" href="#L109" data-n="109"></a><span class="t">          ? wallet.vipExpiresAt</span></div>
+<div class="ln code" id="L110"><a class="n" href="#L110" data-n="110"></a><span class="t">          : <span class="pl-k">new</span> <span class="pl-en">Date</span>();</span></div>
+<div class="ln code" id="L111"><a class="n" href="#L111" data-n="111"></a><span class="t">      <span class="pl-c">// Gia hạn cộng dồn: còn hạn thì cộng thêm vào hạn cũ, hết hạn thì tính từ bây</span></span></div>
+<div class="ln code" id="L112"><a class="n" href="#L112" data-n="112"></a><span class="t">      <span class="pl-c">// giờ.</span></span></div>
+<div class="ln code" id="L113"><a class="n" href="#L113" data-n="113"></a><span class="t">      newExpiry = <span class="pl-k">new</span> <span class="pl-en">Date</span>(base.<span class="pl-en">getTime</span>() + plan.days * <span class="pl-c1">24</span> * <span class="pl-c1">3600</span> * <span class="pl-c1">1000</span>);</span></div>
+<div class="ln code" id="L114"><a class="n" href="#L114" data-n="114"></a><span class="t">      <span class="pl-k">await</span> manager.<span class="pl-en">update</span>(</span></div>
+<div class="ln code" id="L115"><a class="n" href="#L115" data-n="115"></a><span class="t">        <span class="pl-en">Wallet</span>,</span></div>
+<div class="ln code" id="L116"><a class="n" href="#L116" data-n="116"></a><span class="t">        { userId },</span></div>
+<div class="ln code" id="L117"><a class="n" href="#L117" data-n="117"></a><span class="t">        { vipTier: plan.tier, vipExpiresAt: newExpiry },</span></div>
+<div class="ln code" id="L118"><a class="n" href="#L118" data-n="118"></a><span class="t">      );</span></div>
+<div class="ln code" id="L119"><a class="n" href="#L119" data-n="119"></a><span class="t">      <span class="pl-k">await</span> manager.<span class="pl-en">save</span>(</span></div>
+<div class="ln code" id="L120"><a class="n" href="#L120" data-n="120"></a><span class="t">        manager.<span class="pl-en">create</span>(<span class="pl-en">OutboxEvent</span>, {</span></div>
+<div class="ln code" id="L121"><a class="n" href="#L121" data-n="121"></a><span class="t">          topic: <span class="pl-c1">ECONOMY_EVENTS_TOPIC</span>,</span></div>
+<div class="ln code" id="L122"><a class="n" href="#L122" data-n="122"></a><span class="t">          eventType: <span class="pl-s">'economy.vip.purchased'</span>,</span></div>
+<div class="ln code" id="L123"><a class="n" href="#L123" data-n="123"></a><span class="t">          payload: {</span></div>
+<div class="ln code" id="L124"><a class="n" href="#L124" data-n="124"></a><span class="t">            version: <span class="pl-c1">1</span>,</span></div>
+<div class="ln code" id="L125"><a class="n" href="#L125" data-n="125"></a><span class="t">            userId,</span></div>
+<div class="ln code" id="L126"><a class="n" href="#L126" data-n="126"></a><span class="t">            planId,</span></div>
+<div class="ln code" id="L127"><a class="n" href="#L127" data-n="127"></a><span class="t">            tier: plan.tier,</span></div>
+<div class="ln code" id="L128"><a class="n" href="#L128" data-n="128"></a><span class="t">            vipExpiresAt: newExpiry.<span class="pl-en">toISOString</span>(),</span></div>
+<div class="ln code" id="L129"><a class="n" href="#L129" data-n="129"></a><span class="t">          },</span></div>
+<div class="ln code" id="L130"><a class="n" href="#L130" data-n="130"></a><span class="t">        }),</span></div>
+<div class="ln code" id="L131"><a class="n" href="#L131" data-n="131"></a><span class="t">      );</span></div>
+<div class="ln code" id="L132"><a class="n" href="#L132" data-n="132"></a><span class="t">    },</span></div>
+<div class="ln code" id="L133"><a class="n" href="#L133" data-n="133"></a><span class="t">  });</span></div>
+<div class="ln code" id="L134"><a class="n" href="#L134" data-n="134"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L135"><a class="n" href="#L135" data-n="135"></a><span class="t">  <span class="pl-c">// Replay (cùng key) không gia hạn lần 2: chỉ trả trạng thái VIP hiện tại.</span></span></div>
+<div class="ln code" id="L136"><a class="n" href="#L136" data-n="136"></a><span class="t">  <span class="pl-k">if</span> (result.replayed) {</span></div>
+<div class="ln code" id="L137"><a class="n" href="#L137" data-n="137"></a><span class="t">    <span class="pl-k">const</span> <span class="pl-c1">wallet</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.walletRepo.<span class="pl-en">findOneByOrFail</span>({ userId });</span></div>
+<div class="ln code" id="L138"><a class="n" href="#L138" data-n="138"></a><span class="t">    <span class="pl-k">return</span> {</span></div>
+<div class="ln code" id="L139"><a class="n" href="#L139" data-n="139"></a><span class="t">      transactionId: result.transaction.id,</span></div>
+<div class="ln code" id="L140"><a class="n" href="#L140" data-n="140"></a><span class="t">      tier: plan.tier,</span></div>
+<div class="ln code" id="L141"><a class="n" href="#L141" data-n="141"></a><span class="t">      vipExpiresAt: wallet.vipExpiresAt ?? newExpiry,</span></div>
+<div class="ln code" id="L142"><a class="n" href="#L142" data-n="142"></a><span class="t">      replayed: <span class="pl-c1">true</span>,</span></div>
+<div class="ln code" id="L143"><a class="n" href="#L143" data-n="143"></a><span class="t">    };</span></div>
+<div class="ln code" id="L144"><a class="n" href="#L144" data-n="144"></a><span class="t">  }</span></div>
+<div class="ln code" id="L145"><a class="n" href="#L145" data-n="145"></a><span class="t">  <span class="pl-k">return</span> {</span></div>
+<div class="ln code" id="L146"><a class="n" href="#L146" data-n="146"></a><span class="t">    transactionId: result.transaction.id,</span></div>
+<div class="ln code" id="L147"><a class="n" href="#L147" data-n="147"></a><span class="t">    tier: plan.tier,</span></div>
+<div class="ln code" id="L148"><a class="n" href="#L148" data-n="148"></a><span class="t">    vipExpiresAt: newExpiry,</span></div>
+<div class="ln code" id="L149"><a class="n" href="#L149" data-n="149"></a><span class="t">    replayed: <span class="pl-c1">false</span>,</span></div>
+<div class="ln code" id="L150"><a class="n" href="#L150" data-n="150"></a><span class="t">  };</span></div>
+<div class="ln code" id="L151"><a class="n" href="#L151" data-n="151"></a><span class="t">}</span></div>
+<div class="ln blank" id="L152"><a class="n" href="#L152" data-n="152"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag tier-service" id="L153"><a class="n" href="#L153" data-n="153"></a><span class="t"><span class="pl-c">// <b class="tg tg-service">[SERVICE]</b> ledger.service.ts · L56–99, L313–320, L322–343, L345–361, L363–375, L101–181, L377–406, L408–425, L427–499</span></span></div>
+<div class="ln code" id="L154"><a class="n" href="#L154" data-n="154"></a><span class="t"><span class="pl-k">async</span> <span class="pl-en">record</span>(input: <span class="pl-en">RecordTransactionInput</span>): <span class="pl-en">Promise</span>&lt;<span class="pl-en">RecordResult</span>&gt; {</span></div>
+<div class="ln code" id="L155"><a class="n" href="#L155" data-n="155"></a><span class="t">  <span class="pl-c1">this</span>.<span class="pl-en">validateInput</span>(input);</span></div>
+<div class="ln code" id="L156"><a class="n" href="#L156" data-n="156"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">requestHash</span> = <span class="pl-c1">this</span>.<span class="pl-en">hashRequest</span>(input);</span></div>
+<div class="ln code" id="L157"><a class="n" href="#L157" data-n="157"></a><span class="t">  <span class="pl-c">// Đường nhanh cho retry: key đã có thì kiểm tra cùng nội dung rồi trả kết quả cũ,</span></span></div>
+<div class="ln code" id="L158"><a class="n" href="#L158" data-n="158"></a><span class="t">  <span class="pl-c">// không mở transaction.</span></span></div>
+<div class="ln code" id="L159"><a class="n" href="#L159" data-n="159"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">existing</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.dataSource</span></div>
+<div class="ln code" id="L160"><a class="n" href="#L160" data-n="160"></a><span class="t">    .<span class="pl-en">getRepository</span>(<span class="pl-en">LedgerTransaction</span>)</span></div>
+<div class="ln code" id="L161"><a class="n" href="#L161" data-n="161"></a><span class="t">    .<span class="pl-en">findOneBy</span>({ idempotencyKey: input.idempotencyKey });</span></div>
+<div class="ln code" id="L162"><a class="n" href="#L162" data-n="162"></a><span class="t">  <span class="pl-k">if</span> (existing) {</span></div>
+<div class="ln code" id="L163"><a class="n" href="#L163" data-n="163"></a><span class="t">    <span class="pl-k">try</span> {</span></div>
+<div class="ln code" id="L164"><a class="n" href="#L164" data-n="164"></a><span class="t">      <span class="pl-k">const</span> <span class="pl-c1">transaction</span> = <span class="pl-c1">this</span>.<span class="pl-en">assertSameRequest</span>(existing, requestHash);</span></div>
+<div class="ln code" id="L165"><a class="n" href="#L165" data-n="165"></a><span class="t">      <span class="pl-c1">this</span>.metrics.<span class="pl-en">record</span>(input.type, <span class="pl-s">'replayed'</span>);</span></div>
+<div class="ln code" id="L166"><a class="n" href="#L166" data-n="166"></a><span class="t">      <span class="pl-k">return</span> { transaction, replayed: <span class="pl-c1">true</span> };</span></div>
+<div class="ln code" id="L167"><a class="n" href="#L167" data-n="167"></a><span class="t">    } <span class="pl-k">catch</span> (err) {</span></div>
+<div class="ln code" id="L168"><a class="n" href="#L168" data-n="168"></a><span class="t">      <span class="pl-c1">this</span>.metrics.<span class="pl-en">record</span>(input.type, <span class="pl-s">'failed'</span>);</span></div>
+<div class="ln code" id="L169"><a class="n" href="#L169" data-n="169"></a><span class="t">      <span class="pl-k">throw</span> err;</span></div>
+<div class="ln code" id="L170"><a class="n" href="#L170" data-n="170"></a><span class="t">    }</span></div>
+<div class="ln code" id="L171"><a class="n" href="#L171" data-n="171"></a><span class="t">  }</span></div>
+<div class="ln code" id="L172"><a class="n" href="#L172" data-n="172"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L173"><a class="n" href="#L173" data-n="173"></a><span class="t">  <span class="pl-k">try</span> {</span></div>
+<div class="ln code" id="L174"><a class="n" href="#L174" data-n="174"></a><span class="t">    <span class="pl-k">const</span> <span class="pl-c1">result</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.dataSource.<span class="pl-en">transaction</span>((manager) =&gt;</span></div>
+<div class="ln code" id="L175"><a class="n" href="#L175" data-n="175"></a><span class="t">      <span class="pl-c1">this</span>.<span class="pl-en">recordInManager</span>(manager, input),</span></div>
+<div class="ln code" id="L176"><a class="n" href="#L176" data-n="176"></a><span class="t">    );</span></div>
+<div class="ln code" id="L177"><a class="n" href="#L177" data-n="177"></a><span class="t">    <span class="pl-c1">this</span>.metrics.<span class="pl-en">record</span>(input.type, result.replayed ? <span class="pl-s">'replayed'</span> : <span class="pl-s">'success'</span>);</span></div>
+<div class="ln code" id="L178"><a class="n" href="#L178" data-n="178"></a><span class="t">    <span class="pl-k">return</span> result;</span></div>
+<div class="ln code" id="L179"><a class="n" href="#L179" data-n="179"></a><span class="t">  } <span class="pl-k">catch</span> (err) {</span></div>
+<div class="ln code" id="L180"><a class="n" href="#L180" data-n="180"></a><span class="t">    <span class="pl-k">if</span> (</span></div>
+<div class="ln code" id="L181"><a class="n" href="#L181" data-n="181"></a><span class="t">      <span class="pl-en">isUniqueViolation</span>(err) &amp;&amp;</span></div>
+<div class="ln code" id="L182"><a class="n" href="#L182" data-n="182"></a><span class="t">      <span class="pl-en">violatedConstraint</span>(err, <span class="pl-c1">UQ_TRANSACTIONS_IDEMPOTENCY_KEY</span>)</span></div>
+<div class="ln code" id="L183"><a class="n" href="#L183" data-n="183"></a><span class="t">    ) {</span></div>
+<div class="ln code" id="L184"><a class="n" href="#L184" data-n="184"></a><span class="t">      <span class="pl-c">// <b class="tg tg-postgres">[POSTGRES]</b> Kiểm trước chỉ là đường nhanh; nguồn chân lý là unique</span></span></div>
+<div class="ln code" id="L185"><a class="n" href="#L185" data-n="185"></a><span class="t">      <span class="pl-c">// idempotency_key ở DB. 2 request cùng key chạy song song thì bên thua đọc lại</span></span></div>
+<div class="ln code" id="L186"><a class="n" href="#L186" data-n="186"></a><span class="t">      <span class="pl-c">// dòng của bên thắng và trả như replay.</span></span></div>
+<div class="ln code" id="L187"><a class="n" href="#L187" data-n="187"></a><span class="t">      <span class="pl-k">const</span> <span class="pl-c1">winner</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.dataSource</span></div>
+<div class="ln code" id="L188"><a class="n" href="#L188" data-n="188"></a><span class="t">        .<span class="pl-en">getRepository</span>(<span class="pl-en">LedgerTransaction</span>)</span></div>
+<div class="ln code" id="L189"><a class="n" href="#L189" data-n="189"></a><span class="t">        .<span class="pl-en">findOneByOrFail</span>({ idempotencyKey: input.idempotencyKey });</span></div>
+<div class="ln code" id="L190"><a class="n" href="#L190" data-n="190"></a><span class="t">      <span class="pl-k">try</span> {</span></div>
+<div class="ln code" id="L191"><a class="n" href="#L191" data-n="191"></a><span class="t">        <span class="pl-k">const</span> <span class="pl-c1">transaction</span> = <span class="pl-c1">this</span>.<span class="pl-en">assertSameRequest</span>(winner, requestHash);</span></div>
+<div class="ln code" id="L192"><a class="n" href="#L192" data-n="192"></a><span class="t">        <span class="pl-c1">this</span>.metrics.<span class="pl-en">record</span>(input.type, <span class="pl-s">'replayed'</span>);</span></div>
+<div class="ln code" id="L193"><a class="n" href="#L193" data-n="193"></a><span class="t">        <span class="pl-k">return</span> { transaction, replayed: <span class="pl-c1">true</span> };</span></div>
+<div class="ln code" id="L194"><a class="n" href="#L194" data-n="194"></a><span class="t">      } <span class="pl-k">catch</span> (assertErr) {</span></div>
+<div class="ln code" id="L195"><a class="n" href="#L195" data-n="195"></a><span class="t">        <span class="pl-c1">this</span>.metrics.<span class="pl-en">record</span>(input.type, <span class="pl-s">'failed'</span>);</span></div>
+<div class="ln code" id="L196"><a class="n" href="#L196" data-n="196"></a><span class="t">        <span class="pl-k">throw</span> assertErr;</span></div>
+<div class="ln code" id="L197"><a class="n" href="#L197" data-n="197"></a><span class="t">      }</span></div>
+<div class="ln code" id="L198"><a class="n" href="#L198" data-n="198"></a><span class="t">    }</span></div>
+<div class="ln code" id="L199"><a class="n" href="#L199" data-n="199"></a><span class="t">    <span class="pl-c1">this</span>.metrics.<span class="pl-en">record</span>(input.type, <span class="pl-s">'failed'</span>);</span></div>
+<div class="ln code" id="L200"><a class="n" href="#L200" data-n="200"></a><span class="t">    <span class="pl-k">throw</span> err;</span></div>
+<div class="ln code" id="L201"><a class="n" href="#L201" data-n="201"></a><span class="t">  }</span></div>
+<div class="ln code" id="L202"><a class="n" href="#L202" data-n="202"></a><span class="t">}</span></div>
+<div class="ln code" id="L203"><a class="n" href="#L203" data-n="203"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L204"><a class="n" href="#L204" data-n="204"></a><span class="t"><span class="pl-k">private</span> <span class="pl-en">validateInput</span>(input: <span class="pl-en">RecordTransactionInput</span>): <span class="pl-c1">void</span> {</span></div>
+<div class="ln code" id="L205"><a class="n" href="#L205" data-n="205"></a><span class="t">  <span class="pl-c1">this</span>.<span class="pl-en">validateEntries</span>(input.entries);</span></div>
+<div class="ln code" id="L206"><a class="n" href="#L206" data-n="206"></a><span class="t">  <span class="pl-k">if</span> (input.type === TransactionType.<span class="pl-en">Adjustment</span> &amp;&amp; !input.actorUserId) {</span></div>
+<div class="ln code" id="L207"><a class="n" href="#L207" data-n="207"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">Error</span>(</span></div>
+<div class="ln code" id="L208"><a class="n" href="#L208" data-n="208"></a><span class="t">      <span class="pl-s">'Transaction type=adjustment bắt buộc có actorUserId (ai thực hiện sửa sai) để audit'</span>,</span></div>
+<div class="ln code" id="L209"><a class="n" href="#L209" data-n="209"></a><span class="t">    );</span></div>
+<div class="ln code" id="L210"><a class="n" href="#L210" data-n="210"></a><span class="t">  }</span></div>
+<div class="ln code" id="L211"><a class="n" href="#L211" data-n="211"></a><span class="t">}</span></div>
+<div class="ln code" id="L212"><a class="n" href="#L212" data-n="212"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L213"><a class="n" href="#L213" data-n="213"></a><span class="t"><span class="pl-k">private</span> <span class="pl-en">validateEntries</span>(entries: <span class="pl-en">LedgerEntryInput</span>[]): <span class="pl-c1">void</span> {</span></div>
+<div class="ln code" id="L214"><a class="n" href="#L214" data-n="214"></a><span class="t">  <span class="pl-k">if</span> (entries.length &lt; <span class="pl-c1">2</span>)</span></div>
+<div class="ln code" id="L215"><a class="n" href="#L215" data-n="215"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">Error</span>(<span class="pl-s">'Giao dịch double-entry cần tối thiểu 2 bút toán'</span>);</span></div>
+<div class="ln code" id="L216"><a class="n" href="#L216" data-n="216"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">sums</span> = <span class="pl-k">new</span> <span class="pl-en">Map</span>&lt;<span class="pl-c1">string</span>, <span class="pl-c1">bigint</span>&gt;();</span></div>
+<div class="ln code" id="L217"><a class="n" href="#L217" data-n="217"></a><span class="t">  <span class="pl-k">for</span> (<span class="pl-k">const</span> <span class="pl-c1">e</span> <span class="pl-k">of</span> entries) {</span></div>
+<div class="ln code" id="L218"><a class="n" href="#L218" data-n="218"></a><span class="t">    <span class="pl-k">if</span> (e.amount &lt;= <span class="pl-c1">0n</span>)</span></div>
+<div class="ln code" id="L219"><a class="n" href="#L219" data-n="219"></a><span class="t">      <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">Error</span>(<span class="pl-s">'Bút toán phải có amount nguyên dương'</span>);</span></div>
+<div class="ln code" id="L220"><a class="n" href="#L220" data-n="220"></a><span class="t">    <span class="pl-k">if</span> (<span class="pl-c1">USER_ACCOUNT_KINDS</span>.<span class="pl-en">has</span>(e.accountKind) &amp;&amp; !e.userId) {</span></div>
+<div class="ln code" id="L221"><a class="n" href="#L221" data-n="221"></a><span class="t">      <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">Error</span>(<span class="pl-s">`Tài khoản ${</span>e.accountKind<span class="pl-s">} bắt buộc có userId`</span>);</span></div>
+<div class="ln code" id="L222"><a class="n" href="#L222" data-n="222"></a><span class="t">    }</span></div>
+<div class="ln code" id="L223"><a class="n" href="#L223" data-n="223"></a><span class="t">    <span class="pl-k">const</span> <span class="pl-c1">delta</span> =</span></div>
+<div class="ln code" id="L224"><a class="n" href="#L224" data-n="224"></a><span class="t">      e.direction === LedgerDirection.<span class="pl-en">Debit</span> ? e.amount : -e.amount;</span></div>
+<div class="ln code" id="L225"><a class="n" href="#L225" data-n="225"></a><span class="t">    sums.<span class="pl-en">set</span>(e.currency, (sums.<span class="pl-en">get</span>(e.currency) ?? <span class="pl-c1">0n</span>) + delta);</span></div>
+<div class="ln code" id="L226"><a class="n" href="#L226" data-n="226"></a><span class="t">  }</span></div>
+<div class="ln code" id="L227"><a class="n" href="#L227" data-n="227"></a><span class="t">  <span class="pl-c">// Sổ kép: tổng Nợ phải bằng tổng Có, kiểm theo TỪNG currency và trước khi ghi bất cứ</span></span></div>
+<div class="ln code" id="L228"><a class="n" href="#L228" data-n="228"></a><span class="t">  <span class="pl-c">// thứ gì.</span></span></div>
+<div class="ln code" id="L229"><a class="n" href="#L229" data-n="229"></a><span class="t">  <span class="pl-k">for</span> (<span class="pl-k">const</span> [currency, sum] <span class="pl-k">of</span> sums) {</span></div>
+<div class="ln code" id="L230"><a class="n" href="#L230" data-n="230"></a><span class="t">    <span class="pl-k">if</span> (sum !== <span class="pl-c1">0n</span>) {</span></div>
+<div class="ln code" id="L231"><a class="n" href="#L231" data-n="231"></a><span class="t">      <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">Error</span>(</span></div>
+<div class="ln code" id="L232"><a class="n" href="#L232" data-n="232"></a><span class="t">        <span class="pl-s">`Tổng Nợ != tổng Có cho currency ${</span>currency<span class="pl-s">} — vi phạm bất biến double-entry`</span>,</span></div>
+<div class="ln code" id="L233"><a class="n" href="#L233" data-n="233"></a><span class="t">      );</span></div>
+<div class="ln code" id="L234"><a class="n" href="#L234" data-n="234"></a><span class="t">    }</span></div>
+<div class="ln code" id="L235"><a class="n" href="#L235" data-n="235"></a><span class="t">  }</span></div>
+<div class="ln code" id="L236"><a class="n" href="#L236" data-n="236"></a><span class="t">}</span></div>
+<div class="ln code" id="L237"><a class="n" href="#L237" data-n="237"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L238"><a class="n" href="#L238" data-n="238"></a><span class="t"><span class="pl-k">private</span> <span class="pl-en">hashRequest</span>(input: <span class="pl-en">RecordTransactionInput</span>): <span class="pl-c1">string</span> {</span></div>
+<div class="ln code" id="L239"><a class="n" href="#L239" data-n="239"></a><span class="t">  <span class="pl-c">// request_hash gồm loại giao dịch, người thực hiện và toàn bộ bút toán: cùng key mà</span></span></div>
+<div class="ln code" id="L240"><a class="n" href="#L240" data-n="240"></a><span class="t">  <span class="pl-c">// nội dung khác thì bị 409, không được coi là replay.</span></span></div>
+<div class="ln code" id="L241"><a class="n" href="#L241" data-n="241"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">normalized</span> = {</span></div>
+<div class="ln code" id="L242"><a class="n" href="#L242" data-n="242"></a><span class="t">    type: input.type,</span></div>
+<div class="ln code" id="L243"><a class="n" href="#L243" data-n="243"></a><span class="t">    actorUserId: input.actorUserId ?? <span class="pl-c1">null</span>,</span></div>
+<div class="ln code" id="L244"><a class="n" href="#L244" data-n="244"></a><span class="t">    reversalOf: input.reversalOf ?? <span class="pl-c1">null</span>,</span></div>
+<div class="ln code" id="L245"><a class="n" href="#L245" data-n="245"></a><span class="t">    entries: input.entries.<span class="pl-en">map</span>((e) =&gt; ({</span></div>
+<div class="ln code" id="L246"><a class="n" href="#L246" data-n="246"></a><span class="t">      k: e.accountKind,</span></div>
+<div class="ln code" id="L247"><a class="n" href="#L247" data-n="247"></a><span class="t">      u: e.userId ?? <span class="pl-c1">null</span>,</span></div>
+<div class="ln code" id="L248"><a class="n" href="#L248" data-n="248"></a><span class="t">      d: e.direction,</span></div>
+<div class="ln code" id="L249"><a class="n" href="#L249" data-n="249"></a><span class="t">      a: e.amount.<span class="pl-en">toString</span>(),</span></div>
+<div class="ln code" id="L250"><a class="n" href="#L250" data-n="250"></a><span class="t">      c: e.currency,</span></div>
+<div class="ln code" id="L251"><a class="n" href="#L251" data-n="251"></a><span class="t">    })),</span></div>
+<div class="ln code" id="L252"><a class="n" href="#L252" data-n="252"></a><span class="t">  };</span></div>
+<div class="ln code" id="L253"><a class="n" href="#L253" data-n="253"></a><span class="t">  <span class="pl-k">return</span> <span class="pl-en">createHash</span>(<span class="pl-s">'sha256'</span>)</span></div>
+<div class="ln code" id="L254"><a class="n" href="#L254" data-n="254"></a><span class="t">    .<span class="pl-en">update</span>(<span class="pl-c1">JSON</span>.<span class="pl-en">stringify</span>(normalized))</span></div>
+<div class="ln code" id="L255"><a class="n" href="#L255" data-n="255"></a><span class="t">    .<span class="pl-en">digest</span>(<span class="pl-s">'hex'</span>);</span></div>
+<div class="ln code" id="L256"><a class="n" href="#L256" data-n="256"></a><span class="t">}</span></div>
+<div class="ln code" id="L257"><a class="n" href="#L257" data-n="257"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L258"><a class="n" href="#L258" data-n="258"></a><span class="t"><span class="pl-k">private</span> <span class="pl-en">assertSameRequest</span>(</span></div>
+<div class="ln code" id="L259"><a class="n" href="#L259" data-n="259"></a><span class="t">  existing: <span class="pl-en">LedgerTransaction</span>,</span></div>
+<div class="ln code" id="L260"><a class="n" href="#L260" data-n="260"></a><span class="t">  requestHash: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L261"><a class="n" href="#L261" data-n="261"></a><span class="t">): <span class="pl-en">LedgerTransaction</span> {</span></div>
+<div class="ln code" id="L262"><a class="n" href="#L262" data-n="262"></a><span class="t">  <span class="pl-k">if</span> (existing.requestHash !== requestHash) {</span></div>
+<div class="ln code" id="L263"><a class="n" href="#L263" data-n="263"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
+<div class="ln code" id="L264"><a class="n" href="#L264" data-n="264"></a><span class="t">      EconomyErrors.<span class="pl-c1">IDEMPOTENCY_CONFLICT</span>,</span></div>
+<div class="ln code" id="L265"><a class="n" href="#L265" data-n="265"></a><span class="t">      <span class="pl-s">'Idempotency key đã dùng cho 1 request khác nội dung'</span>,</span></div>
+<div class="ln code" id="L266"><a class="n" href="#L266" data-n="266"></a><span class="t">      HttpStatus.<span class="pl-c1">CONFLICT</span>,</span></div>
+<div class="ln code" id="L267"><a class="n" href="#L267" data-n="267"></a><span class="t">    );</span></div>
+<div class="ln code" id="L268"><a class="n" href="#L268" data-n="268"></a><span class="t">  }</span></div>
+<div class="ln code" id="L269"><a class="n" href="#L269" data-n="269"></a><span class="t">  <span class="pl-k">return</span> existing;</span></div>
+<div class="ln code" id="L270"><a class="n" href="#L270" data-n="270"></a><span class="t">}</span></div>
+<div class="ln code" id="L271"><a class="n" href="#L271" data-n="271"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L272"><a class="n" href="#L272" data-n="272"></a><span class="t"><span class="pl-k">async</span> <span class="pl-en">recordInManager</span>(</span></div>
+<div class="ln code" id="L273"><a class="n" href="#L273" data-n="273"></a><span class="t">  manager: <span class="pl-en">EntityManager</span>,</span></div>
+<div class="ln code" id="L274"><a class="n" href="#L274" data-n="274"></a><span class="t">  input: <span class="pl-en">RecordTransactionInput</span>,</span></div>
+<div class="ln code" id="L275"><a class="n" href="#L275" data-n="275"></a><span class="t">): <span class="pl-en">Promise</span>&lt;<span class="pl-en">RecordResult</span>&gt; {</span></div>
+<div class="ln code" id="L276"><a class="n" href="#L276" data-n="276"></a><span class="t">  <span class="pl-c1">this</span>.<span class="pl-en">validateInput</span>(input);</span></div>
+<div class="ln code" id="L277"><a class="n" href="#L277" data-n="277"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">requestHash</span> = <span class="pl-c1">this</span>.<span class="pl-en">hashRequest</span>(input);</span></div>
+<div class="ln code" id="L278"><a class="n" href="#L278" data-n="278"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">existing</span> = <span class="pl-k">await</span> manager.<span class="pl-en">findOne</span>(<span class="pl-en">LedgerTransaction</span>, {</span></div>
+<div class="ln code" id="L279"><a class="n" href="#L279" data-n="279"></a><span class="t">    where: { idempotencyKey: input.idempotencyKey },</span></div>
+<div class="ln code" id="L280"><a class="n" href="#L280" data-n="280"></a><span class="t">  });</span></div>
+<div class="ln code" id="L281"><a class="n" href="#L281" data-n="281"></a><span class="t">  <span class="pl-k">if</span> (existing) {</span></div>
+<div class="ln code" id="L282"><a class="n" href="#L282" data-n="282"></a><span class="t">    <span class="pl-k">return</span> {</span></div>
+<div class="ln code" id="L283"><a class="n" href="#L283" data-n="283"></a><span class="t">      transaction: <span class="pl-c1">this</span>.<span class="pl-en">assertSameRequest</span>(existing, requestHash),</span></div>
+<div class="ln code" id="L284"><a class="n" href="#L284" data-n="284"></a><span class="t">      replayed: <span class="pl-c1">true</span>,</span></div>
+<div class="ln code" id="L285"><a class="n" href="#L285" data-n="285"></a><span class="t">    };</span></div>
+<div class="ln code" id="L286"><a class="n" href="#L286" data-n="286"></a><span class="t">  }</span></div>
+<div class="ln code" id="L287"><a class="n" href="#L287" data-n="287"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L288"><a class="n" href="#L288" data-n="288"></a><span class="t">  <span class="pl-c">// <b class="tg tg-postgres">[POSTGRES]</b> ON CONFLICT DO NOTHING thay vì bắt lỗi unique, vì lỗi đó làm abort cả</span></span></div>
+<div class="ln code" id="L289"><a class="n" href="#L289" data-n="289"></a><span class="t">  <span class="pl-c">// transaction của caller. Postgres chờ bên thắng commit; không chèn được dòng mới thì</span></span></div>
+<div class="ln code" id="L290"><a class="n" href="#L290" data-n="290"></a><span class="t">  <span class="pl-c">// đây là replay, không ghi bút toán.</span></span></div>
+<div class="ln code" id="L291"><a class="n" href="#L291" data-n="291"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">insertResult</span> = <span class="pl-k">await</span> manager</span></div>
+<div class="ln code" id="L292"><a class="n" href="#L292" data-n="292"></a><span class="t">    .<span class="pl-en">createQueryBuilder</span>()</span></div>
+<div class="ln code" id="L293"><a class="n" href="#L293" data-n="293"></a><span class="t">    .<span class="pl-en">insert</span>()</span></div>
+<div class="ln code" id="L294"><a class="n" href="#L294" data-n="294"></a><span class="t">    .<span class="pl-en">into</span>(<span class="pl-en">LedgerTransaction</span>)</span></div>
+<div class="ln code" id="L295"><a class="n" href="#L295" data-n="295"></a><span class="t">    .<span class="pl-en">values</span>({</span></div>
+<div class="ln code" id="L296"><a class="n" href="#L296" data-n="296"></a><span class="t">      type: input.type,</span></div>
+<div class="ln code" id="L297"><a class="n" href="#L297" data-n="297"></a><span class="t">      status: TransactionStatus.<span class="pl-en">Completed</span>,</span></div>
+<div class="ln code" id="L298"><a class="n" href="#L298" data-n="298"></a><span class="t">      idempotencyKey: input.idempotencyKey,</span></div>
+<div class="ln code" id="L299"><a class="n" href="#L299" data-n="299"></a><span class="t">      requestHash,</span></div>
+<div class="ln code" id="L300"><a class="n" href="#L300" data-n="300"></a><span class="t">      actorUserId: input.actorUserId ?? <span class="pl-c1">null</span>,</span></div>
+<div class="ln code" id="L301"><a class="n" href="#L301" data-n="301"></a><span class="t">      reversalOf: input.reversalOf ?? <span class="pl-c1">null</span>,</span></div>
+<div class="ln code" id="L302"><a class="n" href="#L302" data-n="302"></a><span class="t">      metadata: (input.metadata ?? {}) <span class="pl-k">as</span> <span class="pl-c1">never</span>,</span></div>
+<div class="ln code" id="L303"><a class="n" href="#L303" data-n="303"></a><span class="t">    })</span></div>
+<div class="ln code" id="L304"><a class="n" href="#L304" data-n="304"></a><span class="t">    .<span class="pl-en">orIgnore</span>()</span></div>
+<div class="ln code" id="L305"><a class="n" href="#L305" data-n="305"></a><span class="t">    .<span class="pl-en">execute</span>();</span></div>
+<div class="ln code" id="L306"><a class="n" href="#L306" data-n="306"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L307"><a class="n" href="#L307" data-n="307"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">insertedId</span> =</span></div>
+<div class="ln code" id="L308"><a class="n" href="#L308" data-n="308"></a><span class="t">    insertResult.identifiers[<span class="pl-c1">0</span>]?.id ?? insertResult.raw[<span class="pl-c1">0</span>]?.id;</span></div>
+<div class="ln code" id="L309"><a class="n" href="#L309" data-n="309"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L310"><a class="n" href="#L310" data-n="310"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">txn</span> = <span class="pl-k">await</span> manager.<span class="pl-en">findOneByOrFail</span>(<span class="pl-en">LedgerTransaction</span>, {</span></div>
+<div class="ln code" id="L311"><a class="n" href="#L311" data-n="311"></a><span class="t">    idempotencyKey: input.idempotencyKey,</span></div>
+<div class="ln code" id="L312"><a class="n" href="#L312" data-n="312"></a><span class="t">  });</span></div>
+<div class="ln code" id="L313"><a class="n" href="#L313" data-n="313"></a><span class="t">  <span class="pl-k">if</span> (!insertedId)</span></div>
+<div class="ln code" id="L314"><a class="n" href="#L314" data-n="314"></a><span class="t">    <span class="pl-k">return</span> {</span></div>
+<div class="ln code" id="L315"><a class="n" href="#L315" data-n="315"></a><span class="t">      transaction: <span class="pl-c1">this</span>.<span class="pl-en">assertSameRequest</span>(txn, requestHash),</span></div>
+<div class="ln code" id="L316"><a class="n" href="#L316" data-n="316"></a><span class="t">      replayed: <span class="pl-c1">true</span>,</span></div>
+<div class="ln code" id="L317"><a class="n" href="#L317" data-n="317"></a><span class="t">    };</span></div>
+<div class="ln code" id="L318"><a class="n" href="#L318" data-n="318"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L319"><a class="n" href="#L319" data-n="319"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">accounts</span>: <span class="pl-en">LedgerAccount</span>[] = [];</span></div>
+<div class="ln code" id="L320"><a class="n" href="#L320" data-n="320"></a><span class="t">  <span class="pl-k">for</span> (<span class="pl-k">const</span> <span class="pl-c1">entry</span> <span class="pl-k">of</span> input.entries)</span></div>
+<div class="ln code" id="L321"><a class="n" href="#L321" data-n="321"></a><span class="t">    accounts.<span class="pl-en">push</span>(<span class="pl-k">await</span> <span class="pl-c1">this</span>.<span class="pl-en">resolveAccount</span>(manager, entry));</span></div>
+<div class="ln code" id="L322"><a class="n" href="#L322" data-n="322"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L323"><a class="n" href="#L323" data-n="323"></a><span class="t">  <span class="pl-c">// Khóa ví theo thứ tự userId đã sắp xếp để tránh deadlock khi một giao dịch chạm</span></span></div>
+<div class="ln code" id="L324"><a class="n" href="#L324" data-n="324"></a><span class="t">  <span class="pl-c">// nhiều ví.</span></span></div>
+<div class="ln code" id="L325"><a class="n" href="#L325" data-n="325"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">userIds</span> = [</span></div>
+<div class="ln code" id="L326"><a class="n" href="#L326" data-n="326"></a><span class="t">    ...<span class="pl-k">new</span> <span class="pl-en">Set</span>(</span></div>
+<div class="ln code" id="L327"><a class="n" href="#L327" data-n="327"></a><span class="t">      input.entries.<span class="pl-en">filter</span>((e) =&gt; e.userId).<span class="pl-en">map</span>((e) =&gt; e.userId <span class="pl-k">as</span> <span class="pl-c1">string</span>),</span></div>
+<div class="ln code" id="L328"><a class="n" href="#L328" data-n="328"></a><span class="t">    ),</span></div>
+<div class="ln code" id="L329"><a class="n" href="#L329" data-n="329"></a><span class="t">  ].<span class="pl-en">sort</span>();</span></div>
+<div class="ln code" id="L330"><a class="n" href="#L330" data-n="330"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">wallets</span> = <span class="pl-k">new</span> <span class="pl-en">Map</span>&lt;<span class="pl-c1">string</span>, <span class="pl-en">Wallet</span>&gt;();</span></div>
+<div class="ln code" id="L331"><a class="n" href="#L331" data-n="331"></a><span class="t">  <span class="pl-k">for</span> (<span class="pl-k">const</span> <span class="pl-c1">userId</span> <span class="pl-k">of</span> userIds)</span></div>
+<div class="ln code" id="L332"><a class="n" href="#L332" data-n="332"></a><span class="t">    wallets.<span class="pl-en">set</span>(userId, <span class="pl-k">await</span> <span class="pl-c1">this</span>.<span class="pl-en">lockWallet</span>(manager, userId));</span></div>
+<div class="ln code" id="L333"><a class="n" href="#L333" data-n="333"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L334"><a class="n" href="#L334" data-n="334"></a><span class="t">  <span class="pl-k">await</span> manager.<span class="pl-en">save</span>(</span></div>
+<div class="ln code" id="L335"><a class="n" href="#L335" data-n="335"></a><span class="t">    input.entries.<span class="pl-en">map</span>((entry, i) =&gt;</span></div>
+<div class="ln code" id="L336"><a class="n" href="#L336" data-n="336"></a><span class="t">      manager.<span class="pl-en">create</span>(<span class="pl-en">LedgerEntry</span>, {</span></div>
+<div class="ln code" id="L337"><a class="n" href="#L337" data-n="337"></a><span class="t">        transactionId: txn.id,</span></div>
+<div class="ln code" id="L338"><a class="n" href="#L338" data-n="338"></a><span class="t">        accountId: accounts[i].id,</span></div>
+<div class="ln code" id="L339"><a class="n" href="#L339" data-n="339"></a><span class="t">        direction: entry.direction,</span></div>
+<div class="ln code" id="L340"><a class="n" href="#L340" data-n="340"></a><span class="t">        amount: entry.amount.<span class="pl-en">toString</span>(),</span></div>
+<div class="ln code" id="L341"><a class="n" href="#L341" data-n="341"></a><span class="t">        currency: entry.currency,</span></div>
+<div class="ln code" id="L342"><a class="n" href="#L342" data-n="342"></a><span class="t">      }),</span></div>
+<div class="ln code" id="L343"><a class="n" href="#L343" data-n="343"></a><span class="t">    ),</span></div>
+<div class="ln code" id="L344"><a class="n" href="#L344" data-n="344"></a><span class="t">  );</span></div>
+<div class="ln code" id="L345"><a class="n" href="#L345" data-n="345"></a><span class="t">  <span class="pl-k">await</span> <span class="pl-c1">this</span>.<span class="pl-en">applyWalletDeltas</span>(</span></div>
+<div class="ln code" id="L346"><a class="n" href="#L346" data-n="346"></a><span class="t">    manager,</span></div>
+<div class="ln code" id="L347"><a class="n" href="#L347" data-n="347"></a><span class="t">    txn,</span></div>
+<div class="ln code" id="L348"><a class="n" href="#L348" data-n="348"></a><span class="t">    input.entries,</span></div>
+<div class="ln code" id="L349"><a class="n" href="#L349" data-n="349"></a><span class="t">    wallets,</span></div>
+<div class="ln code" id="L350"><a class="n" href="#L350" data-n="350"></a><span class="t">    input.outboxEventTypeOverride,</span></div>
+<div class="ln code" id="L351"><a class="n" href="#L351" data-n="351"></a><span class="t">  );</span></div>
+<div class="ln code" id="L352"><a class="n" href="#L352" data-n="352"></a><span class="t">  <span class="pl-c">// Phần việc riêng của từng luồng (gia hạn VIP, lưu receipt...) chạy CÙNG transaction,</span></span></div>
+<div class="ln code" id="L353"><a class="n" href="#L353" data-n="353"></a><span class="t">  <span class="pl-c">// sau khi ví đã khóa và số dư đã cập nhật.</span></span></div>
+<div class="ln code" id="L354"><a class="n" href="#L354" data-n="354"></a><span class="t">  <span class="pl-k">await</span> input.withinTransaction?.(manager, txn);</span></div>
+<div class="ln code" id="L355"><a class="n" href="#L355" data-n="355"></a><span class="t">  <span class="pl-k">return</span> { transaction: txn, replayed: <span class="pl-c1">false</span> };</span></div>
+<div class="ln code" id="L356"><a class="n" href="#L356" data-n="356"></a><span class="t">}</span></div>
+<div class="ln code" id="L357"><a class="n" href="#L357" data-n="357"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L358"><a class="n" href="#L358" data-n="358"></a><span class="t"><span class="pl-k">private</span> <span class="pl-k">async</span> <span class="pl-en">resolveAccount</span>(</span></div>
+<div class="ln code" id="L359"><a class="n" href="#L359" data-n="359"></a><span class="t">  manager: <span class="pl-en">EntityManager</span>,</span></div>
+<div class="ln code" id="L360"><a class="n" href="#L360" data-n="360"></a><span class="t">  entry: <span class="pl-en">LedgerEntryInput</span>,</span></div>
+<div class="ln code" id="L361"><a class="n" href="#L361" data-n="361"></a><span class="t">): <span class="pl-en">Promise</span>&lt;<span class="pl-en">LedgerAccount</span>&gt; {</span></div>
+<div class="ln code" id="L362"><a class="n" href="#L362" data-n="362"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">isUserAccount</span> = <span class="pl-c1">USER_ACCOUNT_KINDS</span>.<span class="pl-en">has</span>(entry.accountKind);</span></div>
+<div class="ln code" id="L363"><a class="n" href="#L363" data-n="363"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">where</span> = {</span></div>
+<div class="ln code" id="L364"><a class="n" href="#L364" data-n="364"></a><span class="t">    kind: entry.accountKind,</span></div>
+<div class="ln code" id="L365"><a class="n" href="#L365" data-n="365"></a><span class="t">    userId: isUserAccount ? (entry.userId <span class="pl-k">as</span> <span class="pl-c1">string</span>) : <span class="pl-en">IsNull</span>(),</span></div>
+<div class="ln code" id="L366"><a class="n" href="#L366" data-n="366"></a><span class="t">    currency: entry.currency,</span></div>
+<div class="ln code" id="L367"><a class="n" href="#L367" data-n="367"></a><span class="t">  };</span></div>
+<div class="ln code" id="L368"><a class="n" href="#L368" data-n="368"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">found</span> = <span class="pl-k">await</span> manager.<span class="pl-en">getRepository</span>(<span class="pl-en">LedgerAccount</span>).<span class="pl-en">findOneBy</span>(where);</span></div>
+<div class="ln code" id="L369"><a class="n" href="#L369" data-n="369"></a><span class="t">  <span class="pl-k">if</span> (found) <span class="pl-k">return</span> found;</span></div>
+<div class="ln code" id="L370"><a class="n" href="#L370" data-n="370"></a><span class="t">  <span class="pl-c">// Tạo tài khoản kiểu ON CONFLICT DO NOTHING, KHÔNG insert-rồi-bắt-lỗi 23505: lỗi đó</span></span></div>
+<div class="ln code" id="L371"><a class="n" href="#L371" data-n="371"></a><span class="t">  <span class="pl-c">// làm abort cả transaction nên nhánh bắt-lỗi không bao giờ chạy được, bên thua sẽ</span></span></div>
+<div class="ln code" id="L372"><a class="n" href="#L372" data-n="372"></a><span class="t">  <span class="pl-c">// chết 500.</span></span></div>
+<div class="ln code" id="L373"><a class="n" href="#L373" data-n="373"></a><span class="t">  <span class="pl-k">await</span> manager.<span class="pl-en">query</span>(</span></div>
+<div class="ln code" id="L374"><a class="n" href="#L374" data-n="374"></a><span class="t">    <span class="pl-s">`INSERT INTO ledger_accounts (kind, user_id, currency) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`</span>,</span></div>
+<div class="ln code" id="L375"><a class="n" href="#L375" data-n="375"></a><span class="t">    [</span></div>
+<div class="ln code" id="L376"><a class="n" href="#L376" data-n="376"></a><span class="t">      entry.accountKind,</span></div>
+<div class="ln code" id="L377"><a class="n" href="#L377" data-n="377"></a><span class="t">      isUserAccount ? (entry.userId <span class="pl-k">as</span> <span class="pl-c1">string</span>) : <span class="pl-c1">null</span>,</span></div>
+<div class="ln code" id="L378"><a class="n" href="#L378" data-n="378"></a><span class="t">      entry.currency,</span></div>
+<div class="ln code" id="L379"><a class="n" href="#L379" data-n="379"></a><span class="t">    ],</span></div>
+<div class="ln code" id="L380"><a class="n" href="#L380" data-n="380"></a><span class="t">  );</span></div>
+<div class="ln code" id="L381"><a class="n" href="#L381" data-n="381"></a><span class="t">  <span class="pl-k">return</span> manager.<span class="pl-en">getRepository</span>(<span class="pl-en">LedgerAccount</span>).<span class="pl-en">findOneByOrFail</span>(where);</span></div>
+<div class="ln code" id="L382"><a class="n" href="#L382" data-n="382"></a><span class="t">}</span></div>
+<div class="ln code" id="L383"><a class="n" href="#L383" data-n="383"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L384"><a class="n" href="#L384" data-n="384"></a><span class="t"><span class="pl-k">private</span> <span class="pl-k">async</span> <span class="pl-en">lockWallet</span>(</span></div>
+<div class="ln code" id="L385"><a class="n" href="#L385" data-n="385"></a><span class="t">  manager: <span class="pl-en">EntityManager</span>,</span></div>
+<div class="ln code" id="L386"><a class="n" href="#L386" data-n="386"></a><span class="t">  userId: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L387"><a class="n" href="#L387" data-n="387"></a><span class="t">): <span class="pl-en">Promise</span>&lt;<span class="pl-en">Wallet</span>&gt; {</span></div>
+<div class="ln code" id="L388"><a class="n" href="#L388" data-n="388"></a><span class="t">  <span class="pl-c">// <b class="tg tg-postgres">[POSTGRES]</b> Ví tạo khi cần rồi khóa FOR UPDATE: đây là điểm tuần tự hóa theo từng</span></span></div>
+<div class="ln code" id="L389"><a class="n" href="#L389" data-n="389"></a><span class="t">  <span class="pl-c">// user, 2 giao dịch cùng ví không chạy song song.</span></span></div>
+<div class="ln code" id="L390"><a class="n" href="#L390" data-n="390"></a><span class="t">  <span class="pl-k">await</span> manager.<span class="pl-en">query</span>(</span></div>
+<div class="ln code" id="L391"><a class="n" href="#L391" data-n="391"></a><span class="t">    <span class="pl-s">`INSERT INTO wallets (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`</span>,</span></div>
+<div class="ln code" id="L392"><a class="n" href="#L392" data-n="392"></a><span class="t">    [userId],</span></div>
+<div class="ln code" id="L393"><a class="n" href="#L393" data-n="393"></a><span class="t">  );</span></div>
+<div class="ln code" id="L394"><a class="n" href="#L394" data-n="394"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">wallet</span> = <span class="pl-k">await</span> manager</span></div>
+<div class="ln code" id="L395"><a class="n" href="#L395" data-n="395"></a><span class="t">    .<span class="pl-en">getRepository</span>(<span class="pl-en">Wallet</span>)</span></div>
+<div class="ln code" id="L396"><a class="n" href="#L396" data-n="396"></a><span class="t">    .<span class="pl-en">createQueryBuilder</span>(<span class="pl-s">'w'</span>)</span></div>
+<div class="ln code" id="L397"><a class="n" href="#L397" data-n="397"></a><span class="t">    .<span class="pl-en">setLock</span>(<span class="pl-s">'pessimistic_write'</span>)</span></div>
+<div class="ln code" id="L398"><a class="n" href="#L398" data-n="398"></a><span class="t">    .<span class="pl-en">where</span>(<span class="pl-s">'w.user_id = :userId'</span>, { userId })</span></div>
+<div class="ln code" id="L399"><a class="n" href="#L399" data-n="399"></a><span class="t">    .<span class="pl-en">getOne</span>();</span></div>
+<div class="ln code" id="L400"><a class="n" href="#L400" data-n="400"></a><span class="t">  <span class="pl-k">if</span> (!wallet) <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">Error</span>(<span class="pl-s">`Không lock được ví của user ${</span>userId<span class="pl-s">}`</span>);</span></div>
+<div class="ln code" id="L401"><a class="n" href="#L401" data-n="401"></a><span class="t">  <span class="pl-k">return</span> wallet;</span></div>
+<div class="ln code" id="L402"><a class="n" href="#L402" data-n="402"></a><span class="t">}</span></div>
+<div class="ln code" id="L403"><a class="n" href="#L403" data-n="403"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L404"><a class="n" href="#L404" data-n="404"></a><span class="t"><span class="pl-k">private</span> <span class="pl-k">async</span> <span class="pl-en">applyWalletDeltas</span>(</span></div>
+<div class="ln code" id="L405"><a class="n" href="#L405" data-n="405"></a><span class="t">  manager: <span class="pl-en">EntityManager</span>,</span></div>
+<div class="ln code" id="L406"><a class="n" href="#L406" data-n="406"></a><span class="t">  txn: <span class="pl-en">LedgerTransaction</span>,</span></div>
+<div class="ln code" id="L407"><a class="n" href="#L407" data-n="407"></a><span class="t">  entries: <span class="pl-en">LedgerEntryInput</span>[],</span></div>
+<div class="ln code" id="L408"><a class="n" href="#L408" data-n="408"></a><span class="t">  wallets: <span class="pl-en">Map</span>&lt;<span class="pl-c1">string</span>, <span class="pl-en">Wallet</span>&gt;,</span></div>
+<div class="ln code" id="L409"><a class="n" href="#L409" data-n="409"></a><span class="t">  outboxEventTypeOverride?: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L410"><a class="n" href="#L410" data-n="410"></a><span class="t">): <span class="pl-en">Promise</span>&lt;<span class="pl-c1">void</span>&gt; {</span></div>
+<div class="ln code" id="L411"><a class="n" href="#L411" data-n="411"></a><span class="t">  <span class="pl-k">for</span> (<span class="pl-k">const</span> [userId, wallet] <span class="pl-k">of</span> wallets) {</span></div>
+<div class="ln code" id="L412"><a class="n" href="#L412" data-n="412"></a><span class="t">    <span class="pl-k">let</span> balanceDelta = <span class="pl-c1">0n</span>;</span></div>
+<div class="ln code" id="L413"><a class="n" href="#L413" data-n="413"></a><span class="t">    <span class="pl-k">let</span> earningsDelta = <span class="pl-c1">0n</span>;</span></div>
+<div class="ln code" id="L414"><a class="n" href="#L414" data-n="414"></a><span class="t">    <span class="pl-k">for</span> (<span class="pl-k">const</span> <span class="pl-c1">e</span> <span class="pl-k">of</span> entries) {</span></div>
+<div class="ln code" id="L415"><a class="n" href="#L415" data-n="415"></a><span class="t">      <span class="pl-k">if</span> (e.userId !== userId) <span class="pl-k">continue</span>;</span></div>
+<div class="ln code" id="L416"><a class="n" href="#L416" data-n="416"></a><span class="t">      <span class="pl-k">const</span> <span class="pl-c1">signed</span> =</span></div>
+<div class="ln code" id="L417"><a class="n" href="#L417" data-n="417"></a><span class="t">        e.direction === LedgerDirection.<span class="pl-en">Credit</span> ? e.amount : -e.amount;</span></div>
+<div class="ln code" id="L418"><a class="n" href="#L418" data-n="418"></a><span class="t">      <span class="pl-k">if</span> (e.accountKind === LedgerAccountKind.<span class="pl-en">UserWallet</span>)</span></div>
+<div class="ln code" id="L419"><a class="n" href="#L419" data-n="419"></a><span class="t">        balanceDelta += signed;</span></div>
+<div class="ln code" id="L420"><a class="n" href="#L420" data-n="420"></a><span class="t">      <span class="pl-k">if</span> (e.accountKind === LedgerAccountKind.<span class="pl-en">UserEarnings</span>)</span></div>
+<div class="ln code" id="L421"><a class="n" href="#L421" data-n="421"></a><span class="t">        earningsDelta += signed;</span></div>
+<div class="ln code" id="L422"><a class="n" href="#L422" data-n="422"></a><span class="t">    }</span></div>
+<div class="ln code" id="L423"><a class="n" href="#L423" data-n="423"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L424"><a class="n" href="#L424" data-n="424"></a><span class="t">    <span class="pl-k">const</span> <span class="pl-c1">newBalance</span> = <span class="pl-en">BigInt</span>(wallet.balance) + balanceDelta;</span></div>
+<div class="ln code" id="L425"><a class="n" href="#L425" data-n="425"></a><span class="t">    <span class="pl-k">const</span> <span class="pl-c1">newEarnings</span> = <span class="pl-en">BigInt</span>(wallet.earnings) + earningsDelta;</span></div>
+<div class="ln code" id="L426"><a class="n" href="#L426" data-n="426"></a><span class="t">    <span class="pl-c">// Chỉ reversal hoặc adjustment (refund, chargeback, sửa sai) mới được đẩy số dư âm</span></span></div>
+<div class="ln code" id="L427"><a class="n" href="#L427" data-n="427"></a><span class="t">    <span class="pl-c">// = user nợ diamond; giao dịch tiêu tiền thường thì không.</span></span></div>
+<div class="ln code" id="L428"><a class="n" href="#L428" data-n="428"></a><span class="t">    <span class="pl-k">const</span> <span class="pl-c1">mayGoNegative</span> =</span></div>
+<div class="ln code" id="L429"><a class="n" href="#L429" data-n="429"></a><span class="t">      txn.type === TransactionType.<span class="pl-en">Reversal</span> ||</span></div>
+<div class="ln code" id="L430"><a class="n" href="#L430" data-n="430"></a><span class="t">      txn.type === TransactionType.<span class="pl-en">Adjustment</span>;</span></div>
+<div class="ln code" id="L431"><a class="n" href="#L431" data-n="431"></a><span class="t">    <span class="pl-c">// Kiểm số dư SAU khi đã khóa ví, đúng lúc trừ tiền; không tin số dư đọc ở đầu</span></span></div>
+<div class="ln code" id="L432"><a class="n" href="#L432" data-n="432"></a><span class="t">    <span class="pl-c">// luồng.</span></span></div>
+<div class="ln code" id="L433"><a class="n" href="#L433" data-n="433"></a><span class="t">    <span class="pl-k">if</span> (newBalance &lt; <span class="pl-c1">0n</span> &amp;&amp; !mayGoNegative) {</span></div>
+<div class="ln code" id="L434"><a class="n" href="#L434" data-n="434"></a><span class="t">      <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
+<div class="ln code" id="L435"><a class="n" href="#L435" data-n="435"></a><span class="t">        EconomyErrors.<span class="pl-c1">WALLET_INSUFFICIENT_BALANCE</span>,</span></div>
+<div class="ln code" id="L436"><a class="n" href="#L436" data-n="436"></a><span class="t">        <span class="pl-s">'Không đủ diamond'</span>,</span></div>
+<div class="ln code" id="L437"><a class="n" href="#L437" data-n="437"></a><span class="t">        HttpStatus.<span class="pl-c1">UNPROCESSABLE_ENTITY</span>,</span></div>
+<div class="ln code" id="L438"><a class="n" href="#L438" data-n="438"></a><span class="t">        { required: (-newBalance).<span class="pl-en">toString</span>() },</span></div>
+<div class="ln code" id="L439"><a class="n" href="#L439" data-n="439"></a><span class="t">      );</span></div>
+<div class="ln code" id="L440"><a class="n" href="#L440" data-n="440"></a><span class="t">    }</span></div>
+<div class="ln code" id="L441"><a class="n" href="#L441" data-n="441"></a><span class="t">    <span class="pl-k">if</span> (newEarnings &lt; <span class="pl-c1">0n</span>) {</span></div>
+<div class="ln code" id="L442"><a class="n" href="#L442" data-n="442"></a><span class="t">      <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
+<div class="ln code" id="L443"><a class="n" href="#L443" data-n="443"></a><span class="t">        EconomyErrors.<span class="pl-c1">WALLET_INSUFFICIENT_BALANCE</span>,</span></div>
+<div class="ln code" id="L444"><a class="n" href="#L444" data-n="444"></a><span class="t">        <span class="pl-s">'Không đủ điểm quy đổi'</span>,</span></div>
+<div class="ln code" id="L445"><a class="n" href="#L445" data-n="445"></a><span class="t">        HttpStatus.<span class="pl-c1">UNPROCESSABLE_ENTITY</span>,</span></div>
+<div class="ln code" id="L446"><a class="n" href="#L446" data-n="446"></a><span class="t">      );</span></div>
+<div class="ln code" id="L447"><a class="n" href="#L447" data-n="447"></a><span class="t">    }</span></div>
+<div class="ln code" id="L448"><a class="n" href="#L448" data-n="448"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L449"><a class="n" href="#L449" data-n="449"></a><span class="t">    wallet.balance = newBalance.<span class="pl-en">toString</span>();</span></div>
+<div class="ln code" id="L450"><a class="n" href="#L450" data-n="450"></a><span class="t">    wallet.earnings = newEarnings.<span class="pl-en">toString</span>();</span></div>
+<div class="ln code" id="L451"><a class="n" href="#L451" data-n="451"></a><span class="t">    <span class="pl-k">await</span> manager.<span class="pl-en">save</span>(wallet);</span></div>
+<div class="ln code" id="L452"><a class="n" href="#L452" data-n="452"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L453"><a class="n" href="#L453" data-n="453"></a><span class="t">    <span class="pl-c">// Outbox: event ghi CÙNG transaction với số dư, relay gửi Kafka sau. Nhờ vậy không</span></span></div>
+<div class="ln code" id="L454"><a class="n" href="#L454" data-n="454"></a><span class="t">    <span class="pl-c">// có chuyện đổi số dư mà mất event, hay ngược lại.</span></span></div>
+<div class="ln code" id="L455"><a class="n" href="#L455" data-n="455"></a><span class="t">    <span class="pl-k">if</span> (balanceDelta !== <span class="pl-c1">0n</span>) {</span></div>
+<div class="ln code" id="L456"><a class="n" href="#L456" data-n="456"></a><span class="t">      <span class="pl-k">await</span> manager.<span class="pl-en">save</span>(</span></div>
+<div class="ln code" id="L457"><a class="n" href="#L457" data-n="457"></a><span class="t">        manager.<span class="pl-en">create</span>(<span class="pl-en">OutboxEvent</span>, {</span></div>
+<div class="ln code" id="L458"><a class="n" href="#L458" data-n="458"></a><span class="t">          topic: <span class="pl-c1">ECONOMY_EVENTS_TOPIC</span>,</span></div>
+<div class="ln code" id="L459"><a class="n" href="#L459" data-n="459"></a><span class="t">          eventType:</span></div>
+<div class="ln code" id="L460"><a class="n" href="#L460" data-n="460"></a><span class="t">            outboxEventTypeOverride ??</span></div>
+<div class="ln code" id="L461"><a class="n" href="#L461" data-n="461"></a><span class="t">            (balanceDelta &gt; <span class="pl-c1">0n</span></span></div>
+<div class="ln code" id="L462"><a class="n" href="#L462" data-n="462"></a><span class="t">              ? <span class="pl-s">'economy.diamond.credited'</span></span></div>
+<div class="ln code" id="L463"><a class="n" href="#L463" data-n="463"></a><span class="t">              : <span class="pl-s">'economy.diamond.debited'</span>),</span></div>
+<div class="ln code" id="L464"><a class="n" href="#L464" data-n="464"></a><span class="t">          payload: {</span></div>
+<div class="ln code" id="L465"><a class="n" href="#L465" data-n="465"></a><span class="t">            version: <span class="pl-c1">1</span>,</span></div>
+<div class="ln code" id="L466"><a class="n" href="#L466" data-n="466"></a><span class="t">            transactionId: txn.id,</span></div>
+<div class="ln code" id="L467"><a class="n" href="#L467" data-n="467"></a><span class="t">            transactionType: txn.type,</span></div>
+<div class="ln code" id="L468"><a class="n" href="#L468" data-n="468"></a><span class="t">            userId,</span></div>
+<div class="ln code" id="L469"><a class="n" href="#L469" data-n="469"></a><span class="t">            amount: (balanceDelta &gt; <span class="pl-c1">0n</span></span></div>
+<div class="ln code" id="L470"><a class="n" href="#L470" data-n="470"></a><span class="t">              ? balanceDelta</span></div>
+<div class="ln code" id="L471"><a class="n" href="#L471" data-n="471"></a><span class="t">              : -balanceDelta</span></div>
+<div class="ln code" id="L472"><a class="n" href="#L472" data-n="472"></a><span class="t">            ).<span class="pl-en">toString</span>(),</span></div>
+<div class="ln code" id="L473"><a class="n" href="#L473" data-n="473"></a><span class="t">          },</span></div>
+<div class="ln code" id="L474"><a class="n" href="#L474" data-n="474"></a><span class="t">        }),</span></div>
+<div class="ln code" id="L475"><a class="n" href="#L475" data-n="475"></a><span class="t">      );</span></div>
+<div class="ln code" id="L476"><a class="n" href="#L476" data-n="476"></a><span class="t">    }</span></div>
+<div class="ln code" id="L477"><a class="n" href="#L477" data-n="477"></a><span class="t">  }</span></div>
+<div class="ln code" id="L478"><a class="n" href="#L478" data-n="478"></a><span class="t">}</span></div>
+<div class="ln blank" id="L479"><a class="n" href="#L479" data-n="479"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag tier-postgres" id="L480"><a class="n" href="#L480" data-n="480"></a><span class="t"><span class="pl-c">// <b class="tg tg-postgres">[POSTGRES]</b> 1752000000000-economy-ledger.ts · L32–45</span></span></div>
+<div class="ln code" id="L481"><a class="n" href="#L481" data-n="481"></a><span class="t"><span class="pl-k">await</span> queryRunner.<span class="pl-en">query</span>(<span class="pl-s">`</span></span></div>
+<div class="ln code" id="L482"><a class="n" href="#L482" data-n="482"></a><span class="t"><span class="pl-s">  CREATE TABLE transactions (</span></span></div>
+<div class="ln code" id="L483"><a class="n" href="#L483" data-n="483"></a><span class="t"><span class="pl-s">    id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),</span></span></div>
+<div class="ln code" id="L484"><a class="n" href="#L484" data-n="484"></a><span class="t"><span class="pl-s">    type             varchar(32)  NOT NULL,</span></span></div>
+<div class="ln code" id="L485"><a class="n" href="#L485" data-n="485"></a><span class="t"><span class="pl-s">    status           varchar(16)  NOT NULL DEFAULT 'completed',</span></span></div>
+<div class="ln code" id="L486"><a class="n" href="#L486" data-n="486"></a><span class="t"><span class="pl-s">    idempotency_key  varchar(255) NOT NULL,</span></span></div>
+<div class="ln code" id="L487"><a class="n" href="#L487" data-n="487"></a><span class="t"><span class="pl-s">    request_hash     char(64)     NOT NULL,</span></span></div>
+<div class="ln code" id="L488"><a class="n" href="#L488" data-n="488"></a><span class="t"><span class="pl-s">    actor_user_id    uuid         NULL REFERENCES users(id),</span></span></div>
+<div class="ln code" id="L489"><a class="n" href="#L489" data-n="489"></a><span class="t"><span class="pl-s">    reversal_of      uuid         NULL REFERENCES transactions(id),</span></span></div>
+<div class="ln code" id="L490"><a class="n" href="#L490" data-n="490"></a><span class="t"><span class="pl-s">    metadata         jsonb        NOT NULL DEFAULT '{}',</span></span></div>
+<div class="ln code" id="L491"><a class="n" href="#L491" data-n="491"></a><span class="t"><span class="pl-s">    created_at       timestamptz  NOT NULL DEFAULT now(),</span></span></div>
+<div class="ln code" id="L492"><a class="n" href="#L492" data-n="492"></a><span class="t"><span class="pl-s">    CONSTRAINT uq_transactions_idempotency_key UNIQUE (idempotency_key)</span></span></div>
+<div class="ln code" id="L493"><a class="n" href="#L493" data-n="493"></a><span class="t"><span class="pl-s">  )</span></span></div>
+<div class="ln code" id="L494"><a class="n" href="#L494" data-n="494"></a><span class="t"><span class="pl-s">`</span>);</span></div>
+<div class="ln blank" id="L495"><a class="n" href="#L495" data-n="495"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag tier-postgres" id="L496"><a class="n" href="#L496" data-n="496"></a><span class="t"><span class="pl-c">// <b class="tg tg-postgres">[POSTGRES]</b> 1752000000000-economy-ledger.ts · L82–93</span></span></div>
+<div class="ln code" id="L497"><a class="n" href="#L497" data-n="497"></a><span class="t"><span class="pl-k">await</span> queryRunner.<span class="pl-en">query</span>(<span class="pl-s">`</span></span></div>
+<div class="ln code" id="L498"><a class="n" href="#L498" data-n="498"></a><span class="t"><span class="pl-s">  CREATE TABLE wallets (</span></span></div>
+<div class="ln code" id="L499"><a class="n" href="#L499" data-n="499"></a><span class="t"><span class="pl-s">    user_id         uuid PRIMARY KEY REFERENCES users(id),</span></span></div>
+<div class="ln code" id="L500"><a class="n" href="#L500" data-n="500"></a><span class="t"><span class="pl-s">    -- balance CÓ THỂ âm sau refund/chargeback (user nợ diamond) — không đặt CHECK &gt;= 0</span></span></div>
+<div class="ln code" id="L501"><a class="n" href="#L501" data-n="501"></a><span class="t"><span class="pl-s">    balance         bigint      NOT NULL DEFAULT 0,</span></span></div>
+<div class="ln code" id="L502"><a class="n" href="#L502" data-n="502"></a><span class="t"><span class="pl-s">    -- earnings (PTS) chỉ được cộng ở giai đoạn này (chưa có luồng tiêu) → vẫn giữ CHECK &gt;= 0</span></span></div>
+<div class="ln code" id="L503"><a class="n" href="#L503" data-n="503"></a><span class="t"><span class="pl-s">    earnings        bigint      NOT NULL DEFAULT 0 CHECK (earnings &gt;= 0),</span></span></div>
+<div class="ln code" id="L504"><a class="n" href="#L504" data-n="504"></a><span class="t"><span class="pl-s">    vip_tier        varchar(16) NULL,</span></span></div>
+<div class="ln code" id="L505"><a class="n" href="#L505" data-n="505"></a><span class="t"><span class="pl-s">    vip_expires_at  timestamptz NULL,</span></span></div>
+<div class="ln code" id="L506"><a class="n" href="#L506" data-n="506"></a><span class="t"><span class="pl-s">    updated_at      timestamptz NOT NULL DEFAULT now()</span></span></div>
+<div class="ln code" id="L507"><a class="n" href="#L507" data-n="507"></a><span class="t"><span class="pl-s">  )</span></span></div>
+<div class="ln code" id="L508"><a class="n" href="#L508" data-n="508"></a><span class="t"><span class="pl-s">`</span>);</span></div>
+<div class="ln blank" id="L509"><a class="n" href="#L509" data-n="509"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag tier-worker" id="L510"><a class="n" href="#L510" data-n="510"></a><span class="t"><span class="pl-c">// <b class="tg tg-worker">[WORKER]</b> outbox-relay.service.ts · L65–107, L109–113, L115–146</span></span></div>
+<div class="ln code" id="L511"><a class="n" href="#L511" data-n="511"></a><span class="t"><span class="pl-k">async</span> <span class="pl-en">flushOnce</span>(): <span class="pl-en">Promise</span>&lt;<span class="pl-c1">number</span>&gt; {</span></div>
+<div class="ln code" id="L512"><a class="n" href="#L512" data-n="512"></a><span class="t">  <span class="pl-k">return</span> <span class="pl-c1">this</span>.job.<span class="pl-en">runExclusive</span>(<span class="pl-k">async</span> () =&gt; {</span></div>
+<div class="ln code" id="L513"><a class="n" href="#L513" data-n="513"></a><span class="t">    <span class="pl-k">return</span> <span class="pl-k">await</span> <span class="pl-c1">this</span>.dataSource.<span class="pl-en">transaction</span>(<span class="pl-k">async</span> (manager) =&gt; {</span></div>
+<div class="ln code" id="L514"><a class="n" href="#L514" data-n="514"></a><span class="t">      <span class="pl-c">// <b class="tg tg-postgres">[POSTGRES]</b> FOR UPDATE SKIP LOCKED: nhiều pod chạy relay song song không dẫm</span></span></div>
+<div class="ln code" id="L515"><a class="n" href="#L515" data-n="515"></a><span class="t">      <span class="pl-c">// nhau, pod nào đã khóa lô nào thì pod khác bỏ qua lô đó.</span></span></div>
+<div class="ln code" id="L516"><a class="n" href="#L516" data-n="516"></a><span class="t">      <span class="pl-k">const</span> <span class="pl-c1">events</span>: <span class="pl-en">OutboxEvent</span>[] = <span class="pl-k">await</span> manager</span></div>
+<div class="ln code" id="L517"><a class="n" href="#L517" data-n="517"></a><span class="t">        .<span class="pl-en">getRepository</span>(<span class="pl-en">OutboxEvent</span>)</span></div>
+<div class="ln code" id="L518"><a class="n" href="#L518" data-n="518"></a><span class="t">        .<span class="pl-en">createQueryBuilder</span>(<span class="pl-s">'e'</span>)</span></div>
+<div class="ln code" id="L519"><a class="n" href="#L519" data-n="519"></a><span class="t">        .<span class="pl-en">setLock</span>(<span class="pl-s">'pessimistic_write'</span>)</span></div>
+<div class="ln code" id="L520"><a class="n" href="#L520" data-n="520"></a><span class="t">        .<span class="pl-en">setOnLocked</span>(<span class="pl-s">'skip_locked'</span>)</span></div>
+<div class="ln code" id="L521"><a class="n" href="#L521" data-n="521"></a><span class="t">        .<span class="pl-en">where</span>(<span class="pl-s">'e.published_at IS NULL'</span>)</span></div>
+<div class="ln code" id="L522"><a class="n" href="#L522" data-n="522"></a><span class="t">        .<span class="pl-en">andWhere</span>(<span class="pl-s">'e.dead_lettered_at IS NULL'</span>)</span></div>
+<div class="ln code" id="L523"><a class="n" href="#L523" data-n="523"></a><span class="t">        .<span class="pl-en">orderBy</span>(<span class="pl-s">'e.created_at'</span>, <span class="pl-s">'ASC'</span>)</span></div>
+<div class="ln code" id="L524"><a class="n" href="#L524" data-n="524"></a><span class="t">        .<span class="pl-en">limit</span>(<span class="pl-c1">BATCH_SIZE</span>)</span></div>
+<div class="ln code" id="L525"><a class="n" href="#L525" data-n="525"></a><span class="t">        .<span class="pl-en">getMany</span>();</span></div>
+<div class="ln code" id="L526"><a class="n" href="#L526" data-n="526"></a><span class="t">      <span class="pl-k">if</span> (events.length === <span class="pl-c1">0</span>) <span class="pl-k">return</span> <span class="pl-c1">0</span>;</span></div>
+<div class="ln code" id="L527"><a class="n" href="#L527" data-n="527"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L528"><a class="n" href="#L528" data-n="528"></a><span class="t">      <span class="pl-k">for</span> (<span class="pl-k">const</span> <span class="pl-c1">event</span> <span class="pl-k">of</span> events) {</span></div>
+<div class="ln code" id="L529"><a class="n" href="#L529" data-n="529"></a><span class="t">        <span class="pl-k">try</span> {</span></div>
+<div class="ln code" id="L530"><a class="n" href="#L530" data-n="530"></a><span class="t">          <span class="pl-c">// <b class="tg tg-kafka">[KAFKA]</b> Gửi xong mới đánh dấu published_at (lưu ở cuối vòng). Process chết</span></span></div>
+<div class="ln code" id="L531"><a class="n" href="#L531" data-n="531"></a><span class="t">          <span class="pl-c">// giữa chừng thì event được gửi lại ở vòng sau: giao kiểu at-least-once,</span></span></div>
+<div class="ln code" id="L532"><a class="n" href="#L532" data-n="532"></a><span class="t">          <span class="pl-c">// consumer phải chịu được trùng.</span></span></div>
+<div class="ln code" id="L533"><a class="n" href="#L533" data-n="533"></a><span class="t">          <span class="pl-k">await</span> <span class="pl-c1">this</span>.eventBus.<span class="pl-en">publish</span>(<span class="pl-en">toEventEnvelope</span>(event));</span></div>
+<div class="ln code" id="L534"><a class="n" href="#L534" data-n="534"></a><span class="t">          event.publishedAt = <span class="pl-k">new</span> <span class="pl-en">Date</span>();</span></div>
+<div class="ln code" id="L535"><a class="n" href="#L535" data-n="535"></a><span class="t">          event.lastError = <span class="pl-c1">null</span>;</span></div>
+<div class="ln code" id="L536"><a class="n" href="#L536" data-n="536"></a><span class="t">        } <span class="pl-k">catch</span> (err) {</span></div>
+<div class="ln code" id="L537"><a class="n" href="#L537" data-n="537"></a><span class="t">          event.attempts += <span class="pl-c1">1</span>;</span></div>
+<div class="ln code" id="L538"><a class="n" href="#L538" data-n="538"></a><span class="t">          event.lastError = <span class="pl-en">stringifyError</span>(err);</span></div>
+<div class="ln code" id="L539"><a class="n" href="#L539" data-n="539"></a><span class="t">          <span class="pl-c1">this</span>.logger.<span class="pl-en">error</span>(</span></div>
+<div class="ln code" id="L540"><a class="n" href="#L540" data-n="540"></a><span class="t">            {</span></div>
+<div class="ln code" id="L541"><a class="n" href="#L541" data-n="541"></a><span class="t">              eventId: event.id,</span></div>
+<div class="ln code" id="L542"><a class="n" href="#L542" data-n="542"></a><span class="t">              topic: event.topic,</span></div>
+<div class="ln code" id="L543"><a class="n" href="#L543" data-n="543"></a><span class="t">              attempts: event.attempts,</span></div>
+<div class="ln code" id="L544"><a class="n" href="#L544" data-n="544"></a><span class="t">              maxAttempts: <span class="pl-c1">this</span>.<span class="pl-en">maxAttempts</span>(),</span></div>
+<div class="ln code" id="L545"><a class="n" href="#L545" data-n="545"></a><span class="t">              err: event.lastError,</span></div>
+<div class="ln code" id="L546"><a class="n" href="#L546" data-n="546"></a><span class="t">            },</span></div>
+<div class="ln code" id="L547"><a class="n" href="#L547" data-n="547"></a><span class="t">            <span class="pl-s">'Outbox event publish failed'</span>,</span></div>
+<div class="ln code" id="L548"><a class="n" href="#L548" data-n="548"></a><span class="t">          );</span></div>
+<div class="ln code" id="L549"><a class="n" href="#L549" data-n="549"></a><span class="t">          <span class="pl-k">if</span> (event.attempts &gt;= <span class="pl-c1">this</span>.<span class="pl-en">maxAttempts</span>()) {</span></div>
+<div class="ln code" id="L550"><a class="n" href="#L550" data-n="550"></a><span class="t">            <span class="pl-k">await</span> <span class="pl-c1">this</span>.<span class="pl-en">deadLetter</span>(event);</span></div>
+<div class="ln code" id="L551"><a class="n" href="#L551" data-n="551"></a><span class="t">          }</span></div>
+<div class="ln code" id="L552"><a class="n" href="#L552" data-n="552"></a><span class="t">        }</span></div>
+<div class="ln code" id="L553"><a class="n" href="#L553" data-n="553"></a><span class="t">      }</span></div>
+<div class="ln code" id="L554"><a class="n" href="#L554" data-n="554"></a><span class="t">      <span class="pl-k">await</span> manager.<span class="pl-en">save</span>(events);</span></div>
+<div class="ln code" id="L555"><a class="n" href="#L555" data-n="555"></a><span class="t">      <span class="pl-k">return</span> events.<span class="pl-en">filter</span>((e) =&gt; e.publishedAt).length;</span></div>
+<div class="ln code" id="L556"><a class="n" href="#L556" data-n="556"></a><span class="t">    });</span></div>
+<div class="ln code" id="L557"><a class="n" href="#L557" data-n="557"></a><span class="t">  }, <span class="pl-c1">0</span>);</span></div>
+<div class="ln code" id="L558"><a class="n" href="#L558" data-n="558"></a><span class="t">}</span></div>
+<div class="ln code" id="L559"><a class="n" href="#L559" data-n="559"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L560"><a class="n" href="#L560" data-n="560"></a><span class="t"><span class="pl-k">private</span> <span class="pl-en">maxAttempts</span>(): <span class="pl-c1">number</span> {</span></div>
+<div class="ln code" id="L561"><a class="n" href="#L561" data-n="561"></a><span class="t">  <span class="pl-k">return</span> <span class="pl-c1">this</span>.config.<span class="pl-en">getOrThrow</span>(<span class="pl-s">'ECONOMY_OUTBOX_MAX_ATTEMPTS'</span>, {</span></div>
+<div class="ln code" id="L562"><a class="n" href="#L562" data-n="562"></a><span class="t">    <span class="pl-k">infer</span>: <span class="pl-c1">true</span>,</span></div>
+<div class="ln code" id="L563"><a class="n" href="#L563" data-n="563"></a><span class="t">  });</span></div>
+<div class="ln code" id="L564"><a class="n" href="#L564" data-n="564"></a><span class="t">}</span></div>
+<div class="ln code" id="L565"><a class="n" href="#L565" data-n="565"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L566"><a class="n" href="#L566" data-n="566"></a><span class="t"><span class="pl-k">private</span> <span class="pl-k">async</span> <span class="pl-en">deadLetter</span>(event: <span class="pl-en">OutboxEvent</span>): <span class="pl-en">Promise</span>&lt;<span class="pl-c1">void</span>&gt; {</span></div>
+<div class="ln code" id="L567"><a class="n" href="#L567" data-n="567"></a><span class="t">  <span class="pl-k">try</span> {</span></div>
+<div class="ln code" id="L568"><a class="n" href="#L568" data-n="568"></a><span class="t">    <span class="pl-k">await</span> <span class="pl-c1">this</span>.eventBus.<span class="pl-en">publishDeadLetter</span>(</span></div>
+<div class="ln code" id="L569"><a class="n" href="#L569" data-n="569"></a><span class="t">      <span class="pl-en">toEventEnvelope</span>(event),</span></div>
+<div class="ln code" id="L570"><a class="n" href="#L570" data-n="570"></a><span class="t">      event.lastError ?? <span class="pl-s">'unknown publish failure'</span>,</span></div>
+<div class="ln code" id="L571"><a class="n" href="#L571" data-n="571"></a><span class="t">      event.attempts,</span></div>
+<div class="ln code" id="L572"><a class="n" href="#L572" data-n="572"></a><span class="t">    );</span></div>
+<div class="ln code" id="L573"><a class="n" href="#L573" data-n="573"></a><span class="t">    <span class="pl-c1">this</span>.logger.<span class="pl-en">error</span>(</span></div>
+<div class="ln code" id="L574"><a class="n" href="#L574" data-n="574"></a><span class="t">      {</span></div>
+<div class="ln code" id="L575"><a class="n" href="#L575" data-n="575"></a><span class="t">        eventId: event.id,</span></div>
+<div class="ln code" id="L576"><a class="n" href="#L576" data-n="576"></a><span class="t">        topic: event.topic,</span></div>
+<div class="ln code" id="L577"><a class="n" href="#L577" data-n="577"></a><span class="t">        attempts: event.attempts,</span></div>
+<div class="ln code" id="L578"><a class="n" href="#L578" data-n="578"></a><span class="t">        deadLetterTopic: <span class="pl-s">`${</span>event.topic<span class="pl-s">}.DLQ`</span>,</span></div>
+<div class="ln code" id="L579"><a class="n" href="#L579" data-n="579"></a><span class="t">      },</span></div>
+<div class="ln code" id="L580"><a class="n" href="#L580" data-n="580"></a><span class="t">      <span class="pl-s">'Outbox event moved to dead-letter topic'</span>,</span></div>
+<div class="ln code" id="L581"><a class="n" href="#L581" data-n="581"></a><span class="t">    );</span></div>
+<div class="ln code" id="L582"><a class="n" href="#L582" data-n="582"></a><span class="t">  } <span class="pl-k">catch</span> (deadLetterError) {</span></div>
+<div class="ln code" id="L583"><a class="n" href="#L583" data-n="583"></a><span class="t">    <span class="pl-c1">this</span>.logger.<span class="pl-en">error</span>(</span></div>
+<div class="ln code" id="L584"><a class="n" href="#L584" data-n="584"></a><span class="t">      {</span></div>
+<div class="ln code" id="L585"><a class="n" href="#L585" data-n="585"></a><span class="t">        eventId: event.id,</span></div>
+<div class="ln code" id="L586"><a class="n" href="#L586" data-n="586"></a><span class="t">        topic: event.topic,</span></div>
+<div class="ln code" id="L587"><a class="n" href="#L587" data-n="587"></a><span class="t">        attempts: event.attempts,</span></div>
+<div class="ln code" id="L588"><a class="n" href="#L588" data-n="588"></a><span class="t">        err: <span class="pl-en">stringifyError</span>(deadLetterError),</span></div>
+<div class="ln code" id="L589"><a class="n" href="#L589" data-n="589"></a><span class="t">      },</span></div>
+<div class="ln code" id="L590"><a class="n" href="#L590" data-n="590"></a><span class="t">      <span class="pl-s">'Outbox dead-letter publish failed; retaining terminal row for replay'</span>,</span></div>
+<div class="ln code" id="L591"><a class="n" href="#L591" data-n="591"></a><span class="t">    );</span></div>
+<div class="ln code" id="L592"><a class="n" href="#L592" data-n="592"></a><span class="t">  } <span class="pl-k">finally</span> {</span></div>
+<div class="ln code" id="L593"><a class="n" href="#L593" data-n="593"></a><span class="t">    <span class="pl-c">// Dù gửi dead-letter được hay không (Kafka vẫn hỏng) vẫn đánh dấu terminal để khỏi</span></span></div>
+<div class="ln code" id="L594"><a class="n" href="#L594" data-n="594"></a><span class="t">    <span class="pl-c">// lặp vô hạn; dòng còn giữ lại là nguồn để vận hành replay.</span></span></div>
+<div class="ln code" id="L595"><a class="n" href="#L595" data-n="595"></a><span class="t">    event.deadLetteredAt = <span class="pl-k">new</span> <span class="pl-en">Date</span>();</span></div>
+<div class="ln code" id="L596"><a class="n" href="#L596" data-n="596"></a><span class="t">  }</span></div>
+<div class="ln code" id="L597"><a class="n" href="#L597" data-n="597"></a><span class="t">}</span></div>
+<div class="ln blank" id="L598"><a class="n" href="#L598" data-n="598"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag tier-worker" id="L599"><a class="n" href="#L599" data-n="599"></a><span class="t"><span class="pl-c">// <b class="tg tg-worker">[WORKER]</b> outbox-relay.service.ts · L149–158, L160–165, L167–173</span></span></div>
+<div class="ln code" id="L600"><a class="n" href="#L600" data-n="600"></a><span class="t"><span class="pl-k">function</span> <span class="pl-en">toEventEnvelope</span>(event: <span class="pl-en">OutboxEvent</span>): <span class="pl-en">EventEnvelope</span> {</span></div>
+<div class="ln code" id="L601"><a class="n" href="#L601" data-n="601"></a><span class="t">  <span class="pl-k">return</span> {</span></div>
+<div class="ln code" id="L602"><a class="n" href="#L602" data-n="602"></a><span class="t">    id: event.id,</span></div>
+<div class="ln code" id="L603"><a class="n" href="#L603" data-n="603"></a><span class="t">    topic: event.topic,</span></div>
+<div class="ln code" id="L604"><a class="n" href="#L604" data-n="604"></a><span class="t">    type: event.eventType,</span></div>
+<div class="ln code" id="L605"><a class="n" href="#L605" data-n="605"></a><span class="t">    version: <span class="pl-en">eventVersion</span>(event.payload),</span></div>
+<div class="ln code" id="L606"><a class="n" href="#L606" data-n="606"></a><span class="t">    key: <span class="pl-en">orderingKey</span>(event),</span></div>
+<div class="ln code" id="L607"><a class="n" href="#L607" data-n="607"></a><span class="t">    payload: event.payload,</span></div>
+<div class="ln code" id="L608"><a class="n" href="#L608" data-n="608"></a><span class="t">  };</span></div>
+<div class="ln code" id="L609"><a class="n" href="#L609" data-n="609"></a><span class="t">}</span></div>
+<div class="ln code" id="L610"><a class="n" href="#L610" data-n="610"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L611"><a class="n" href="#L611" data-n="611"></a><span class="t"><span class="pl-k">function</span> <span class="pl-en">eventVersion</span>(payload: <span class="pl-en">Record</span>&lt;<span class="pl-c1">string</span>, <span class="pl-c1">unknown</span>&gt;): <span class="pl-c1">number</span> {</span></div>
+<div class="ln code" id="L612"><a class="n" href="#L612" data-n="612"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">version</span> = payload[<span class="pl-s">'version'</span>];</span></div>
+<div class="ln code" id="L613"><a class="n" href="#L613" data-n="613"></a><span class="t">  <span class="pl-k">return</span> <span class="pl-k">typeof</span> version === <span class="pl-s">'number'</span> &amp;&amp; Number.<span class="pl-en">isInteger</span>(version)</span></div>
+<div class="ln code" id="L614"><a class="n" href="#L614" data-n="614"></a><span class="t">    ? version</span></div>
+<div class="ln code" id="L615"><a class="n" href="#L615" data-n="615"></a><span class="t">    : <span class="pl-c1">DEFAULT_EVENT_VERSION</span>;</span></div>
+<div class="ln code" id="L616"><a class="n" href="#L616" data-n="616"></a><span class="t">}</span></div>
+<div class="ln code" id="L617"><a class="n" href="#L617" data-n="617"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L618"><a class="n" href="#L618" data-n="618"></a><span class="t"><span class="pl-k">function</span> <span class="pl-en">orderingKey</span>(event: <span class="pl-en">OutboxEvent</span>): <span class="pl-c1">string</span> {</span></div>
+<div class="ln code" id="L619"><a class="n" href="#L619" data-n="619"></a><span class="t">  <span class="pl-k">for</span> (<span class="pl-k">const</span> <span class="pl-c1">field</span> <span class="pl-k">of</span> <span class="pl-c1">ORDERING_KEY_FIELDS</span>) {</span></div>
+<div class="ln code" id="L620"><a class="n" href="#L620" data-n="620"></a><span class="t">    <span class="pl-k">const</span> <span class="pl-c1">value</span> = event.payload[field];</span></div>
+<div class="ln code" id="L621"><a class="n" href="#L621" data-n="621"></a><span class="t">    <span class="pl-k">if</span> (<span class="pl-k">typeof</span> value === <span class="pl-s">'string'</span> &amp;&amp; value.length &gt; <span class="pl-c1">0</span>) <span class="pl-k">return</span> value;</span></div>
+<div class="ln code" id="L622"><a class="n" href="#L622" data-n="622"></a><span class="t">  }</span></div>
+<div class="ln code" id="L623"><a class="n" href="#L623" data-n="623"></a><span class="t">  <span class="pl-k">return</span> event.id;</span></div>
+<div class="ln code" id="L624"><a class="n" href="#L624" data-n="624"></a><span class="t">}</span></div>
+  </div>
+</div>
+</main>
+<script>(function(){
+var root=document.documentElement,key='litmatch-code-theme',btn=document.getElementById('theme'),labels={auto:'Tự động',light:'Sáng',dark:'Tối'};
+var mode='auto';try{var s=localStorage.getItem(key);if(s==='light'||s==='dark')mode=s}catch(e){}
+function apply(){if(mode==='auto')root.removeAttribute('data-theme');else root.setAttribute('data-theme',mode);btn.textContent='Theme: '+labels[mode]}
+apply();
+btn.addEventListener('click',function(){mode=mode==='auto'?'light':mode==='light'?'dark':'auto';try{if(mode==='auto')localStorage.removeItem(key);else localStorage.setItem(key,mode)}catch(e){}apply()});
+})();
+(function(){
+var copy=document.getElementById('copy');
+copy.addEventListener('click',function(){
+var text=Array.prototype.map.call(document.querySelectorAll('.ln .t'),function(n){return n.textContent.replace(/\u00a0/g,'')}).join('\n')+'\n';
+var done=function(){copy.textContent='Đã sao chép';setTimeout(function(){copy.textContent='Sao chép'},1500)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done,function(){})}
+else{var a=document.createElement('textarea');a.value=text;document.body.appendChild(a);a.select();try{document.execCommand('copy');done()}catch(e){}document.body.removeChild(a)}
+});
+})();</script>
+</body>
+</html>

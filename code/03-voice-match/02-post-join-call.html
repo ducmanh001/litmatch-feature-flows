@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>POST /api/v1/calling/match-sessions/:matchSessionId/join — Voice Match</title>
+<style>
+:root{color-scheme:light;--bg:#fff;--fg:#1f2328;--muted:#59636e;--border:#d1d9e0;--subtle:#f6f8fa;--accent:#0969da;--lnum:#818b98;--target:#fff8c5;--sec:#ddf4ff;--secfg:#0550ae;
+--pl-c:#6e7781;--pl-k:#cf222e;--pl-en:#8250df;--pl-c1:#0550ae;--pl-s:#0a3069;--ok:#1a7f37;--info:#0969da;--warn:#bc4c00;--t-controller:#1a7f37;--t-service:#bc4c00;--t-worker:#8250df;--t-postgres:#0969da;--t-redis:#cf222e;--t-kafka:#57606a;--t-bullmq:#bf3989;--t-external:#0a7a6b;--t-gateway:#9a6700}
+:root[data-theme=dark]{color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--lnum:#6e7681;--target:#3b2e0b;--sec:#10294a;--secfg:#79c0ff;
+--pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--lnum:#6e7681;--target:#3b2e0b;--sec:#10294a;--secfg:#79c0ff;
+--pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341}}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:24px 16px 48px}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.box{border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--bg)}
+.bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--subtle);border-bottom:1px solid var(--border)}
+.path{font-size:14px}.path b{font-weight:600}.meta{margin-left:12px;color:var(--muted);font-size:12px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:500 12px/20px -apple-system,"Segoe UI",sans-serif;padding:3px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer}
+.btn:hover{background:var(--subtle);text-decoration:none}
+.toc{display:flex;flex-wrap:wrap;gap:4px 16px;padding:8px 16px;border-bottom:1px solid var(--border);font-size:13px}
+.toc a.cur{color:var(--fg);font-weight:600;text-decoration:underline}
+.legend{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--border);font-size:12px;color:var(--muted)}
+.lg{font:700 11px/18px ui-monospace,SFMono-Regular,Consolas,monospace;padding:0 8px;border:1px solid currentColor;border-radius:999px}
+.src{overflow-x:auto;padding:8px 0;font:12px/20px ui-monospace,SFMono-Regular,"SF Mono","Cascadia Mono",Menlo,Consolas,"Liberation Mono",monospace;tab-size:2}
+.ln{display:flex;min-width:max-content}
+.ln .n{flex:none;width:56px;padding:0 16px 0 0;text-align:right;color:var(--lnum);user-select:none;text-decoration:none}
+.ln .n::before{content:attr(data-n)}.ln .n:hover{color:var(--fg)}
+.ln .t{white-space:pre;padding-right:24px}
+.ln:target{background:var(--target)}
+.ln.tag{background:var(--subtle);border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-top:2px}
+.ln.sec{background:var(--sec)}.ln.sec .pl-c{color:var(--secfg);font-weight:600}.ln.rule .pl-c{color:var(--border)}
+.pl-c{color:var(--pl-c)}.pl-k{color:var(--pl-k)}.pl-en{color:var(--pl-en)}.pl-c1{color:var(--pl-c1)}.pl-s{color:var(--pl-s)}
+.tg{font-weight:700}.tg-controller{color:var(--t-controller)}.ln.tag.tier-controller{box-shadow:inset 4px 0 0 var(--t-controller)}.tg-service{color:var(--t-service)}.ln.tag.tier-service{box-shadow:inset 4px 0 0 var(--t-service)}.tg-worker{color:var(--t-worker)}.ln.tag.tier-worker{box-shadow:inset 4px 0 0 var(--t-worker)}.tg-postgres{color:var(--t-postgres)}.ln.tag.tier-postgres{box-shadow:inset 4px 0 0 var(--t-postgres)}.tg-redis{color:var(--t-redis)}.ln.tag.tier-redis{box-shadow:inset 4px 0 0 var(--t-redis)}.tg-kafka{color:var(--t-kafka)}.ln.tag.tier-kafka{box-shadow:inset 4px 0 0 var(--t-kafka)}.tg-bullmq{color:var(--t-bullmq)}.ln.tag.tier-bullmq{box-shadow:inset 4px 0 0 var(--t-bullmq)}.tg-external{color:var(--t-external)}.ln.tag.tier-external{box-shadow:inset 4px 0 0 var(--t-external)}.tg-gateway{color:var(--t-gateway)}.ln.tag.tier-gateway{box-shadow:inset 4px 0 0 var(--t-gateway)}
+.idx{padding:20px 24px 28px}.idx h1{margin:0 0 8px;font-size:22px;font-weight:600}.idx p{margin:0 0 16px;color:var(--muted);max-width:820px}
+.idx h2{margin:30px 0 4px;font-size:17px;font-weight:600}.idx .sum{margin:0 0 10px}
+.tbl td.fn>a{font-weight:600}.tbl td.fn .rt{margin-top:3px;color:var(--muted)}.tbl td.tiers .lg{display:inline-block;margin:0 4px 4px 0}
+.tbl.ov{table-layout:fixed}.tbl.ov th:nth-child(1){width:32%}.tbl.ov th:nth-child(2){width:40%}.tbl.ov th:nth-child(3){width:28%}.tbl.ov code{overflow-wrap:anywhere}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}.tbl th,.tbl td{padding:8px 12px;text-align:left;border-top:1px solid var(--border);vertical-align:top}
+.tbl th{background:var(--subtle);font-size:12px;color:var(--muted);font-weight:600}.tbl td.num{color:var(--muted);font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.tbl td.tb{color:var(--muted);font-size:12px}.tbl td.lk,.tbl td.ep{white-space:nowrap}
+.tbl code{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--subtle);border:1px solid var(--border);border-radius:6px;padding:1px 6px}
+.m{display:inline-block;min-width:44px;text-align:center;font:700 11px/18px ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:4px;border:1px solid var(--border);padding:0 6px}
+.m-get{color:var(--ok)}.m-post{color:var(--info)}.m-put{color:var(--warn)}
+@media (max-width:700px){main{padding:12px 8px}.ln .n{width:44px;padding-right:10px}.idx{padding:16px 12px}}
+</style>
+</head>
+<body>
+<main>
+<div class="box">
+  <div class="bar">
+    <div class="path"><a href="https://github.com/ducmanh001/litmatch-feature-flows">litmatch-feature-flows</a> / <a href="https://github.com/ducmanh001/litmatch-feature-flows/tree/main/code/03-voice-match">03-voice-match</a> / <b>02-post-join-call.ts</b><span class="meta">231 dòng · 165 dòng code · litmatch @ d3cb28c</span></div>
+    <div class="actions">
+      <a class="btn" href="../index.html">Tổng quan</a>
+      <a class="btn" href="index.html">Các endpoint</a>
+      <a class="btn" href="../../index.html#03-voice-match">Sơ đồ luồng</a>
+      <a class="btn" href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/03-voice-match/02-post-join-call.ts">GitHub</a>
+      <a class="btn" href="https://raw.githubusercontent.com/ducmanh001/litmatch-feature-flows/main/code/03-voice-match/02-post-join-call.ts">Raw</a>
+      <button class="btn" id="copy" type="button">Sao chép</button>
+      <button class="btn" id="theme" type="button" title="Đổi theme">Theme: Tự động</button>
+    </div>
+  </div>
+  <nav class="toc"><a href="01-post-join-queue.html">01 POST /matching/tickets</a><a href="02-post-join-call.html" class="cur">02 POST /calling/match-sessions/:id/join</a><a href="03-post-webhook-livekit.html">03 POST /calling/webhooks/livekit</a><a href="04-post-like-call.html">04 POST /calling/calls/:id/like</a></nav>
+  <div class="legend"><span>Tầng:</span><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-external">EXTERNAL</b></div>
+  <div class="src">
+<div class="ln rule" id="L1"><a class="n" href="#L1" data-n="1"></a><span class="t"><span class="pl-c">// ════════════════════════════════════════════════════════════════════════════</span></span></div>
+<div class="ln sec" id="L2"><a class="n" href="#L2" data-n="2"></a><span class="t"><span class="pl-c">//  POST /api/v1/calling/match-sessions/:matchSessionId/join</span></span></div>
+<div class="ln sec" id="L3"><a class="n" href="#L3" data-n="3"></a><span class="t"><span class="pl-c">//  Mở phòng gọi cho cặp đã ghép: tạo CallSession duy nhất rồi cấp token LiveKit riêng cho từng người.</span></span></div>
+<div class="ln rule" id="L4"><a class="n" href="#L4" data-n="4"></a><span class="t"><span class="pl-c">// ════════════════════════════════════════════════════════════════════════════</span></span></div>
+<div class="ln head" id="L5"><a class="n" href="#L5" data-n="5"></a><span class="t"><span class="pl-c">//  Luồng      <b class="tg tg-controller">[CONTROLLER]</b> → <b class="tg tg-service">[SERVICE]</b> → <b class="tg tg-postgres">[POSTGRES]</b> → <b class="tg tg-external">[EXTERNAL]</b> → <b class="tg tg-service">[SERVICE]</b></span></span></div>
+<div class="ln head" id="L6"><a class="n" href="#L6" data-n="6"></a><span class="t"><span class="pl-c">//</span></span></div>
+<div class="ln head" id="L7"><a class="n" href="#L7" data-n="7"></a><span class="t"><span class="pl-c">//  Vai trò từng tầng</span></span></div>
+<div class="ln head" id="L8"><a class="n" href="#L8" data-n="8"></a><span class="t"><span class="pl-c">//    <b class="tg tg-controller">[CONTROLLER]</b> Nhận yêu cầu vào phòng gọi (giới hạn 20 lần/phút); chỉ lấy id session</span></span></div>
+<div class="ln head" id="L9"><a class="n" href="#L9" data-n="9"></a><span class="t"><span class="pl-c">//                 từ URL, người dùng lấy từ JWT; trả call, token và URL LiveKit.</span></span></div>
+<div class="ln head" id="L10"><a class="n" href="#L10" data-n="10"></a><span class="t"><span class="pl-c">//    <b class="tg tg-service">[SERVICE]</b>    Kiểm tra user thuộc session voice đã ghép, tạo hoặc lấy CallSession</span></span></div>
+<div class="ln head" id="L11"><a class="n" href="#L11" data-n="11"></a><span class="t"><span class="pl-c">//                 duy nhất của cặp, kiểm lại session lần nữa, rồi cấp token và chọn URL</span></span></div>
+<div class="ln head" id="L12"><a class="n" href="#L12" data-n="12"></a><span class="t"><span class="pl-c">//                 LiveKit.</span></span></div>
+<div class="ln head" id="L13"><a class="n" href="#L13" data-n="13"></a><span class="t"><span class="pl-c">//    <b class="tg tg-postgres">[POSTGRES]</b>   CallSession là nguồn sự thật của cuộc gọi; unique match_session_id</span></span></div>
+<div class="ln head" id="L14"><a class="n" href="#L14" data-n="14"></a><span class="t"><span class="pl-c">//                 bảo đảm 1 lượt ghép chỉ có 1 cuộc gọi dù 2 người join cùng lúc.</span></span></div>
+<div class="ln head" id="L15"><a class="n" href="#L15" data-n="15"></a><span class="t"><span class="pl-c">//    <b class="tg tg-external">[EXTERNAL]</b>   LiveKit SDK ký token vào phòng call-{id} bằng API key và secret; mỗi</span></span></div>
+<div class="ln head" id="L16"><a class="n" href="#L16" data-n="16"></a><span class="t"><span class="pl-c">//                 người một token riêng, identity là userId.</span></span></div>
+<div class="ln head" id="L17"><a class="n" href="#L17" data-n="17"></a><span class="t"><span class="pl-c">//</span></span></div>
+<div class="ln head" id="L18"><a class="n" href="#L18" data-n="18"></a><span class="t"><span class="pl-c">//  Bảng       call_sessions — 1 dòng cho mỗi cuộc gọi: tên phòng LiveKit, 2 user, trạng</span></span></div>
+<div class="ln head" id="L19"><a class="n" href="#L19" data-n="19"></a><span class="t"><span class="pl-c">//               thái pending, active hoặc ended.</span></span></div>
+<div class="ln head" id="L20"><a class="n" href="#L20" data-n="20"></a><span class="t"><span class="pl-c">//             match_sessions — chỉ đọc: cặp đã ghép, loại voice, trạng thái confirmed</span></span></div>
+<div class="ln head" id="L21"><a class="n" href="#L21" data-n="21"></a><span class="t"><span class="pl-c">//               (Matching là chủ sở hữu).</span></span></div>
+<div class="ln head" id="L22"><a class="n" href="#L22" data-n="22"></a><span class="t"><span class="pl-c">//             users — chỉ đọc region của 2 người để chọn URL LiveKit khi bật nhiều</span></span></div>
+<div class="ln head" id="L23"><a class="n" href="#L23" data-n="23"></a><span class="t"><span class="pl-c">//               region.</span></span></div>
+<div class="ln head" id="L24"><a class="n" href="#L24" data-n="24"></a><span class="t"><span class="pl-c">//  Liên quan  Matching — findSessionById: đọc MatchSession; Matching giữ quyền ghi</span></span></div>
+<div class="ln head" id="L25"><a class="n" href="#L25" data-n="25"></a><span class="t"><span class="pl-c">//               trạng thái session, Calling chỉ đọc.</span></span></div>
+<div class="ln head" id="L26"><a class="n" href="#L26" data-n="26"></a><span class="t"><span class="pl-c">//             User — getByIdOrThrow: đọc region của 2 người cho bước chọn URL.</span></span></div>
+<div class="ln head" id="L27"><a class="n" href="#L27" data-n="27"></a><span class="t"><span class="pl-c">//             Calling endById — đóng CallSession khi MatchSession đã kết thúc (chi tiết</span></span></div>
+<div class="ln head" id="L28"><a class="n" href="#L28" data-n="28"></a><span class="t"><span class="pl-c">//               ở luồng webhook và ticker).</span></span></div>
+<div class="ln head" id="L29"><a class="n" href="#L29" data-n="29"></a><span class="t"><span class="pl-c">//             LiveKit — SFU thật nằm ngoài core-api; ở bước này core-api chỉ ký token,</span></span></div>
+<div class="ln head" id="L30"><a class="n" href="#L30" data-n="30"></a><span class="t"><span class="pl-c">//               chưa mở kết nối nào.</span></span></div>
+<div class="ln blank" id="L31"><a class="n" href="#L31" data-n="31"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag tier-controller" id="L32"><a class="n" href="#L32" data-n="32"></a><span class="t"><span class="pl-c">// <b class="tg tg-controller">[CONTROLLER]</b> calling.controller.ts · L30–53</span></span></div>
+<div class="ln code" id="L33"><a class="n" href="#L33" data-n="33"></a><span class="t">@<span class="pl-en">Post</span>(<span class="pl-s">'match-sessions/:matchSessionId/join'</span>)</span></div>
+<div class="ln code" id="L34"><a class="n" href="#L34" data-n="34"></a><span class="t">@<span class="pl-en">HttpCode</span>(HttpStatus.<span class="pl-c1">OK</span>)</span></div>
+<div class="ln code" id="L35"><a class="n" href="#L35" data-n="35"></a><span class="t">@<span class="pl-en">Throttle</span>({ <span class="pl-k">default</span>: { limit: <span class="pl-c1">20</span>, ttl: <span class="pl-en">minutes</span>(<span class="pl-c1">1</span>) } })</span></div>
+<div class="ln code" id="L36"><a class="n" href="#L36" data-n="36"></a><span class="t"><span class="pl-k">async</span> <span class="pl-en">join</span>(</span></div>
+<div class="ln code" id="L37"><a class="n" href="#L37" data-n="37"></a><span class="t">  @<span class="pl-en">CurrentUser</span>() user: <span class="pl-en">AuthenticatedUser</span>,</span></div>
+<div class="ln code" id="L38"><a class="n" href="#L38" data-n="38"></a><span class="t">  @<span class="pl-en">Param</span>(<span class="pl-s">'matchSessionId'</span>, <span class="pl-en">ParseUUIDPipe</span>) matchSessionId: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L39"><a class="n" href="#L39" data-n="39"></a><span class="t">): <span class="pl-en">Promise</span>&lt;<span class="pl-en">JoinCallDto</span>&gt; {</span></div>
+<div class="ln code" id="L40"><a class="n" href="#L40" data-n="40"></a><span class="t">  <span class="pl-k">const</span> { call, token, livekitUrl } = <span class="pl-k">await</span> <span class="pl-c1">this</span>.callingService.<span class="pl-en">joinCall</span>(</span></div>
+<div class="ln code" id="L41"><a class="n" href="#L41" data-n="41"></a><span class="t">    user,</span></div>
+<div class="ln code" id="L42"><a class="n" href="#L42" data-n="42"></a><span class="t">    matchSessionId,</span></div>
+<div class="ln code" id="L43"><a class="n" href="#L43" data-n="43"></a><span class="t">  );</span></div>
+<div class="ln code" id="L44"><a class="n" href="#L44" data-n="44"></a><span class="t">  <span class="pl-k">return</span> JoinCallDto.<span class="pl-en">from</span>(</span></div>
+<div class="ln code" id="L45"><a class="n" href="#L45" data-n="45"></a><span class="t">    call,</span></div>
+<div class="ln code" id="L46"><a class="n" href="#L46" data-n="46"></a><span class="t">    token,</span></div>
+<div class="ln code" id="L47"><a class="n" href="#L47" data-n="47"></a><span class="t">    livekitUrl,</span></div>
+<div class="ln code" id="L48"><a class="n" href="#L48" data-n="48"></a><span class="t">    <span class="pl-c1">this</span>.callingService.<span class="pl-en">getFreeCallSeconds</span>(),</span></div>
+<div class="ln code" id="L49"><a class="n" href="#L49" data-n="49"></a><span class="t">  );</span></div>
+<div class="ln code" id="L50"><a class="n" href="#L50" data-n="50"></a><span class="t">}</span></div>
+<div class="ln blank" id="L51"><a class="n" href="#L51" data-n="51"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag tier-service" id="L52"><a class="n" href="#L52" data-n="52"></a><span class="t"><span class="pl-c">// <b class="tg tg-service">[SERVICE]</b> calling.service.ts · L101–201</span></span></div>
+<div class="ln code" id="L53"><a class="n" href="#L53" data-n="53"></a><span class="t"><span class="pl-k">async</span> <span class="pl-en">joinCall</span>(</span></div>
+<div class="ln code" id="L54"><a class="n" href="#L54" data-n="54"></a><span class="t">  user: <span class="pl-en">AuthenticatedUser</span>,</span></div>
+<div class="ln code" id="L55"><a class="n" href="#L55" data-n="55"></a><span class="t">  matchSessionId: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L56"><a class="n" href="#L56" data-n="56"></a><span class="t">): <span class="pl-en">Promise</span>&lt;<span class="pl-en">JoinCallResult</span>&gt; {</span></div>
+<div class="ln code" id="L57"><a class="n" href="#L57" data-n="57"></a><span class="t">  <span class="pl-c">// Không phải thành viên thì trả 404 giống như "không tồn tại", để không ai dò được</span></span></div>
+<div class="ln code" id="L58"><a class="n" href="#L58" data-n="58"></a><span class="t">  <span class="pl-c">// sessionId của người khác.</span></span></div>
+<div class="ln code" id="L59"><a class="n" href="#L59" data-n="59"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">session</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.matchingService.<span class="pl-en">findSessionById</span>(matchSessionId);</span></div>
+<div class="ln code" id="L60"><a class="n" href="#L60" data-n="60"></a><span class="t">  <span class="pl-k">if</span> (</span></div>
+<div class="ln code" id="L61"><a class="n" href="#L61" data-n="61"></a><span class="t">    !session ||</span></div>
+<div class="ln code" id="L62"><a class="n" href="#L62" data-n="62"></a><span class="t">    (session.userAId !== user.userId &amp;&amp; session.userBId !== user.userId)</span></div>
+<div class="ln code" id="L63"><a class="n" href="#L63" data-n="63"></a><span class="t">  ) {</span></div>
+<div class="ln code" id="L64"><a class="n" href="#L64" data-n="64"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
+<div class="ln code" id="L65"><a class="n" href="#L65" data-n="65"></a><span class="t">      CallingErrors.<span class="pl-c1">SESSION_NOT_FOUND</span>,</span></div>
+<div class="ln code" id="L66"><a class="n" href="#L66" data-n="66"></a><span class="t">      <span class="pl-s">'Không tìm thấy session'</span>,</span></div>
+<div class="ln code" id="L67"><a class="n" href="#L67" data-n="67"></a><span class="t">      HttpStatus.<span class="pl-c1">NOT_FOUND</span>,</span></div>
+<div class="ln code" id="L68"><a class="n" href="#L68" data-n="68"></a><span class="t">    );</span></div>
+<div class="ln code" id="L69"><a class="n" href="#L69" data-n="69"></a><span class="t">  }</span></div>
+<div class="ln code" id="L70"><a class="n" href="#L70" data-n="70"></a><span class="t">  <span class="pl-k">let</span> call = <span class="pl-k">await</span> <span class="pl-c1">this</span>.callRepo.<span class="pl-en">findOneBy</span>({ matchSessionId });</span></div>
+<div class="ln code" id="L71"><a class="n" href="#L71" data-n="71"></a><span class="t">  <span class="pl-k">if</span> (</span></div>
+<div class="ln code" id="L72"><a class="n" href="#L72" data-n="72"></a><span class="t">    session.matchType !== MatchType.<span class="pl-en">Voice</span> ||</span></div>
+<div class="ln code" id="L73"><a class="n" href="#L73" data-n="73"></a><span class="t">    session.status !== MatchSessionStatus.<span class="pl-en">Confirmed</span></span></div>
+<div class="ln code" id="L74"><a class="n" href="#L74" data-n="74"></a><span class="t">  ) {</span></div>
+<div class="ln code" id="L75"><a class="n" href="#L75" data-n="75"></a><span class="t">    <span class="pl-c">// Sau timeout hoặc webhook, session đã terminal cùng với call. Re-join call cũ vẫn</span></span></div>
+<div class="ln code" id="L76"><a class="n" href="#L76" data-n="76"></a><span class="t">    <span class="pl-c">// trả CALL_ENDED để client có một nhánh xử lý dứt khoát; dòng pending mồ côi từ</span></span></div>
+<div class="ln code" id="L77"><a class="n" href="#L77" data-n="77"></a><span class="t">    <span class="pl-c">// race cũ được đóng luôn, không chờ ticker.</span></span></div>
+<div class="ln code" id="L78"><a class="n" href="#L78" data-n="78"></a><span class="t">    <span class="pl-k">if</span> (call?.status === CallSessionStatus.<span class="pl-en">Ended</span>) {</span></div>
+<div class="ln code" id="L79"><a class="n" href="#L79" data-n="79"></a><span class="t">      <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
+<div class="ln code" id="L80"><a class="n" href="#L80" data-n="80"></a><span class="t">        CallingErrors.<span class="pl-c1">CALL_ENDED</span>,</span></div>
+<div class="ln code" id="L81"><a class="n" href="#L81" data-n="81"></a><span class="t">        <span class="pl-s">'Call đã kết thúc'</span>,</span></div>
+<div class="ln code" id="L82"><a class="n" href="#L82" data-n="82"></a><span class="t">        HttpStatus.<span class="pl-c1">CONFLICT</span>,</span></div>
+<div class="ln code" id="L83"><a class="n" href="#L83" data-n="83"></a><span class="t">        { reason: call.endReason },</span></div>
+<div class="ln code" id="L84"><a class="n" href="#L84" data-n="84"></a><span class="t">      );</span></div>
+<div class="ln code" id="L85"><a class="n" href="#L85" data-n="85"></a><span class="t">    }</span></div>
+<div class="ln code" id="L86"><a class="n" href="#L86" data-n="86"></a><span class="t">    <span class="pl-k">if</span> (call &amp;&amp; session.matchType === MatchType.<span class="pl-en">Voice</span>) {</span></div>
+<div class="ln code" id="L87"><a class="n" href="#L87" data-n="87"></a><span class="t">      <span class="pl-k">await</span> <span class="pl-c1">this</span>.<span class="pl-en">endById</span>(call.id, CallEndReason.<span class="pl-en">Completed</span>);</span></div>
+<div class="ln code" id="L88"><a class="n" href="#L88" data-n="88"></a><span class="t">    }</span></div>
+<div class="ln code" id="L89"><a class="n" href="#L89" data-n="89"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
+<div class="ln code" id="L90"><a class="n" href="#L90" data-n="90"></a><span class="t">      CallingErrors.<span class="pl-c1">SESSION_NOT_CALLABLE</span>,</span></div>
+<div class="ln code" id="L91"><a class="n" href="#L91" data-n="91"></a><span class="t">      <span class="pl-s">'Chỉ mở phòng call cho voice session đã đủ 2 bên xác nhận'</span>,</span></div>
+<div class="ln code" id="L92"><a class="n" href="#L92" data-n="92"></a><span class="t">      HttpStatus.<span class="pl-c1">CONFLICT</span>,</span></div>
+<div class="ln code" id="L93"><a class="n" href="#L93" data-n="93"></a><span class="t">    );</span></div>
+<div class="ln code" id="L94"><a class="n" href="#L94" data-n="94"></a><span class="t">  }</span></div>
+<div class="ln code" id="L95"><a class="n" href="#L95" data-n="95"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L96"><a class="n" href="#L96" data-n="96"></a><span class="t">  <span class="pl-k">if</span> (!call) {</span></div>
+<div class="ln code" id="L97"><a class="n" href="#L97" data-n="97"></a><span class="t">    <span class="pl-c">// Sinh id trước để roomName = call-{id} do server đặt; client không bao giờ tự chọn</span></span></div>
+<div class="ln code" id="L98"><a class="n" href="#L98" data-n="98"></a><span class="t">    <span class="pl-c">// phòng.</span></span></div>
+<div class="ln code" id="L99"><a class="n" href="#L99" data-n="99"></a><span class="t">    <span class="pl-k">const</span> <span class="pl-c1">id</span> = <span class="pl-en">randomUUID</span>();</span></div>
+<div class="ln code" id="L100"><a class="n" href="#L100" data-n="100"></a><span class="t">    <span class="pl-k">try</span> {</span></div>
+<div class="ln code" id="L101"><a class="n" href="#L101" data-n="101"></a><span class="t">      call = <span class="pl-k">await</span> <span class="pl-c1">this</span>.callRepo.<span class="pl-en">save</span>(</span></div>
+<div class="ln code" id="L102"><a class="n" href="#L102" data-n="102"></a><span class="t">        <span class="pl-c1">this</span>.callRepo.<span class="pl-en">create</span>({</span></div>
+<div class="ln code" id="L103"><a class="n" href="#L103" data-n="103"></a><span class="t">          id,</span></div>
+<div class="ln code" id="L104"><a class="n" href="#L104" data-n="104"></a><span class="t">          matchSessionId,</span></div>
+<div class="ln code" id="L105"><a class="n" href="#L105" data-n="105"></a><span class="t">          roomName: <span class="pl-en">callRoomName</span>(id),</span></div>
+<div class="ln code" id="L106"><a class="n" href="#L106" data-n="106"></a><span class="t">          userAId: session.userAId,</span></div>
+<div class="ln code" id="L107"><a class="n" href="#L107" data-n="107"></a><span class="t">          userBId: session.userBId,</span></div>
+<div class="ln code" id="L108"><a class="n" href="#L108" data-n="108"></a><span class="t">          status: CallSessionStatus.<span class="pl-en">Pending</span>,</span></div>
+<div class="ln code" id="L109"><a class="n" href="#L109" data-n="109"></a><span class="t">          callKind: CallKind.<span class="pl-en">VoiceMatch</span>,</span></div>
+<div class="ln code" id="L110"><a class="n" href="#L110" data-n="110"></a><span class="t">        }),</span></div>
+<div class="ln code" id="L111"><a class="n" href="#L111" data-n="111"></a><span class="t">      );</span></div>
+<div class="ln code" id="L112"><a class="n" href="#L112" data-n="112"></a><span class="t">    } <span class="pl-k">catch</span> (err) {</span></div>
+<div class="ln code" id="L113"><a class="n" href="#L113" data-n="113"></a><span class="t">      <span class="pl-c">// <b class="tg tg-postgres">[POSTGRES]</b> 2 bên join gần như cùng lúc đều thấy chưa có call và cùng insert:</span></span></div>
+<div class="ln code" id="L114"><a class="n" href="#L114" data-n="114"></a><span class="t">      <span class="pl-c">// unique match_session_id (xem bên dưới) chỉ cho 1 dòng, bên thua lấy lại dòng</span></span></div>
+<div class="ln code" id="L115"><a class="n" href="#L115" data-n="115"></a><span class="t">      <span class="pl-c">// của bên kia.</span></span></div>
+<div class="ln code" id="L116"><a class="n" href="#L116" data-n="116"></a><span class="t">      <span class="pl-k">if</span> (!<span class="pl-en">isUniqueViolation</span>(err)) <span class="pl-k">throw</span> err;</span></div>
+<div class="ln code" id="L117"><a class="n" href="#L117" data-n="117"></a><span class="t">      call = <span class="pl-k">await</span> <span class="pl-c1">this</span>.callRepo.<span class="pl-en">findOneByOrFail</span>({ matchSessionId });</span></div>
+<div class="ln code" id="L118"><a class="n" href="#L118" data-n="118"></a><span class="t">    }</span></div>
+<div class="ln code" id="L119"><a class="n" href="#L119" data-n="119"></a><span class="t">  }</span></div>
+<div class="ln code" id="L120"><a class="n" href="#L120" data-n="120"></a><span class="t">  <span class="pl-c">// Đọc lại session sau khi tạo call: bên kia có thể vừa bấm back hoặc đóng tab và kết</span></span></div>
+<div class="ln code" id="L121"><a class="n" href="#L121" data-n="121"></a><span class="t">  <span class="pl-c">// thúc session. Khi đó đóng luôn call vừa tạo, không để dòng pending mồ côi chờ</span></span></div>
+<div class="ln code" id="L122"><a class="n" href="#L122" data-n="122"></a><span class="t">  <span class="pl-c">// ticker hết hạn.</span></span></div>
+<div class="ln code" id="L123"><a class="n" href="#L123" data-n="123"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">currentSession</span> =</span></div>
+<div class="ln code" id="L124"><a class="n" href="#L124" data-n="124"></a><span class="t">    <span class="pl-k">await</span> <span class="pl-c1">this</span>.matchingService.<span class="pl-en">findSessionById</span>(matchSessionId);</span></div>
+<div class="ln code" id="L125"><a class="n" href="#L125" data-n="125"></a><span class="t">  <span class="pl-k">if</span> (</span></div>
+<div class="ln code" id="L126"><a class="n" href="#L126" data-n="126"></a><span class="t">    !currentSession ||</span></div>
+<div class="ln code" id="L127"><a class="n" href="#L127" data-n="127"></a><span class="t">    currentSession.matchType !== MatchType.<span class="pl-en">Voice</span> ||</span></div>
+<div class="ln code" id="L128"><a class="n" href="#L128" data-n="128"></a><span class="t">    currentSession.status !== MatchSessionStatus.<span class="pl-en">Confirmed</span> ||</span></div>
+<div class="ln code" id="L129"><a class="n" href="#L129" data-n="129"></a><span class="t">    (currentSession.userAId !== user.userId &amp;&amp;</span></div>
+<div class="ln code" id="L130"><a class="n" href="#L130" data-n="130"></a><span class="t">      currentSession.userBId !== user.userId)</span></div>
+<div class="ln code" id="L131"><a class="n" href="#L131" data-n="131"></a><span class="t">  ) {</span></div>
+<div class="ln code" id="L132"><a class="n" href="#L132" data-n="132"></a><span class="t">    <span class="pl-k">await</span> <span class="pl-c1">this</span>.<span class="pl-en">endById</span>(call.id, CallEndReason.<span class="pl-en">Completed</span>);</span></div>
+<div class="ln code" id="L133"><a class="n" href="#L133" data-n="133"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
+<div class="ln code" id="L134"><a class="n" href="#L134" data-n="134"></a><span class="t">      CallingErrors.<span class="pl-c1">CALL_ENDED</span>,</span></div>
+<div class="ln code" id="L135"><a class="n" href="#L135" data-n="135"></a><span class="t">      <span class="pl-s">'Phiên Voice Match đã kết thúc'</span>,</span></div>
+<div class="ln code" id="L136"><a class="n" href="#L136" data-n="136"></a><span class="t">      HttpStatus.<span class="pl-c1">CONFLICT</span>,</span></div>
+<div class="ln code" id="L137"><a class="n" href="#L137" data-n="137"></a><span class="t">    );</span></div>
+<div class="ln code" id="L138"><a class="n" href="#L138" data-n="138"></a><span class="t">  }</span></div>
+<div class="ln code" id="L139"><a class="n" href="#L139" data-n="139"></a><span class="t">  <span class="pl-k">if</span> (call.status === CallSessionStatus.<span class="pl-en">Ended</span>) {</span></div>
+<div class="ln code" id="L140"><a class="n" href="#L140" data-n="140"></a><span class="t">    <span class="pl-k">throw</span> <span class="pl-k">new</span> <span class="pl-en">DomainException</span>(</span></div>
+<div class="ln code" id="L141"><a class="n" href="#L141" data-n="141"></a><span class="t">      CallingErrors.<span class="pl-c1">CALL_ENDED</span>,</span></div>
+<div class="ln code" id="L142"><a class="n" href="#L142" data-n="142"></a><span class="t">      <span class="pl-s">'Call đã kết thúc'</span>,</span></div>
+<div class="ln code" id="L143"><a class="n" href="#L143" data-n="143"></a><span class="t">      HttpStatus.<span class="pl-c1">CONFLICT</span>,</span></div>
+<div class="ln code" id="L144"><a class="n" href="#L144" data-n="144"></a><span class="t">      { reason: call.endReason },</span></div>
+<div class="ln code" id="L145"><a class="n" href="#L145" data-n="145"></a><span class="t">    );</span></div>
+<div class="ln code" id="L146"><a class="n" href="#L146" data-n="146"></a><span class="t">  }</span></div>
+<div class="ln code" id="L147"><a class="n" href="#L147" data-n="147"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L148"><a class="n" href="#L148" data-n="148"></a><span class="t">  <span class="pl-c">// <b class="tg tg-external">[EXTERNAL]</b> Token chỉ cấp cho thành viên của call; mỗi lần join (kể cả join lại sau</span></span></div>
+<div class="ln code" id="L149"><a class="n" href="#L149" data-n="149"></a><span class="t">  <span class="pl-c">// rớt mạng) là một token mới. identity = userId từ JWT, phòng do server đặt.</span></span></div>
+<div class="ln code" id="L150"><a class="n" href="#L150" data-n="150"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">token</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.livekit.<span class="pl-en">mintJoinToken</span>(</span></div>
+<div class="ln code" id="L151"><a class="n" href="#L151" data-n="151"></a><span class="t">    call.roomName,</span></div>
+<div class="ln code" id="L152"><a class="n" href="#L152" data-n="152"></a><span class="t">    user.userId,</span></div>
+<div class="ln code" id="L153"><a class="n" href="#L153" data-n="153"></a><span class="t">    <span class="pl-c1">this</span>.config.<span class="pl-en">getOrThrow</span>(<span class="pl-s">'CALLING_TOKEN_TTL_SECONDS'</span>, { <span class="pl-k">infer</span>: <span class="pl-c1">true</span> }),</span></div>
+<div class="ln code" id="L154"><a class="n" href="#L154" data-n="154"></a><span class="t">  );</span></div>
+<div class="ln code" id="L155"><a class="n" href="#L155" data-n="155"></a><span class="t">  <span class="pl-k">return</span> {</span></div>
+<div class="ln code" id="L156"><a class="n" href="#L156" data-n="156"></a><span class="t">    call,</span></div>
+<div class="ln code" id="L157"><a class="n" href="#L157" data-n="157"></a><span class="t">    token,</span></div>
+<div class="ln code" id="L158"><a class="n" href="#L158" data-n="158"></a><span class="t">    livekitUrl: <span class="pl-k">await</span> <span class="pl-c1">this</span>.<span class="pl-en">resolveCallLivekitUrl</span>(call),</span></div>
+<div class="ln code" id="L159"><a class="n" href="#L159" data-n="159"></a><span class="t">  };</span></div>
+<div class="ln code" id="L160"><a class="n" href="#L160" data-n="160"></a><span class="t">}</span></div>
+<div class="ln blank" id="L161"><a class="n" href="#L161" data-n="161"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag tier-postgres" id="L162"><a class="n" href="#L162" data-n="162"></a><span class="t"><span class="pl-c">// <b class="tg tg-postgres">[POSTGRES]</b> call-session.entity.ts · L35–36</span></span></div>
+<div class="ln code" id="L163"><a class="n" href="#L163" data-n="163"></a><span class="t">@<span class="pl-en">Entity</span>({ name: <span class="pl-s">'call_sessions'</span> })</span></div>
+<div class="ln code" id="L164"><a class="n" href="#L164" data-n="164"></a><span class="t">@<span class="pl-en">Index</span>(<span class="pl-s">'uq_call_sessions_match_session'</span>, [<span class="pl-s">'matchSessionId'</span>], { <span class="pl-k">unique</span>: <span class="pl-c1">true</span> })</span></div>
+<div class="ln blank" id="L165"><a class="n" href="#L165" data-n="165"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag tier-external" id="L166"><a class="n" href="#L166" data-n="166"></a><span class="t"><span class="pl-c">// <b class="tg tg-external">[EXTERNAL]</b> livekit-room.adapter.ts · L16–24</span></span></div>
+<div class="ln code" id="L167"><a class="n" href="#L167" data-n="167"></a><span class="t"><span class="pl-en">mintJoinToken</span>(</span></div>
+<div class="ln code" id="L168"><a class="n" href="#L168" data-n="168"></a><span class="t">  roomName: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L169"><a class="n" href="#L169" data-n="169"></a><span class="t">  identity: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L170"><a class="n" href="#L170" data-n="170"></a><span class="t">  ttlSeconds: <span class="pl-c1">number</span>,</span></div>
+<div class="ln code" id="L171"><a class="n" href="#L171" data-n="171"></a><span class="t">): <span class="pl-en">Promise</span>&lt;<span class="pl-c1">string</span>&gt; {</span></div>
+<div class="ln code" id="L172"><a class="n" href="#L172" data-n="172"></a><span class="t">  <span class="pl-k">return</span> <span class="pl-c1">this</span>.client.<span class="pl-en">mintJoinToken</span>(roomName, identity, ttlSeconds, {</span></div>
+<div class="ln code" id="L173"><a class="n" href="#L173" data-n="173"></a><span class="t">    canPublish: <span class="pl-c1">true</span>,</span></div>
+<div class="ln code" id="L174"><a class="n" href="#L174" data-n="174"></a><span class="t">  });</span></div>
+<div class="ln code" id="L175"><a class="n" href="#L175" data-n="175"></a><span class="t">}</span></div>
+<div class="ln blank" id="L176"><a class="n" href="#L176" data-n="176"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag tier-external" id="L177"><a class="n" href="#L177" data-n="177"></a><span class="t"><span class="pl-c">// <b class="tg tg-external">[EXTERNAL]</b> livekit-sdk.client.ts · L52–72</span></span></div>
+<div class="ln code" id="L178"><a class="n" href="#L178" data-n="178"></a><span class="t"><span class="pl-k">async</span> <span class="pl-en">mintJoinToken</span>(</span></div>
+<div class="ln code" id="L179"><a class="n" href="#L179" data-n="179"></a><span class="t">  roomName: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L180"><a class="n" href="#L180" data-n="180"></a><span class="t">  identity: <span class="pl-c1">string</span>,</span></div>
+<div class="ln code" id="L181"><a class="n" href="#L181" data-n="181"></a><span class="t">  ttlSeconds: <span class="pl-c1">number</span>,</span></div>
+<div class="ln code" id="L182"><a class="n" href="#L182" data-n="182"></a><span class="t">  grant: <span class="pl-en">LivekitTokenGrant</span>,</span></div>
+<div class="ln code" id="L183"><a class="n" href="#L183" data-n="183"></a><span class="t">): <span class="pl-en">Promise</span>&lt;<span class="pl-c1">string</span>&gt; {</span></div>
+<div class="ln code" id="L184"><a class="n" href="#L184" data-n="184"></a><span class="t">  <span class="pl-c">// Token là JWT ký ngay tại core-api bằng API key và secret của LiveKit, không gọi</span></span></div>
+<div class="ln code" id="L185"><a class="n" href="#L185" data-n="185"></a><span class="t">  <span class="pl-c">// mạng; thời hạn theo CALLING_TOKEN_TTL_SECONDS.</span></span></div>
+<div class="ln code" id="L186"><a class="n" href="#L186" data-n="186"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">token</span> = <span class="pl-k">new</span> <span class="pl-en">AccessToken</span>(<span class="pl-c1">this</span>.apiKey, <span class="pl-c1">this</span>.apiSecret, {</span></div>
+<div class="ln code" id="L187"><a class="n" href="#L187" data-n="187"></a><span class="t">    identity,</span></div>
+<div class="ln code" id="L188"><a class="n" href="#L188" data-n="188"></a><span class="t">    ttl: ttlSeconds,</span></div>
+<div class="ln code" id="L189"><a class="n" href="#L189" data-n="189"></a><span class="t">  });</span></div>
+<div class="ln code" id="L190"><a class="n" href="#L190" data-n="190"></a><span class="t">  token.<span class="pl-en">addGrant</span>({</span></div>
+<div class="ln code" id="L191"><a class="n" href="#L191" data-n="191"></a><span class="t">    room: roomName,</span></div>
+<div class="ln code" id="L192"><a class="n" href="#L192" data-n="192"></a><span class="t">    roomJoin: <span class="pl-c1">true</span>,</span></div>
+<div class="ln code" id="L193"><a class="n" href="#L193" data-n="193"></a><span class="t">    canPublish: grant.canPublish,</span></div>
+<div class="ln code" id="L194"><a class="n" href="#L194" data-n="194"></a><span class="t">    canSubscribe: <span class="pl-c1">true</span>,</span></div>
+<div class="ln code" id="L195"><a class="n" href="#L195" data-n="195"></a><span class="t">    ...(grant.canPublishData === <span class="pl-c1">undefined</span></span></div>
+<div class="ln code" id="L196"><a class="n" href="#L196" data-n="196"></a><span class="t">      ? {}</span></div>
+<div class="ln code" id="L197"><a class="n" href="#L197" data-n="197"></a><span class="t">      : { canPublishData: grant.canPublishData }),</span></div>
+<div class="ln code" id="L198"><a class="n" href="#L198" data-n="198"></a><span class="t">  });</span></div>
+<div class="ln code" id="L199"><a class="n" href="#L199" data-n="199"></a><span class="t">  <span class="pl-k">return</span> token.<span class="pl-en">toJwt</span>();</span></div>
+<div class="ln code" id="L200"><a class="n" href="#L200" data-n="200"></a><span class="t">}</span></div>
+<div class="ln blank" id="L201"><a class="n" href="#L201" data-n="201"></a><span class="t">&nbsp;</span></div>
+<div class="ln tag tier-service" id="L202"><a class="n" href="#L202" data-n="202"></a><span class="t"><span class="pl-c">// <b class="tg tg-service">[SERVICE]</b> calling.service.ts · L573–598</span></span></div>
+<div class="ln code" id="L203"><a class="n" href="#L203" data-n="203"></a><span class="t"><span class="pl-k">private</span> <span class="pl-k">async</span> <span class="pl-en">resolveCallLivekitUrl</span>(call: <span class="pl-en">CallSession</span>): <span class="pl-en">Promise</span>&lt;<span class="pl-c1">string</span>&gt; {</span></div>
+<div class="ln code" id="L204"><a class="n" href="#L204" data-n="204"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">defaultUrl</span> = <span class="pl-c1">this</span>.config.<span class="pl-en">getOrThrow</span>(<span class="pl-s">'LIVEKIT_URL'</span>, { <span class="pl-k">infer</span>: <span class="pl-c1">true</span> });</span></div>
+<div class="ln code" id="L205"><a class="n" href="#L205" data-n="205"></a><span class="t">  <span class="pl-k">const</span> <span class="pl-c1">regionUrls</span> = <span class="pl-c1">this</span>.config.<span class="pl-en">getOrThrow</span>(<span class="pl-s">'LIVEKIT_REGION_URLS'</span>, {</span></div>
+<div class="ln code" id="L206"><a class="n" href="#L206" data-n="206"></a><span class="t">    <span class="pl-k">infer</span>: <span class="pl-c1">true</span>,</span></div>
+<div class="ln code" id="L207"><a class="n" href="#L207" data-n="207"></a><span class="t">  });</span></div>
+<div class="ln code" id="L208"><a class="n" href="#L208" data-n="208"></a><span class="t">  <span class="pl-c">// Chưa bật nhiều region thì trả URL mặc định ngay, không tốn truy vấn nào.</span></span></div>
+<div class="ln code" id="L209"><a class="n" href="#L209" data-n="209"></a><span class="t">  <span class="pl-k">if</span> (!<span class="pl-en">hasLivekitRegionUrls</span>(regionUrls)) <span class="pl-k">return</span> defaultUrl;</span></div>
+<div class="ln code" id="L210"><a class="n" href="#L210" data-n="210"></a><span class="t">&nbsp;</span></div>
+<div class="ln code" id="L211"><a class="n" href="#L211" data-n="211"></a><span class="t">  <span class="pl-k">try</span> {</span></div>
+<div class="ln code" id="L212"><a class="n" href="#L212" data-n="212"></a><span class="t">    <span class="pl-k">const</span> [userA, userB] = <span class="pl-k">await</span> Promise.<span class="pl-en">all</span>([</span></div>
+<div class="ln code" id="L213"><a class="n" href="#L213" data-n="213"></a><span class="t">      <span class="pl-c1">this</span>.userService.<span class="pl-en">getByIdOrThrow</span>(call.userAId),</span></div>
+<div class="ln code" id="L214"><a class="n" href="#L214" data-n="214"></a><span class="t">      <span class="pl-c1">this</span>.userService.<span class="pl-en">getByIdOrThrow</span>(call.userBId),</span></div>
+<div class="ln code" id="L215"><a class="n" href="#L215" data-n="215"></a><span class="t">    ]);</span></div>
+<div class="ln code" id="L216"><a class="n" href="#L216" data-n="216"></a><span class="t">    <span class="pl-c">// Luôn dùng region của userA để cả 2 bên và mọi lần join lại nhận cùng một URL.</span></span></div>
+<div class="ln code" id="L217"><a class="n" href="#L217" data-n="217"></a><span class="t">    <span class="pl-c">// Region lệch chỉ cảnh báo, vì mọi URL trong map thuộc cùng một cụm LiveKit nên</span></span></div>
+<div class="ln code" id="L218"><a class="n" href="#L218" data-n="218"></a><span class="t">    <span class="pl-c">// call không vỡ.</span></span></div>
+<div class="ln code" id="L219"><a class="n" href="#L219" data-n="219"></a><span class="t">    <span class="pl-k">if</span> ((userA.region ?? <span class="pl-c1">null</span>) !== (userB.region ?? <span class="pl-c1">null</span>)) {</span></div>
+<div class="ln code" id="L220"><a class="n" href="#L220" data-n="220"></a><span class="t">      <span class="pl-c1">this</span>.logger.<span class="pl-en">warn</span>(</span></div>
+<div class="ln code" id="L221"><a class="n" href="#L221" data-n="221"></a><span class="t">        <span class="pl-s">`Region lệch giữa 2 bên call ${</span>call.id<span class="pl-s">} (userA=${</span>userA.region ?? <span class="pl-s">'null'</span><span class="pl-s">}, userB=${</span>userB.region ?? <span class="pl-s">'null'</span><span class="pl-s">}) — dùng region userA theo quy tắc tất định`</span>,</span></div>
+<div class="ln code" id="L222"><a class="n" href="#L222" data-n="222"></a><span class="t">      );</span></div>
+<div class="ln code" id="L223"><a class="n" href="#L223" data-n="223"></a><span class="t">    }</span></div>
+<div class="ln code" id="L224"><a class="n" href="#L224" data-n="224"></a><span class="t">    <span class="pl-k">return</span> <span class="pl-en">resolveLivekitUrl</span>(regionUrls, defaultUrl, userA.region);</span></div>
+<div class="ln code" id="L225"><a class="n" href="#L225" data-n="225"></a><span class="t">  } <span class="pl-k">catch</span> (err) {</span></div>
+<div class="ln code" id="L226"><a class="n" href="#L226" data-n="226"></a><span class="t">    <span class="pl-c1">this</span>.logger.<span class="pl-en">warn</span>(</span></div>
+<div class="ln code" id="L227"><a class="n" href="#L227" data-n="227"></a><span class="t">      <span class="pl-s">`Không resolve được region cho call ${</span>call.id<span class="pl-s">} — fallback LIVEKIT_URL: ${</span>err <span class="pl-k">instanceof</span> <span class="pl-en">Error</span> ? err.message : <span class="pl-en">String</span>(err)<span class="pl-s">}`</span>,</span></div>
+<div class="ln code" id="L228"><a class="n" href="#L228" data-n="228"></a><span class="t">    );</span></div>
+<div class="ln code" id="L229"><a class="n" href="#L229" data-n="229"></a><span class="t">    <span class="pl-k">return</span> defaultUrl;</span></div>
+<div class="ln code" id="L230"><a class="n" href="#L230" data-n="230"></a><span class="t">  }</span></div>
+<div class="ln code" id="L231"><a class="n" href="#L231" data-n="231"></a><span class="t">}</span></div>
+  </div>
+</div>
+</main>
+<script>(function(){
+var root=document.documentElement,key='litmatch-code-theme',btn=document.getElementById('theme'),labels={auto:'Tự động',light:'Sáng',dark:'Tối'};
+var mode='auto';try{var s=localStorage.getItem(key);if(s==='light'||s==='dark')mode=s}catch(e){}
+function apply(){if(mode==='auto')root.removeAttribute('data-theme');else root.setAttribute('data-theme',mode);btn.textContent='Theme: '+labels[mode]}
+apply();
+btn.addEventListener('click',function(){mode=mode==='auto'?'light':mode==='light'?'dark':'auto';try{if(mode==='auto')localStorage.removeItem(key);else localStorage.setItem(key,mode)}catch(e){}apply()});
+})();
+(function(){
+var copy=document.getElementById('copy');
+copy.addEventListener('click',function(){
+var text=Array.prototype.map.call(document.querySelectorAll('.ln .t'),function(n){return n.textContent.replace(/\u00a0/g,'')}).join('\n')+'\n';
+var done=function(){copy.textContent='Đã sao chép';setTimeout(function(){copy.textContent='Sao chép'},1500)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done,function(){})}
+else{var a=document.createElement('textarea');a.value=text;document.body.appendChild(a);a.select();try{document.execCommand('copy');done()}catch(e){}document.body.removeChild(a)}
+});
+})();</script>
+</body>
+</html>

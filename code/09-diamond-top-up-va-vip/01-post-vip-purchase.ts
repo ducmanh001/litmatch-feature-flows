@@ -1,0 +1,624 @@
+// ════════════════════════════════════════════════════════════════════════════
+//  POST /api/v1/economy/vip/purchase
+//  Trừ Diamond và gia hạn VIP trong một transaction của sổ kép: idempotent theo key, khóa ví FOR UPDATE, ghi outbox.
+// ════════════════════════════════════════════════════════════════════════════
+//  Luồng      [CONTROLLER] → [SERVICE] → [POSTGRES] → [WORKER] → [KAFKA]
+//
+//  Vai trò từng tầng
+//    [CONTROLLER] Nhận yêu cầu mua gói VIP kèm header Idempotency-Key bắt buộc; user
+//                 lấy từ JWT, planId từ body.
+//    [SERVICE]    EconomyService đọc giá gói từ catalog rồi dựng bút toán Nợ ví / Có
+//                 system_revenue kèm phần gia hạn VIP; LedgerService là nơi duy nhất
+//                 được ghi vào sổ cái và ví.
+//    [POSTGRES]   Một transaction làm tất cả: chèn giao dịch (unique idempotency_key),
+//                 khóa ví FOR UPDATE, ghi bút toán, trừ số dư, gia hạn VIP, ghi outbox.
+//    [WORKER]     OutboxRelayService (bật bằng ECONOMY_OUTBOX_RELAY_ENABLED, mặc định
+//                 tắt) quét outbox_events chưa gửi theo lô (FOR UPDATE SKIP LOCKED) rồi
+//                 chuyển cho EventBus.
+//    [KAFKA]      Topic litmatch.economy.events nhận event economy.vip.purchased và
+//                 economy.diamond.debited.
+//
+//  Bảng       transactions — 1 dòng cho mỗi giao dịch: type vip_purchase, key
+//               idempotency unique, request_hash, snapshot giá gói trong metadata.
+//             ledger_entries — bút toán sổ kép chỉ thêm, không sửa (trigger chặn UPDATE
+//               và DELETE): Nợ user_wallet, Có system_revenue.
+//             ledger_accounts — tài khoản nội bộ tạo khi cần: ví của user và
+//               system_revenue.
+//             wallets — số dư Diamond và hạn VIP của user; bị khóa FOR UPDATE; gia hạn
+//               cộng dồn.
+//             vip_plans — catalog gói VIP: hạng, số ngày, giá Diamond (chỉ đọc).
+//             outbox_events — event economy.diamond.debited và economy.vip.purchased,
+//               ghi cùng transaction để relay gửi Kafka sau.
+//  Liên quan  Kafka (litmatch.economy.events) — hiện chưa có module nào subscribe topic
+//               này; khi relay tắt thì outbox_events chỉ tích lũy dòng chưa gửi.
+//             Các luồng Diamond khác — speed-up, quà, nạp IAP, payOS, hoàn tiền đều ghi
+//               sổ qua LedgerService.record ở trên (các trang kia chỉ nhắc tới nó).
+
+// [CONTROLLER] economy.controller.ts · L134–151
+@Post('vip/purchase')
+@HttpCode(HttpStatus.OK)
+purchaseVip(
+  @CurrentUser() user: AuthenticatedUser,
+  @Body() dto: PurchaseVipDto,
+  @IdempotencyKey() idempotencyKey: string,
+): Promise<VipPurchaseResultDto> {
+  return this.economyService.purchaseVip(
+    user.userId,
+    dto.planId,
+    idempotencyKey,
+  );
+}
+
+// [SERVICE] economy.service.ts · L367–460
+async purchaseVip(
+  userId: string,
+  planId: string,
+  idempotencyKey: string,
+): Promise<{
+  transactionId: string;
+  tier: VipTier;
+  vipExpiresAt: Date;
+  replayed: boolean;
+}> {
+  // Giá và số ngày đọc từ catalog server; client chỉ gửi planId, không gửi giá.
+  const plan = await this.planRepo.findOneBy({ id: planId, active: true });
+  if (!plan) {
+    throw new DomainException(
+      EconomyErrors.VIP_PLAN_UNKNOWN,
+      `Gói VIP ${planId} không tồn tại`,
+      HttpStatus.NOT_FOUND,
+    );
+  }
+
+  let newExpiry = new Date();
+  const result = await this.ledger.record({
+    type: TransactionType.VipPurchase,
+    idempotencyKey: `vip:${userId}:${idempotencyKey}`,
+    actorUserId: userId,
+    // Snapshot giá và thời hạn đã áp dụng; đổi catalog sau này không diễn giải lại giao
+    // dịch cũ.
+    metadata: {
+      planId,
+      tier: plan.tier,
+      days: plan.days,
+      priceDiamond: plan.priceDiamond,
+    },
+    entries: [
+      {
+        accountKind: LedgerAccountKind.UserWallet,
+        userId,
+        direction: LedgerDirection.Debit,
+        amount: BigInt(plan.priceDiamond),
+        currency: LedgerCurrency.Diamond,
+      },
+      {
+        accountKind: LedgerAccountKind.SystemRevenue,
+        direction: LedgerDirection.Credit,
+        amount: BigInt(plan.priceDiamond),
+        currency: LedgerCurrency.Diamond,
+      },
+    ],
+    // Chạy ở cuối recordInManager, khi ví đã khóa FOR UPDATE: gia hạn VIP và outbox nằm
+    // CÙNG transaction với bút toán, nên lỗi thì rollback cả tiền.
+    withinTransaction: async (manager) => {
+      const wallet = await manager
+        .getRepository(Wallet)
+        .findOneByOrFail({ userId });
+      const base =
+        wallet.vipExpiresAt && wallet.vipExpiresAt > new Date()
+          ? wallet.vipExpiresAt
+          : new Date();
+      // Gia hạn cộng dồn: còn hạn thì cộng thêm vào hạn cũ, hết hạn thì tính từ bây
+      // giờ.
+      newExpiry = new Date(base.getTime() + plan.days * 24 * 3600 * 1000);
+      await manager.update(
+        Wallet,
+        { userId },
+        { vipTier: plan.tier, vipExpiresAt: newExpiry },
+      );
+      await manager.save(
+        manager.create(OutboxEvent, {
+          topic: ECONOMY_EVENTS_TOPIC,
+          eventType: 'economy.vip.purchased',
+          payload: {
+            version: 1,
+            userId,
+            planId,
+            tier: plan.tier,
+            vipExpiresAt: newExpiry.toISOString(),
+          },
+        }),
+      );
+    },
+  });
+
+  // Replay (cùng key) không gia hạn lần 2: chỉ trả trạng thái VIP hiện tại.
+  if (result.replayed) {
+    const wallet = await this.walletRepo.findOneByOrFail({ userId });
+    return {
+      transactionId: result.transaction.id,
+      tier: plan.tier,
+      vipExpiresAt: wallet.vipExpiresAt ?? newExpiry,
+      replayed: true,
+    };
+  }
+  return {
+    transactionId: result.transaction.id,
+    tier: plan.tier,
+    vipExpiresAt: newExpiry,
+    replayed: false,
+  };
+}
+
+// [SERVICE] ledger.service.ts · L56–99, L313–320, L322–343, L345–361, L363–375, L101–181, L377–406, L408–425, L427–499
+async record(input: RecordTransactionInput): Promise<RecordResult> {
+  this.validateInput(input);
+  const requestHash = this.hashRequest(input);
+  // Đường nhanh cho retry: key đã có thì kiểm tra cùng nội dung rồi trả kết quả cũ,
+  // không mở transaction.
+  const existing = await this.dataSource
+    .getRepository(LedgerTransaction)
+    .findOneBy({ idempotencyKey: input.idempotencyKey });
+  if (existing) {
+    try {
+      const transaction = this.assertSameRequest(existing, requestHash);
+      this.metrics.record(input.type, 'replayed');
+      return { transaction, replayed: true };
+    } catch (err) {
+      this.metrics.record(input.type, 'failed');
+      throw err;
+    }
+  }
+
+  try {
+    const result = await this.dataSource.transaction((manager) =>
+      this.recordInManager(manager, input),
+    );
+    this.metrics.record(input.type, result.replayed ? 'replayed' : 'success');
+    return result;
+  } catch (err) {
+    if (
+      isUniqueViolation(err) &&
+      violatedConstraint(err, UQ_TRANSACTIONS_IDEMPOTENCY_KEY)
+    ) {
+      // [POSTGRES] Kiểm trước chỉ là đường nhanh; nguồn chân lý là unique
+      // idempotency_key ở DB. 2 request cùng key chạy song song thì bên thua đọc lại
+      // dòng của bên thắng và trả như replay.
+      const winner = await this.dataSource
+        .getRepository(LedgerTransaction)
+        .findOneByOrFail({ idempotencyKey: input.idempotencyKey });
+      try {
+        const transaction = this.assertSameRequest(winner, requestHash);
+        this.metrics.record(input.type, 'replayed');
+        return { transaction, replayed: true };
+      } catch (assertErr) {
+        this.metrics.record(input.type, 'failed');
+        throw assertErr;
+      }
+    }
+    this.metrics.record(input.type, 'failed');
+    throw err;
+  }
+}
+
+private validateInput(input: RecordTransactionInput): void {
+  this.validateEntries(input.entries);
+  if (input.type === TransactionType.Adjustment && !input.actorUserId) {
+    throw new Error(
+      'Transaction type=adjustment bắt buộc có actorUserId (ai thực hiện sửa sai) để audit',
+    );
+  }
+}
+
+private validateEntries(entries: LedgerEntryInput[]): void {
+  if (entries.length < 2)
+    throw new Error('Giao dịch double-entry cần tối thiểu 2 bút toán');
+  const sums = new Map<string, bigint>();
+  for (const e of entries) {
+    if (e.amount <= 0n)
+      throw new Error('Bút toán phải có amount nguyên dương');
+    if (USER_ACCOUNT_KINDS.has(e.accountKind) && !e.userId) {
+      throw new Error(`Tài khoản ${e.accountKind} bắt buộc có userId`);
+    }
+    const delta =
+      e.direction === LedgerDirection.Debit ? e.amount : -e.amount;
+    sums.set(e.currency, (sums.get(e.currency) ?? 0n) + delta);
+  }
+  // Sổ kép: tổng Nợ phải bằng tổng Có, kiểm theo TỪNG currency và trước khi ghi bất cứ
+  // thứ gì.
+  for (const [currency, sum] of sums) {
+    if (sum !== 0n) {
+      throw new Error(
+        `Tổng Nợ != tổng Có cho currency ${currency} — vi phạm bất biến double-entry`,
+      );
+    }
+  }
+}
+
+private hashRequest(input: RecordTransactionInput): string {
+  // request_hash gồm loại giao dịch, người thực hiện và toàn bộ bút toán: cùng key mà
+  // nội dung khác thì bị 409, không được coi là replay.
+  const normalized = {
+    type: input.type,
+    actorUserId: input.actorUserId ?? null,
+    reversalOf: input.reversalOf ?? null,
+    entries: input.entries.map((e) => ({
+      k: e.accountKind,
+      u: e.userId ?? null,
+      d: e.direction,
+      a: e.amount.toString(),
+      c: e.currency,
+    })),
+  };
+  return createHash('sha256')
+    .update(JSON.stringify(normalized))
+    .digest('hex');
+}
+
+private assertSameRequest(
+  existing: LedgerTransaction,
+  requestHash: string,
+): LedgerTransaction {
+  if (existing.requestHash !== requestHash) {
+    throw new DomainException(
+      EconomyErrors.IDEMPOTENCY_CONFLICT,
+      'Idempotency key đã dùng cho 1 request khác nội dung',
+      HttpStatus.CONFLICT,
+    );
+  }
+  return existing;
+}
+
+async recordInManager(
+  manager: EntityManager,
+  input: RecordTransactionInput,
+): Promise<RecordResult> {
+  this.validateInput(input);
+  const requestHash = this.hashRequest(input);
+  const existing = await manager.findOne(LedgerTransaction, {
+    where: { idempotencyKey: input.idempotencyKey },
+  });
+  if (existing) {
+    return {
+      transaction: this.assertSameRequest(existing, requestHash),
+      replayed: true,
+    };
+  }
+
+  // [POSTGRES] ON CONFLICT DO NOTHING thay vì bắt lỗi unique, vì lỗi đó làm abort cả
+  // transaction của caller. Postgres chờ bên thắng commit; không chèn được dòng mới thì
+  // đây là replay, không ghi bút toán.
+  const insertResult = await manager
+    .createQueryBuilder()
+    .insert()
+    .into(LedgerTransaction)
+    .values({
+      type: input.type,
+      status: TransactionStatus.Completed,
+      idempotencyKey: input.idempotencyKey,
+      requestHash,
+      actorUserId: input.actorUserId ?? null,
+      reversalOf: input.reversalOf ?? null,
+      metadata: (input.metadata ?? {}) as never,
+    })
+    .orIgnore()
+    .execute();
+
+  const insertedId =
+    insertResult.identifiers[0]?.id ?? insertResult.raw[0]?.id;
+
+  const txn = await manager.findOneByOrFail(LedgerTransaction, {
+    idempotencyKey: input.idempotencyKey,
+  });
+  if (!insertedId)
+    return {
+      transaction: this.assertSameRequest(txn, requestHash),
+      replayed: true,
+    };
+
+  const accounts: LedgerAccount[] = [];
+  for (const entry of input.entries)
+    accounts.push(await this.resolveAccount(manager, entry));
+
+  // Khóa ví theo thứ tự userId đã sắp xếp để tránh deadlock khi một giao dịch chạm
+  // nhiều ví.
+  const userIds = [
+    ...new Set(
+      input.entries.filter((e) => e.userId).map((e) => e.userId as string),
+    ),
+  ].sort();
+  const wallets = new Map<string, Wallet>();
+  for (const userId of userIds)
+    wallets.set(userId, await this.lockWallet(manager, userId));
+
+  await manager.save(
+    input.entries.map((entry, i) =>
+      manager.create(LedgerEntry, {
+        transactionId: txn.id,
+        accountId: accounts[i].id,
+        direction: entry.direction,
+        amount: entry.amount.toString(),
+        currency: entry.currency,
+      }),
+    ),
+  );
+  await this.applyWalletDeltas(
+    manager,
+    txn,
+    input.entries,
+    wallets,
+    input.outboxEventTypeOverride,
+  );
+  // Phần việc riêng của từng luồng (gia hạn VIP, lưu receipt...) chạy CÙNG transaction,
+  // sau khi ví đã khóa và số dư đã cập nhật.
+  await input.withinTransaction?.(manager, txn);
+  return { transaction: txn, replayed: false };
+}
+
+private async resolveAccount(
+  manager: EntityManager,
+  entry: LedgerEntryInput,
+): Promise<LedgerAccount> {
+  const isUserAccount = USER_ACCOUNT_KINDS.has(entry.accountKind);
+  const where = {
+    kind: entry.accountKind,
+    userId: isUserAccount ? (entry.userId as string) : IsNull(),
+    currency: entry.currency,
+  };
+  const found = await manager.getRepository(LedgerAccount).findOneBy(where);
+  if (found) return found;
+  // Tạo tài khoản kiểu ON CONFLICT DO NOTHING, KHÔNG insert-rồi-bắt-lỗi 23505: lỗi đó
+  // làm abort cả transaction nên nhánh bắt-lỗi không bao giờ chạy được, bên thua sẽ
+  // chết 500.
+  await manager.query(
+    `INSERT INTO ledger_accounts (kind, user_id, currency) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+    [
+      entry.accountKind,
+      isUserAccount ? (entry.userId as string) : null,
+      entry.currency,
+    ],
+  );
+  return manager.getRepository(LedgerAccount).findOneByOrFail(where);
+}
+
+private async lockWallet(
+  manager: EntityManager,
+  userId: string,
+): Promise<Wallet> {
+  // [POSTGRES] Ví tạo khi cần rồi khóa FOR UPDATE: đây là điểm tuần tự hóa theo từng
+  // user, 2 giao dịch cùng ví không chạy song song.
+  await manager.query(
+    `INSERT INTO wallets (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`,
+    [userId],
+  );
+  const wallet = await manager
+    .getRepository(Wallet)
+    .createQueryBuilder('w')
+    .setLock('pessimistic_write')
+    .where('w.user_id = :userId', { userId })
+    .getOne();
+  if (!wallet) throw new Error(`Không lock được ví của user ${userId}`);
+  return wallet;
+}
+
+private async applyWalletDeltas(
+  manager: EntityManager,
+  txn: LedgerTransaction,
+  entries: LedgerEntryInput[],
+  wallets: Map<string, Wallet>,
+  outboxEventTypeOverride?: string,
+): Promise<void> {
+  for (const [userId, wallet] of wallets) {
+    let balanceDelta = 0n;
+    let earningsDelta = 0n;
+    for (const e of entries) {
+      if (e.userId !== userId) continue;
+      const signed =
+        e.direction === LedgerDirection.Credit ? e.amount : -e.amount;
+      if (e.accountKind === LedgerAccountKind.UserWallet)
+        balanceDelta += signed;
+      if (e.accountKind === LedgerAccountKind.UserEarnings)
+        earningsDelta += signed;
+    }
+
+    const newBalance = BigInt(wallet.balance) + balanceDelta;
+    const newEarnings = BigInt(wallet.earnings) + earningsDelta;
+    // Chỉ reversal hoặc adjustment (refund, chargeback, sửa sai) mới được đẩy số dư âm
+    // = user nợ diamond; giao dịch tiêu tiền thường thì không.
+    const mayGoNegative =
+      txn.type === TransactionType.Reversal ||
+      txn.type === TransactionType.Adjustment;
+    // Kiểm số dư SAU khi đã khóa ví, đúng lúc trừ tiền; không tin số dư đọc ở đầu
+    // luồng.
+    if (newBalance < 0n && !mayGoNegative) {
+      throw new DomainException(
+        EconomyErrors.WALLET_INSUFFICIENT_BALANCE,
+        'Không đủ diamond',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        { required: (-newBalance).toString() },
+      );
+    }
+    if (newEarnings < 0n) {
+      throw new DomainException(
+        EconomyErrors.WALLET_INSUFFICIENT_BALANCE,
+        'Không đủ điểm quy đổi',
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
+    wallet.balance = newBalance.toString();
+    wallet.earnings = newEarnings.toString();
+    await manager.save(wallet);
+
+    // Outbox: event ghi CÙNG transaction với số dư, relay gửi Kafka sau. Nhờ vậy không
+    // có chuyện đổi số dư mà mất event, hay ngược lại.
+    if (balanceDelta !== 0n) {
+      await manager.save(
+        manager.create(OutboxEvent, {
+          topic: ECONOMY_EVENTS_TOPIC,
+          eventType:
+            outboxEventTypeOverride ??
+            (balanceDelta > 0n
+              ? 'economy.diamond.credited'
+              : 'economy.diamond.debited'),
+          payload: {
+            version: 1,
+            transactionId: txn.id,
+            transactionType: txn.type,
+            userId,
+            amount: (balanceDelta > 0n
+              ? balanceDelta
+              : -balanceDelta
+            ).toString(),
+          },
+        }),
+      );
+    }
+  }
+}
+
+// [POSTGRES] 1752000000000-economy-ledger.ts · L32–45
+await queryRunner.query(`
+  CREATE TABLE transactions (
+    id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    type             varchar(32)  NOT NULL,
+    status           varchar(16)  NOT NULL DEFAULT 'completed',
+    idempotency_key  varchar(255) NOT NULL,
+    request_hash     char(64)     NOT NULL,
+    actor_user_id    uuid         NULL REFERENCES users(id),
+    reversal_of      uuid         NULL REFERENCES transactions(id),
+    metadata         jsonb        NOT NULL DEFAULT '{}',
+    created_at       timestamptz  NOT NULL DEFAULT now(),
+    CONSTRAINT uq_transactions_idempotency_key UNIQUE (idempotency_key)
+  )
+`);
+
+// [POSTGRES] 1752000000000-economy-ledger.ts · L82–93
+await queryRunner.query(`
+  CREATE TABLE wallets (
+    user_id         uuid PRIMARY KEY REFERENCES users(id),
+    -- balance CÓ THỂ âm sau refund/chargeback (user nợ diamond) — không đặt CHECK >= 0
+    balance         bigint      NOT NULL DEFAULT 0,
+    -- earnings (PTS) chỉ được cộng ở giai đoạn này (chưa có luồng tiêu) → vẫn giữ CHECK >= 0
+    earnings        bigint      NOT NULL DEFAULT 0 CHECK (earnings >= 0),
+    vip_tier        varchar(16) NULL,
+    vip_expires_at  timestamptz NULL,
+    updated_at      timestamptz NOT NULL DEFAULT now()
+  )
+`);
+
+// [WORKER] outbox-relay.service.ts · L65–107, L109–113, L115–146
+async flushOnce(): Promise<number> {
+  return this.job.runExclusive(async () => {
+    return await this.dataSource.transaction(async (manager) => {
+      // [POSTGRES] FOR UPDATE SKIP LOCKED: nhiều pod chạy relay song song không dẫm
+      // nhau, pod nào đã khóa lô nào thì pod khác bỏ qua lô đó.
+      const events: OutboxEvent[] = await manager
+        .getRepository(OutboxEvent)
+        .createQueryBuilder('e')
+        .setLock('pessimistic_write')
+        .setOnLocked('skip_locked')
+        .where('e.published_at IS NULL')
+        .andWhere('e.dead_lettered_at IS NULL')
+        .orderBy('e.created_at', 'ASC')
+        .limit(BATCH_SIZE)
+        .getMany();
+      if (events.length === 0) return 0;
+
+      for (const event of events) {
+        try {
+          // [KAFKA] Gửi xong mới đánh dấu published_at (lưu ở cuối vòng). Process chết
+          // giữa chừng thì event được gửi lại ở vòng sau: giao kiểu at-least-once,
+          // consumer phải chịu được trùng.
+          await this.eventBus.publish(toEventEnvelope(event));
+          event.publishedAt = new Date();
+          event.lastError = null;
+        } catch (err) {
+          event.attempts += 1;
+          event.lastError = stringifyError(err);
+          this.logger.error(
+            {
+              eventId: event.id,
+              topic: event.topic,
+              attempts: event.attempts,
+              maxAttempts: this.maxAttempts(),
+              err: event.lastError,
+            },
+            'Outbox event publish failed',
+          );
+          if (event.attempts >= this.maxAttempts()) {
+            await this.deadLetter(event);
+          }
+        }
+      }
+      await manager.save(events);
+      return events.filter((e) => e.publishedAt).length;
+    });
+  }, 0);
+}
+
+private maxAttempts(): number {
+  return this.config.getOrThrow('ECONOMY_OUTBOX_MAX_ATTEMPTS', {
+    infer: true,
+  });
+}
+
+private async deadLetter(event: OutboxEvent): Promise<void> {
+  try {
+    await this.eventBus.publishDeadLetter(
+      toEventEnvelope(event),
+      event.lastError ?? 'unknown publish failure',
+      event.attempts,
+    );
+    this.logger.error(
+      {
+        eventId: event.id,
+        topic: event.topic,
+        attempts: event.attempts,
+        deadLetterTopic: `${event.topic}.DLQ`,
+      },
+      'Outbox event moved to dead-letter topic',
+    );
+  } catch (deadLetterError) {
+    this.logger.error(
+      {
+        eventId: event.id,
+        topic: event.topic,
+        attempts: event.attempts,
+        err: stringifyError(deadLetterError),
+      },
+      'Outbox dead-letter publish failed; retaining terminal row for replay',
+    );
+  } finally {
+    // Dù gửi dead-letter được hay không (Kafka vẫn hỏng) vẫn đánh dấu terminal để khỏi
+    // lặp vô hạn; dòng còn giữ lại là nguồn để vận hành replay.
+    event.deadLetteredAt = new Date();
+  }
+}
+
+// [WORKER] outbox-relay.service.ts · L149–158, L160–165, L167–173
+function toEventEnvelope(event: OutboxEvent): EventEnvelope {
+  return {
+    id: event.id,
+    topic: event.topic,
+    type: event.eventType,
+    version: eventVersion(event.payload),
+    key: orderingKey(event),
+    payload: event.payload,
+  };
+}
+
+function eventVersion(payload: Record<string, unknown>): number {
+  const version = payload['version'];
+  return typeof version === 'number' && Number.isInteger(version)
+    ? version
+    : DEFAULT_EVENT_VERSION;
+}
+
+function orderingKey(event: OutboxEvent): string {
+  for (const field of ORDERING_KEY_FIELDS) {
+    const value = event.payload[field];
+    if (typeof value === 'string' && value.length > 0) return value;
+  }
+  return event.id;
+}

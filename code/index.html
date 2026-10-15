@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Các luồng khó của Litmatch: code kèm lời giải thích</title>
+<style>
+:root{color-scheme:light;--bg:#fff;--fg:#1f2328;--muted:#59636e;--border:#d1d9e0;--subtle:#f6f8fa;--accent:#0969da;--lnum:#818b98;--target:#fff8c5;--sec:#ddf4ff;--secfg:#0550ae;
+--pl-c:#6e7781;--pl-k:#cf222e;--pl-en:#8250df;--pl-c1:#0550ae;--pl-s:#0a3069;--ok:#1a7f37;--info:#0969da;--warn:#bc4c00;--t-controller:#1a7f37;--t-service:#bc4c00;--t-worker:#8250df;--t-postgres:#0969da;--t-redis:#cf222e;--t-kafka:#57606a;--t-bullmq:#bf3989;--t-external:#0a7a6b;--t-gateway:#9a6700}
+:root[data-theme=dark]{color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--lnum:#6e7681;--target:#3b2e0b;--sec:#10294a;--secfg:#79c0ff;
+--pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--lnum:#6e7681;--target:#3b2e0b;--sec:#10294a;--secfg:#79c0ff;
+--pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341}}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:24px 16px 48px}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.box{border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--bg)}
+.bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--subtle);border-bottom:1px solid var(--border)}
+.path{font-size:14px}.path b{font-weight:600}.meta{margin-left:12px;color:var(--muted);font-size:12px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:500 12px/20px -apple-system,"Segoe UI",sans-serif;padding:3px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer}
+.btn:hover{background:var(--subtle);text-decoration:none}
+.toc{display:flex;flex-wrap:wrap;gap:4px 16px;padding:8px 16px;border-bottom:1px solid var(--border);font-size:13px}
+.toc a.cur{color:var(--fg);font-weight:600;text-decoration:underline}
+.legend{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--border);font-size:12px;color:var(--muted)}
+.lg{font:700 11px/18px ui-monospace,SFMono-Regular,Consolas,monospace;padding:0 8px;border:1px solid currentColor;border-radius:999px}
+.src{overflow-x:auto;padding:8px 0;font:12px/20px ui-monospace,SFMono-Regular,"SF Mono","Cascadia Mono",Menlo,Consolas,"Liberation Mono",monospace;tab-size:2}
+.ln{display:flex;min-width:max-content}
+.ln .n{flex:none;width:56px;padding:0 16px 0 0;text-align:right;color:var(--lnum);user-select:none;text-decoration:none}
+.ln .n::before{content:attr(data-n)}.ln .n:hover{color:var(--fg)}
+.ln .t{white-space:pre;padding-right:24px}
+.ln:target{background:var(--target)}
+.ln.tag{background:var(--subtle);border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-top:2px}
+.ln.sec{background:var(--sec)}.ln.sec .pl-c{color:var(--secfg);font-weight:600}.ln.rule .pl-c{color:var(--border)}
+.pl-c{color:var(--pl-c)}.pl-k{color:var(--pl-k)}.pl-en{color:var(--pl-en)}.pl-c1{color:var(--pl-c1)}.pl-s{color:var(--pl-s)}
+.tg{font-weight:700}.tg-controller{color:var(--t-controller)}.ln.tag.tier-controller{box-shadow:inset 4px 0 0 var(--t-controller)}.tg-service{color:var(--t-service)}.ln.tag.tier-service{box-shadow:inset 4px 0 0 var(--t-service)}.tg-worker{color:var(--t-worker)}.ln.tag.tier-worker{box-shadow:inset 4px 0 0 var(--t-worker)}.tg-postgres{color:var(--t-postgres)}.ln.tag.tier-postgres{box-shadow:inset 4px 0 0 var(--t-postgres)}.tg-redis{color:var(--t-redis)}.ln.tag.tier-redis{box-shadow:inset 4px 0 0 var(--t-redis)}.tg-kafka{color:var(--t-kafka)}.ln.tag.tier-kafka{box-shadow:inset 4px 0 0 var(--t-kafka)}.tg-bullmq{color:var(--t-bullmq)}.ln.tag.tier-bullmq{box-shadow:inset 4px 0 0 var(--t-bullmq)}.tg-external{color:var(--t-external)}.ln.tag.tier-external{box-shadow:inset 4px 0 0 var(--t-external)}.tg-gateway{color:var(--t-gateway)}.ln.tag.tier-gateway{box-shadow:inset 4px 0 0 var(--t-gateway)}
+.idx{padding:20px 24px 28px}.idx h1{margin:0 0 8px;font-size:22px;font-weight:600}.idx p{margin:0 0 16px;color:var(--muted);max-width:820px}
+.idx h2{margin:30px 0 4px;font-size:17px;font-weight:600}.idx .sum{margin:0 0 10px}
+.tbl td.fn>a{font-weight:600}.tbl td.fn .rt{margin-top:3px;color:var(--muted)}.tbl td.tiers .lg{display:inline-block;margin:0 4px 4px 0}
+.tbl.ov{table-layout:fixed}.tbl.ov th:nth-child(1){width:32%}.tbl.ov th:nth-child(2){width:40%}.tbl.ov th:nth-child(3){width:28%}.tbl.ov code{overflow-wrap:anywhere}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}.tbl th,.tbl td{padding:8px 12px;text-align:left;border-top:1px solid var(--border);vertical-align:top}
+.tbl th{background:var(--subtle);font-size:12px;color:var(--muted);font-weight:600}.tbl td.num{color:var(--muted);font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.tbl td.tb{color:var(--muted);font-size:12px}.tbl td.lk,.tbl td.ep{white-space:nowrap}
+.tbl code{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--subtle);border:1px solid var(--border);border-radius:6px;padding:1px 6px}
+.m{display:inline-block;min-width:44px;text-align:center;font:700 11px/18px ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:4px;border:1px solid var(--border);padding:0 6px}
+.m-get{color:var(--ok)}.m-post{color:var(--info)}.m-put{color:var(--warn)}
+@media (max-width:700px){main{padding:12px 8px}.ln .n{width:44px;padding-right:10px}.idx{padding:16px 12px}}
+</style>
+</head>
+<body>
+<main>
+<div class="box">
+  <div class="bar">
+    <div class="path"><a href="https://github.com/ducmanh001/litmatch-feature-flows">litmatch-feature-flows</a> / <b>code</b><span class="meta">25 chức năng</span></div>
+    <div class="actions"><a class="btn" href="../index.html">Sơ đồ luồng</a><button class="btn" id="theme" type="button" title="Đổi theme">Theme: Tự động</button></div>
+  </div>
+  <div class="legend"><span>Tầng:</span><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-worker">WORKER</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-redis">REDIS</b><b class="lg tg-kafka">KAFKA</b><b class="lg tg-bullmq">BULLMQ</b><b class="lg tg-external">EXTERNAL</b><b class="lg tg-gateway">GATEWAY</b></div>
+  <div class="idx">
+    <h1>Các luồng khó của Litmatch: code kèm lời giải thích</h1>
+    <p>Chỉ chọn luồng có nhiều nghiệp vụ hoặc cơ chế kỹ thuật (Redis, transaction DB, idempotency, webhook, worker nền); bỏ CRUD cơ bản. Mỗi chức năng là một trang, chép code thật đi từ trên xuống theo thứ tự chạy, nhãn tầng tô màu; comment chỉ trả lời "vì sao" ở chỗ logic khó. Mở trang để xem vai trò từng tầng, từng bảng, từng module liên quan.</p>
+<h2 id="02-soul-match">02 · Soul Match</h2>
+<p class="sum">Chat ẩn danh vài phút giữa 2 người đã ghép, đánh giá nhau; cả 2 cùng thích thì thành bạn và giữ lại lịch sử chat.</p>
+<table class="tbl ov"><thead><tr><th>Chức năng</th><th>Làm gì</th><th>Tầng đi qua</th></tr></thead><tbody>
+<tr><td class="fn"><a href="02-soul-match/01-post-send-message.html">Gửi tin nhắn ẩn danh</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>soul-match/<wbr>sessions/<wbr>:id/<wbr>messages</code></div></td><td>Gửi tin nhắn trong phòng ẩn danh: giờ chat tính ở server, idempotent theo key, realtime riêng cho từng người nhận.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-redis">REDIS</b></td></tr>
+<tr><td class="fn"><a href="02-soul-match/02-post-rating.html">Đánh giá đối phương và thành bạn</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>soul-match/<wbr>sessions/<wbr>:id/<wbr>rating</code></div></td><td>Ghi rating bất biến; khi cả 2 cùng like thì tạo Friendship, Conversation và chuyển lịch sử chat trong một transaction.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-redis">REDIS</b></td></tr>
+</tbody></table>
+<h2 id="04-party-room">04 · Party Room</h2>
+<p class="sum">Phòng audio nhiều người trên LiveKit: host mở phòng, audience vào nghe, host mời speaker lên nói.</p>
+<table class="tbl ov"><thead><tr><th>Chức năng</th><th>Làm gì</th><th>Tầng đi qua</th></tr></thead><tbody>
+<tr><td class="fn"><a href="04-party-room/01-post-join-room.html">Vào phòng Party (join hoặc join lại)</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>party/<wbr>rooms/<wbr>:id/<wbr>join</code></div></td><td>Vào phòng Party làm audience, hoặc vào lại khi rớt mạng, rồi nhận token LiveKit theo role hiện tại (audience không được publish).</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-redis">REDIS</b><b class="lg tg-external">EXTERNAL</b></td></tr>
+<tr><td class="fn"><a href="04-party-room/02-post-create-room.html">Tạo phòng Party</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>party/<wbr>rooms</code></div></td><td>Tạo phòng và membership host trong 1 transaction, rồi tạo room trên LiveKit; SFU lỗi thì đóng phòng bù trừ.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-external">EXTERNAL</b></td></tr>
+<tr><td class="fn"><a href="04-party-room/03-post-accept-speaker-invite.html">Đồng ý lời mời lên speaker</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>party/<wbr>rooms/<wbr>:id/<wbr>speaker-invite/<wbr>accept</code></div></td><td>Audience đồng ý lời mời của host để lên speaker: đếm giới hạn dưới khóa phòng, commit role, rồi mở quyền publish trên LiveKit.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-external">EXTERNAL</b><b class="lg tg-redis">REDIS</b></td></tr>
+</tbody></table>
+<h2 id="05-movie-match-movie-night">05 · Movie Match / Movie Night</h2>
+<p class="sum">Hai người cùng xem một video đồng bộ: với bạn bè (Movie Night) hoặc ghép người lạ ẩn danh (Movie Match).</p>
+<table class="tbl ov"><thead><tr><th>Chức năng</th><th>Làm gì</th><th>Tầng đi qua</th></tr></thead><tbody>
+<tr><td class="fn"><a href="05-movie-match-movie-night/01-post-create-session.html">Tạo phiên xem chung với một người bạn</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>movie-match/<wbr>sessions</code></div></td><td>Tạo phiên xem video chung giữa 2 người bạn, idempotent theo cặp, mỗi user chỉ có 1 phiên đang xem.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-redis">REDIS</b></td></tr>
+</tbody></table>
+<h2 id="06-palm-match">06 · Palm Match</h2>
+<p class="sum">Ghép ẩn danh hai người qua trò bói bài: lật lá, xem độ hợp, rồi like hoặc bỏ qua.</p>
+<table class="tbl ov"><thead><tr><th>Chức năng</th><th>Làm gì</th><th>Tầng đi qua</th></tr></thead><tbody>
+<tr><td class="fn"><a href="06-palm-match/01-post-join-queue.html">Vào hàng đợi Palm Match</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>palm-match/<wbr>queue</code></div></td><td>Vào hàng đợi ghép ẩn danh; nếu có người chờ phù hợp thì ghép ngay thành 1 phiên Palm Match.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b></td></tr>
+</tbody></table>
+<h2 id="09-diamond-top-up-va-vip">09 · Diamond, Top-up và VIP</h2>
+<p class="sum">Nạp Diamond qua store hoặc payOS, mua VIP bằng Diamond, hoàn tiền từ store; mọi thay đổi số dư đi qua một sổ kép duy nhất.</p>
+<table class="tbl ov"><thead><tr><th>Chức năng</th><th>Làm gì</th><th>Tầng đi qua</th></tr></thead><tbody>
+<tr><td class="fn"><a href="09-diamond-top-up-va-vip/01-post-vip-purchase.html">Mua VIP bằng Diamond</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>economy/<wbr>vip/<wbr>purchase</code></div></td><td>Trừ Diamond và gia hạn VIP trong một transaction của sổ kép: idempotent theo key, khóa ví FOR UPDATE, ghi outbox.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-worker">WORKER</b><b class="lg tg-kafka">KAFKA</b></td></tr>
+<tr><td class="fn"><a href="09-diamond-top-up-va-vip/02-post-iap-verify.html">Nạp Diamond bằng receipt của store</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>economy/<wbr>iap/<wbr>verify</code></div></td><td>Xác thực receipt với Apple hoặc Google ở server, rồi cộng Diamond đúng một lần theo id giao dịch của store.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-external">EXTERNAL</b><b class="lg tg-postgres">POSTGRES</b></td></tr>
+<tr><td class="fn"><a href="09-diamond-top-up-va-vip/03-post-webhook-payos.html">Webhook payOS cộng Diamond</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>economy/<wbr>webhooks/<wbr>payos</code></div></td><td>payOS báo thanh toán thành công: kiểm HMAC, đối chiếu snapshot của đơn, rồi cộng Diamond đúng một lần.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-external">EXTERNAL</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b></td></tr>
+<tr><td class="fn"><a href="09-diamond-top-up-va-vip/04-post-webhook-apple-refund.html">Webhook Apple hoàn tiền</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>economy/<wbr>webhooks/<wbr>apple</code></div></td><td>Apple báo REFUND hoặc REVOKE: kiểm chữ ký JWS, rồi đảo bút toán của lần nạp gốc; số dư có thể âm.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-external">EXTERNAL</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b></td></tr>
+</tbody></table>
+<h2 id="10-matching-speed-up-detail">10 · Matching Speed-up</h2>
+<p class="sum">Trả Diamond để vé đang chờ được đẩy lên đầu hàng đợi Redis và ghép sớm hơn.</p>
+<table class="tbl ov"><thead><tr><th>Chức năng</th><th>Làm gì</th><th>Tầng đi qua</th></tr></thead><tbody>
+<tr><td class="fn"><a href="10-matching-speed-up-detail/01-post-speedup-ticket.html">Speed-up vé đang chờ ghép</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>matching/<wbr>tickets/<wbr>:id/<wbr>speedup</code></div></td><td>Trả Diamond để vé được ưu tiên: trừ tiền trước, cộng boost vào DB, rồi đặt lại điểm trong Redis.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-redis">REDIS</b></td></tr>
+</tbody></table>
+<h2 id="11-gift">11 · Gift</h2>
+<p class="sum">Tặng quà trong Party Room: trừ Diamond của người tặng và cộng điểm PTS cho người nhận trong cùng một transaction.</p>
+<table class="tbl ov"><thead><tr><th>Chức năng</th><th>Làm gì</th><th>Tầng đi qua</th></tr></thead><tbody>
+<tr><td class="fn"><a href="11-gift/01-post-party-room-gift.html">Tặng quà trong phòng</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>party/<wbr>rooms/<wbr>:roomId/<wbr>gifts</code></div></td><td>Tặng quà trong Party Room: trừ DIA người tặng, cộng PTS người nhận, ghi GiftEvent trong cùng một transaction.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-redis">REDIS</b></td></tr>
+</tbody></table>
+<h2 id="12-mini-game">12 · Mini Game</h2>
+<p class="sum">Hai người bạn chơi oẳn tù tì với nhau: tạo ván, mỗi bên nộp một nước đi, đủ hai nước thì có kết quả.</p>
+<table class="tbl ov"><thead><tr><th>Chức năng</th><th>Làm gì</th><th>Tầng đi qua</th></tr></thead><tbody>
+<tr><td class="fn"><a href="12-mini-game/01-post-submit-move.html">Nộp nước đi oẳn tù tì</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>mini-game/<wbr>sessions/<wbr>:id/<wbr>moves</code></div></td><td>Mỗi bên nộp đúng 1 nước đi; khi đủ 2 nước thì tính thắng/thua và báo kết quả cho cả hai.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-redis">REDIS</b></td></tr>
+</tbody></table>
+<h2 id="13-trust-safety">13 · Trust &amp; Safety</h2>
+<p class="sum">Báo cáo người dùng và chặn người dùng: report trừ trust score có chống lạm dụng, trust score thấp thì bị xếp sau khi ghép.</p>
+<table class="tbl ov"><thead><tr><th>Chức năng</th><th>Làm gì</th><th>Tầng đi qua</th></tr></thead><tbody>
+<tr><td class="fn"><a href="13-trust-safety/01-post-report.html">Báo cáo một người dùng</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>safety/<wbr>reports</code></div></td><td>Ghi report và trừ trust score của người bị báo cáo trong 1 transaction, có chống lạm dụng theo cặp và theo ngày.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b></td></tr>
+</tbody></table>
+<h2 id="16-friend-va-chat-1-1">16 · Friend và Chat 1-1</h2>
+<p class="sum">Chat 1-1 bền vững giữa hai người đã là bạn hoặc đã mở chat từ hồ sơ: gửi tin nhắn, streak, realtime và thông báo.</p>
+<table class="tbl ov"><thead><tr><th>Chức năng</th><th>Làm gì</th><th>Tầng đi qua</th></tr></thead><tbody>
+<tr><td class="fn"><a href="16-friend-va-chat-1-1/01-post-send-message.html">Gửi tin nhắn chat 1-1</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>conversations/<wbr>:id/<wbr>messages</code></div></td><td>Gửi tin nhắn idempotent, cập nhật streak ngày, phát realtime cho 2 người và thông báo cho người nhận.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-redis">REDIS</b></td></tr>
+</tbody></table>
+<h2 id="17-dang-ky-onboarding-va-guest">17 · Đăng ký, Onboarding và Guest</h2>
+<p class="sum">Đăng nhập bằng OTP, social hoặc guest, tự tạo tài khoản ở lần đầu và giữ phiên bằng refresh token xoay vòng.</p>
+<table class="tbl ov"><thead><tr><th>Chức năng</th><th>Làm gì</th><th>Tầng đi qua</th></tr></thead><tbody>
+<tr><td class="fn"><a href="17-dang-ky-onboarding-va-guest/01-post-verify-otp.html">Xác minh OTP và đăng nhập</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>auth/<wbr>otp/<wbr>verify</code></div></td><td>Kiểm mã OTP có giới hạn số lần thử và chỉ dùng một lần, rồi tìm hoặc tạo tài khoản và cấp phiên đăng nhập.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b></td></tr>
+<tr><td class="fn"><a href="17-dang-ky-onboarding-va-guest/02-post-refresh.html">Đổi refresh token lấy phiên mới</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>auth/<wbr>refresh</code></div></td><td>Xoay refresh token mỗi lần dùng và phát hiện dùng lại: token đã xoay mà bị dùng lại thì thu hồi cả họ token.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b></td></tr>
+</tbody></table>
+<h2 id="18-discovery-nearby-va-direct-invite">18 · Discovery, Nearby và Direct Invite</h2>
+<p class="sum">Duyệt người dùng quanh mình (Nearby) rồi mời ghép Voice/Soul Match trực tiếp, bỏ qua hàng đợi khi người kia chấp nhận.</p>
+<table class="tbl ov"><thead><tr><th>Chức năng</th><th>Làm gì</th><th>Tầng đi qua</th></tr></thead><tbody>
+<tr><td class="fn"><a href="18-discovery-nearby-va-direct-invite/01-post-accept-invite.html">Chấp nhận lời mời ghép trực tiếp</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>matching/<wbr>invites/<wbr>:id/<wbr>accept</code></div></td><td>Người được mời chấp nhận: tạo thẳng 2 ticket và 1 session đã confirmed, bỏ qua hàng đợi, idempotent theo (lời mời, vai trò).</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-redis">REDIS</b></td></tr>
+<tr><td class="fn"><a href="18-discovery-nearby-va-direct-invite/02-get-nearby.html">Duyệt người dùng gần mình (Nearby)</a><div class="rt"><span class="m m-get">GET</span> <code>/<wbr>api/<wbr>v1/<wbr>discovery/<wbr>nearby</code></div></td><td>Trả danh sách người gần vị trí của mình dưới dạng nhóm khoảng cách, có 3 lớp chống dò vị trí.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-redis">REDIS</b><b class="lg tg-postgres">POSTGRES</b></td></tr>
+</tbody></table>
+<h2 id="20-short-video">20 · Short Video</h2>
+<p class="sum">Video ngắn: tác giả tải lên, người xem lướt, thả tim, bình luận; lượt xem và thứ hạng được đếm chống trùng.</p>
+<table class="tbl ov"><thead><tr><th>Chức năng</th><th>Làm gì</th><th>Tầng đi qua</th></tr></thead><tbody>
+<tr><td class="fn"><a href="20-short-video/01-post-record-view.html">Ghi nhận lượt xem video</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>videos/<wbr>:id/<wbr>views</code></div></td><td>Ghi watch-time của người xem và cộng viewCount đúng 1 lần khi xem đủ ngưỡng, kể cả khi nhiều request đến cùng lúc.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b></td></tr>
+</tbody></table>
+<h2 id="03-voice-match">03 · Voice Match</h2>
+<p class="sum">Ghép hai người để nói chuyện bằng giọng nói: vào hàng đợi, ghép cặp, rồi vào cuộc gọi LiveKit.</p>
+<table class="tbl ov"><thead><tr><th>Chức năng</th><th>Làm gì</th><th>Tầng đi qua</th></tr></thead><tbody>
+<tr><td class="fn"><a href="03-voice-match/01-post-join-queue.html">Vào hàng đợi ghép Voice Match</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>matching/<wbr>tickets</code></div></td><td>Vào hàng đợi Voice Match tới khi 2 người được ghép thành MatchSession.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-redis">REDIS</b><b class="lg tg-worker">WORKER</b></td></tr>
+<tr><td class="fn"><a href="03-voice-match/02-post-join-call.html">Vào cuộc gọi Voice Match</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>calling/<wbr>match-sessions/<wbr>:matchSessionId/<wbr>join</code></div></td><td>Mở phòng gọi cho cặp đã ghép: tạo CallSession duy nhất rồi cấp token LiveKit riêng cho từng người.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-external">EXTERNAL</b></td></tr>
+<tr><td class="fn"><a href="03-voice-match/03-post-webhook-livekit.html">Webhook LiveKit và đồng hồ cuộc gọi</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>calling/<wbr>webhooks/<wbr>livekit</code></div></td><td>LiveKit báo ai vào hoặc rời phòng, ticker nền canh giờ (reconnect, tối đa 420 giây) rồi kết thúc call.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-external">EXTERNAL</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-worker">WORKER</b><b class="lg tg-redis">REDIS</b></td></tr>
+<tr><td class="fn"><a href="03-voice-match/04-post-like-call.html">Thích đối phương sau Voice Match</a><div class="rt"><span class="m m-post">POST</span> <code>/<wbr>api/<wbr>v1/<wbr>calling/<wbr>calls/<wbr>:id/<wbr>like</code></div></td><td>Ghi lượt thích bất biến; khi cả 2 cùng thích thì tạo bạn bè và phòng chat trong cùng transaction.</td><td class="tiers"><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b></td></tr>
+</tbody></table>
+  </div>
+</div>
+</main>
+<script>(function(){
+var root=document.documentElement,key='litmatch-code-theme',btn=document.getElementById('theme'),labels={auto:'Tự động',light:'Sáng',dark:'Tối'};
+var mode='auto';try{var s=localStorage.getItem(key);if(s==='light'||s==='dark')mode=s}catch(e){}
+function apply(){if(mode==='auto')root.removeAttribute('data-theme');else root.setAttribute('data-theme',mode);btn.textContent='Theme: '+labels[mode]}
+apply();
+btn.addEventListener('click',function(){mode=mode==='auto'?'light':mode==='light'?'dark':'auto';try{if(mode==='auto')localStorage.removeItem(key);else localStorage.setItem(key,mode)}catch(e){}apply()});
+})();</script>
+</body>
+</html>
