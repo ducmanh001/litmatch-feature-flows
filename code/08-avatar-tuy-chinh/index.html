@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Avatar tùy chỉnh: code theo từng endpoint</title>
+<style>
+:root{color-scheme:light;--bg:#fff;--fg:#1f2328;--muted:#59636e;--border:#d1d9e0;--subtle:#f6f8fa;--accent:#0969da;--lnum:#818b98;--target:#fff8c5;--sec:#ddf4ff;--secfg:#0550ae;
+--pl-c:#6e7781;--pl-k:#cf222e;--pl-en:#8250df;--pl-c1:#0550ae;--pl-s:#0a3069;--ok:#1a7f37;--info:#0969da;--warn:#bc4c00}
+:root[data-theme=dark]{color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--lnum:#6e7681;--target:#3b2e0b;--sec:#10294a;--secfg:#79c0ff;
+--pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--lnum:#6e7681;--target:#3b2e0b;--sec:#10294a;--secfg:#79c0ff;
+--pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657}}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:24px 16px 48px}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.box{border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--bg)}
+.bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--subtle);border-bottom:1px solid var(--border)}
+.path{font-size:14px}.path b{font-weight:600}.meta{margin-left:12px;color:var(--muted);font-size:12px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:500 12px/20px -apple-system,"Segoe UI",sans-serif;padding:3px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer}
+.btn:hover{background:var(--subtle);text-decoration:none}
+.toc{display:flex;flex-wrap:wrap;gap:4px 16px;padding:8px 16px;border-bottom:1px solid var(--border);font-size:13px}
+.toc a.cur{color:var(--fg);font-weight:600;text-decoration:underline}
+.src{overflow-x:auto;padding:8px 0;font:12px/20px ui-monospace,SFMono-Regular,"SF Mono","Cascadia Mono",Menlo,Consolas,"Liberation Mono",monospace;tab-size:2}
+.ln{display:flex;min-width:max-content}
+.ln .n{flex:none;width:56px;padding:0 16px 0 0;text-align:right;color:var(--lnum);user-select:none;text-decoration:none}
+.ln .n::before{content:attr(data-n)}.ln .n:hover{color:var(--fg)}
+.ln .t{white-space:pre;padding-right:24px}
+.ln:target{background:var(--target)}
+.ln.tag{background:var(--subtle);border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-top:2px}
+.ln.sec{background:var(--sec)}.ln.sec .pl-c{color:var(--secfg);font-weight:600}.ln.rule .pl-c{color:var(--border)}
+.pl-c{color:var(--pl-c)}.pl-k{color:var(--pl-k)}.pl-en{color:var(--pl-en)}.pl-c1{color:var(--pl-c1)}.pl-s{color:var(--pl-s)}
+.idx{padding:20px 24px 28px}.idx h1{margin:0 0 8px;font-size:22px;font-weight:600}.idx p{margin:0 0 16px;color:var(--muted);max-width:820px}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}.tbl th,.tbl td{padding:8px 12px;text-align:left;border-top:1px solid var(--border);vertical-align:top}
+.tbl th{background:var(--subtle);font-size:12px;color:var(--muted);font-weight:600}.tbl td.num{color:var(--muted);font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.tbl td.tb{color:var(--muted);font-size:12px}.tbl td.lk,.tbl td.ep{white-space:nowrap}
+.tbl code{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--subtle);border:1px solid var(--border);border-radius:6px;padding:1px 6px}
+.m{display:inline-block;min-width:44px;text-align:center;font:700 11px/18px ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:4px;border:1px solid var(--border);padding:0 6px}
+.m-get{color:var(--ok)}.m-post{color:var(--info)}.m-put{color:var(--warn)}
+@media (max-width:700px){main{padding:12px 8px}.ln .n{width:44px;padding-right:10px}.idx{padding:16px 12px}}
+</style>
+</head>
+<body>
+<main>
+<div class="box">
+  <div class="bar">
+    <div class="path"><a href="https://github.com/ducmanh001/litmatch-feature-flows">litmatch-feature-flows</a> / <a href="https://github.com/ducmanh001/litmatch-feature-flows/tree/main/code/08-avatar-tuy-chinh">08-avatar-tuy-chinh</a> / <b>các endpoint</b></div>
+    <div class="actions"><a class="btn" href="../../index.html#08-avatar-tuy-chinh">Sơ đồ luồng</a><button class="btn" id="theme" type="button" title="Đổi theme">Theme: Tự động</button></div>
+  </div>
+  <div class="idx">
+    <h1>Avatar tùy chỉnh: code theo từng endpoint</h1>
+    <p>Mỗi endpoint là một file, đọc từ trên xuống theo luồng: client, controller, service, bảng. Phần dùng chung không chép (middleware, guard, interceptor, pipe toàn cục, exception filter).</p>
+    <table class="tbl"><thead><tr><th>#</th><th>Endpoint</th><th>Làm gì</th><th>Bảng</th><th></th></tr></thead><tbody>
+<tr><td class="num">01</td><td class="ep"><span class="m m-get">GET</span> <code>/api/v1/avatar/catalog</code></td><td>Danh sách item avatar đang bán, lọc được theo slot.</td><td class="tb">avatar_assets</td><td class="lk"><a href="01-get-catalog.html">Xem</a> · <a href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/08-avatar-tuy-chinh/01-get-catalog.ts">GitHub</a></td></tr>
+<tr><td class="num">02</td><td class="ep"><span class="m m-get">GET</span> <code>/api/v1/avatar/me/items</code></td><td>Danh sách item avatar mình đang sở hữu.</td><td class="tb">user_avatar_items, avatar_assets</td><td class="lk"><a href="02-get-me-items.html">Xem</a> · <a href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/08-avatar-tuy-chinh/02-get-me-items.ts">GitHub</a></td></tr>
+<tr><td class="num">03</td><td class="ep"><span class="m m-post">POST</span> <code>/api/v1/avatar/items/:assetId/claim</code></td><td>Nhận item miễn phí (giá 0).</td><td class="tb">avatar_assets, user_avatar_items</td><td class="lk"><a href="03-post-claim.html">Xem</a> · <a href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/08-avatar-tuy-chinh/03-post-claim.ts">GitHub</a></td></tr>
+<tr><td class="num">04</td><td class="ep"><span class="m m-post">POST</span> <code>/api/v1/avatar/items/:assetId/buy</code></td><td>Mua item avatar trả phí: trừ diamond rồi ghi quyền sở hữu.</td><td class="tb">avatar_assets, user_avatar_items</td><td class="lk"><a href="04-post-buy.html">Xem</a> · <a href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/08-avatar-tuy-chinh/04-post-buy.ts">GitHub</a></td></tr>
+<tr><td class="num">05</td><td class="ep"><span class="m m-put">PUT</span> <code>/api/v1/avatar/me/equip</code></td><td>Trang bị một item vào slot (chỉ item đã sở hữu, đúng slot).</td><td class="tb">avatar_assets, user_avatar_items, user_avatar_configs</td><td class="lk"><a href="05-put-equip.html">Xem</a> · <a href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/08-avatar-tuy-chinh/05-put-equip.ts">GitHub</a></td></tr>
+<tr><td class="num">06</td><td class="ep"><span class="m m-get">GET</span> <code>/api/v1/avatar/me</code></td><td>Avatar của chính mình; lần đầu tự tạo avatar mặc định.</td><td class="tb">user_avatar_configs, avatar_assets, user_avatar_items</td><td class="lk"><a href="06-get-me.html">Xem</a> · <a href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/08-avatar-tuy-chinh/06-get-me.ts">GitHub</a></td></tr>
+<tr><td class="num">07</td><td class="ep"><span class="m m-get">GET</span> <code>/api/v1/avatar/users/:userId</code></td><td>Xem avatar của người khác (không cần là bạn bè).</td><td class="tb">user_avatar_configs, avatar_assets</td><td class="lk"><a href="07-get-user-avatar.html">Xem</a> · <a href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/08-avatar-tuy-chinh/07-get-user-avatar.ts">GitHub</a></td></tr>
+    </tbody></table>
+  </div>
+</div>
+</main>
+<script>(function(){
+var root=document.documentElement,key='litmatch-code-theme',btn=document.getElementById('theme'),labels={auto:'Tự động',light:'Sáng',dark:'Tối'};
+var mode='auto';try{var s=localStorage.getItem(key);if(s==='light'||s==='dark')mode=s}catch(e){}
+function apply(){if(mode==='auto')root.removeAttribute('data-theme');else root.setAttribute('data-theme',mode);btn.textContent='Theme: '+labels[mode]}
+apply();
+btn.addEventListener('click',function(){mode=mode==='auto'?'light':mode==='light'?'dark':'auto';try{if(mode==='auto')localStorage.removeItem(key);else localStorage.setItem(key,mode)}catch(e){}apply()});
+})();</script>
+</body>
+</html>
