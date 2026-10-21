@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1280 800" width="1280" height="800" role="img" aria-label="Việc nền theo lô: broadcast, xếp hạng video, bộ đệm đếm" font-family="-apple-system,Segoe UI,Noto Sans,Helvetica,Arial,sans-serif">
+<title>Việc nền theo lô: broadcast, xếp hạng video, bộ đệm đếm</title>
+<style>
+:root{--bg:#ffffff;--fg:#1f2328;--muted:#59636e;--border:#d1d9e0;--subtle:#f6f8fa;--accent:#0969da;--ok:#1a7f37;--warn:#bc4c00;
+--t-controller:#1a7f37;--t-service:#bc4c00;--t-worker:#8250df;--t-postgres:#0969da;--t-redis:#cf222e;--t-kafka:#57606a;--t-external:#0a7a6b;--t-gateway:#9a6700}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--ok:#56d364;--warn:#ffa657;
+--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-external:#39d0bb;--t-gateway:#e3b341}}
+.bg{fill:var(--bg)}
+.ttl{font:700 17px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--fg)}
+.sub{font:12px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.nt{font:700 13px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--fg)}
+.nl{font:11.5px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.gt{font:600 12px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.el{font:600 11px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--fg)}
+.lg{font:11.5px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.node{fill:var(--subtle);stroke-width:1.6}
+.node.ops{stroke-dasharray:5 4}
+.grp{fill:none;stroke:var(--border);stroke-width:1.2;stroke-dasharray:6 4}
+.edge{fill:none;stroke-width:1.6;stroke-linejoin:round}
+.edge.async{stroke-dasharray:6 4}
+.pill{fill:var(--bg);stroke-width:1}
+.tag{font:700 10px -apple-system,"Segoe UI",sans-serif}
+.tagbg{stroke-width:1}
+a:hover .nt{text-decoration:underline}</style>
+<defs>
+<marker id="ah-client" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+<marker id="ah-gateway" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-gateway)"/></marker>
+<marker id="ah-service" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-service)"/></marker>
+<marker id="ah-worker" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-worker)"/></marker>
+<marker id="ah-postgres" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-postgres)"/></marker>
+<marker id="ah-redis" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-redis)"/></marker>
+<marker id="ah-kafka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-kafka)"/></marker>
+<marker id="ah-external" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-external)"/></marker>
+<marker id="ah-ops" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+</defs>
+<rect class="bg" x="0" y="0" width="1280" height="800"/>
+<text class="ttl" x="24" y="30">Việc nền theo lô: broadcast, xếp hạng video, bộ đệm đếm</text>
+<text class="sub" x="24" y="50">Việc lớn không chạy trong request: request chỉ ghi một dòng; job nền xử lý theo lô có keyset, có thể huỷ và tiếp tục sau khi pod chết.</text>
+<path class="edge" d="M310,138 L340,138" stroke="var(--t-service)" marker-end="url(#ah-service)"/>
+<path class="edge" d="M465,186 L465,235.5 Q465,238 462.5,238 L462.5,238 Q460,238 460,240.5 L460,290" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+<path class="edge" d="M795,214 L795,244.5 Q795,252 802.5,252 L802.5,252 Q810,252 810,259.5 L810,290" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+<path class="edge async" d="M970,132 L982,132 Q985,132 985,135 L985,135 Q985,138 988,138 L1000,138" stroke="var(--t-external)" marker-end="url(#ah-external)"/>
+<path class="edge async" d="M320,520 L350,520" stroke="var(--t-redis)" marker-end="url(#ah-redis)"/>
+<path class="edge" d="M630,500 L660,500" stroke="var(--t-redis)" marker-end="url(#ah-redis)"/>
+<path class="edge" d="M795,570 L795,617.5 Q795,620 792.5,620 L792.5,620 Q790,620 790,622.5 L790,670" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+<path class="edge" d="M1095,594 L1095,670" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+<path class="edge" d="M180,570 L180,612 Q180,620 172,620 L158,620 Q150,620 150,628 L150,670" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+
+<rect class="node" stroke="var(--muted)" x="40" y="90" width="270" height="96" rx="9"/>
+<text class="nt" text-anchor="middle" x="175" y="114">Admin UI</text>
+<text class="nl" text-anchor="middle" x="175" y="132">POST /admin/notifications/broadcast</text>
+<text class="nl" text-anchor="middle" x="175" y="148">header Idempotency-Key (bắt buộc)</text>
+<text class="nl" text-anchor="middle" x="175" y="164">POST …/:id/cancel (idempotent)</text>
+
+<a href="../code-10m/33-admin-broadcast/01-post-broadcast.html">
+<rect class="node" stroke="var(--t-service)" x="340" y="90" width="250" height="96" rx="9"/>
+<text class="nt" text-anchor="middle" x="465" y="114">Xếp hàng broadcast (202)</text>
+<text class="nl" text-anchor="middle" x="465" y="132">một dòng queued + audit</text>
+<text class="nl" text-anchor="middle" x="465" y="148">trùng key → trả bản cũ</text>
+<text class="nl" text-anchor="middle" x="465" y="164">khác nội dung → 409</text>
+</a>
+<a href="../code-10m/33-admin-broadcast/02-job-broadcast-dispatch-tick.html">
+<rect class="node" stroke="var(--t-worker)" x="620" y="90" width="350" height="124" rx="9"/>
+<text class="nt" text-anchor="middle" x="795" y="114">BroadcastDispatchJob (singleton)</text>
+<text class="nl" text-anchor="middle" x="795" y="132">keyset theo users.id, lô 500 người</text>
+<text class="nl" text-anchor="middle" x="795" y="148">thông báo + cursor + recipient_count CÙNG tx</text>
+<text class="nl" text-anchor="middle" x="795" y="164">push SAU commit, 20 lời gọi đồng thời</text>
+<text class="nl" text-anchor="middle" x="795" y="180">lô lỗi: retry rồi failed + audit</text>
+</a>
+
+<rect class="node" stroke="var(--t-external)" x="1000" y="90" width="240" height="96" rx="9"/>
+<text class="nt" text-anchor="middle" x="1120" y="114">FCM / APNs / Web Push</text>
+<text class="nl" text-anchor="middle" x="1120" y="132">best-effort, ngoài transaction</text>
+<text class="nl" text-anchor="middle" x="1120" y="148">lỗi push không làm mất thông báo</text>
+
+
+<path class="node" stroke="var(--t-postgres)" d="M340,298 a315,8 0 0 1 630,0 v74 a315,8 0 0 1 -630,0 z"/>
+<path class="node" stroke="var(--t-postgres)" fill="none" d="M340,298 a315,8 0 0 0 630,0"/>
+<text class="nt" text-anchor="middle" x="655" y="322">PostgreSQL</text>
+<text class="nl" text-anchor="middle" x="655" y="340">notification_broadcasts: queued → running → done / failed / cancelled</text>
+<text class="nl" text-anchor="middle" x="655" y="356">notifications (ghi cùng transaction với cursor) · users (keyset)</text>
+
+<a href="../code-10m/20-short-video/01-post-record-view.html">
+<rect class="node" stroke="var(--t-service)" x="40" y="470" width="280" height="100" rx="9"/>
+<text class="nt" text-anchor="middle" x="180" y="494">Ghi lượt xem video</text>
+<text class="nl" text-anchor="middle" x="180" y="512">POST /videos/:id/views</text>
+<text class="nl" text-anchor="middle" x="180" y="528">đủ ngưỡng xem → +1 viewCount, một lần</text>
+<text class="nl" text-anchor="middle" x="180" y="544">kể cả khi nhiều request cùng lúc</text>
+</a>
+
+<path class="node" stroke="var(--t-redis)" d="M350,466 a140,8 0 0 1 280,0 v108 a140,8 0 0 1 -280,0 z"/>
+<path class="node" stroke="var(--t-redis)" fill="none" d="M350,466 a140,8 0 0 0 280,0"/>
+<text class="nt" text-anchor="middle" x="490" y="490">Bộ đệm counter (Redis)</text>
+<text class="nl" text-anchor="middle" x="490" y="508">HINCRBY + SADD trong một MULTI</text>
+<text class="nl" text-anchor="middle" x="490" y="524">cờ VIDEO_COUNTER_BUFFER_ENABLED: tắt</text>
+<text class="nl" text-anchor="middle" x="490" y="540">Redis lỗi → fail-open về DB</text>
+
+
+<rect class="node" stroke="var(--t-worker)" x="660" y="470" width="270" height="100" rx="9"/>
+<text class="nt" text-anchor="middle" x="795" y="494">Flush counter (singleton)</text>
+<text class="nl" text-anchor="middle" x="795" y="512">một câu UPDATE … unnest cho cả lô</text>
+<text class="nl" text-anchor="middle" x="795" y="528">thay vì một UPDATE mỗi lượt xem</text>
+
+<a href="../code-10m/34-video-ranking/01-job-video-ranking-tick.html">
+<rect class="node" stroke="var(--t-worker)" x="950" y="470" width="290" height="124" rx="9"/>
+<text class="nt" text-anchor="middle" x="1095" y="494">Xếp hạng theo hạn (singleton)</text>
+<text class="nl" text-anchor="middle" x="1095" y="512">rank_due_at ∝ (decay + tuổi),</text>
+<text class="nl" text-anchor="middle" x="1095" y="528">kẹp trong [60 s, MAX_INTERVAL]</text>
+<text class="nl" text-anchor="middle" x="1095" y="544">lô SKIP LOCKED, video trẻ trước</text>
+</a>
+
+<path class="node" stroke="var(--t-postgres)" d="M40,678 a600,8 0 0 1 1200,0 v74 a600,8 0 0 1 -1200,0 z"/>
+<path class="node" stroke="var(--t-postgres)" fill="none" d="M40,678 a600,8 0 0 0 1200,0"/>
+<text class="nt" text-anchor="middle" x="640" y="702">PostgreSQL</text>
+<text class="nl" text-anchor="middle" x="640" y="720">videos (view/like/comment counters, rank_score, rank_due_at; index ranked và rank_due) · video_views</text>
+<text class="nl" text-anchor="middle" x="640" y="736">việc tỉ lệ với video trẻ và đang hoạt động, không tăng tuyến tính theo cả catalogue</text>
+
+<rect class="pill" x="308" y="128" width="34" height="20" rx="10" stroke="var(--t-service)"/>
+<text class="el" text-anchor="middle" x="325" y="142">202</text>
+<rect class="pill" x="382.5" y="228" width="160" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="462.5" y="242">INSERT queued (1 dòng)</text>
+<rect class="pill" x="709.5" y="242" width="186" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="802.5" y="256">mỗi lô: thông báo + cursor</text>
+<rect class="pill" x="964.5" y="125" width="41" height="20" rx="10" stroke="var(--t-external)"/>
+<text class="el" text-anchor="middle" x="985" y="139">push</text>
+<rect class="pill" x="304.5" y="510" width="61" height="20" rx="10" stroke="var(--t-redis)"/>
+<text class="el" text-anchor="middle" x="335" y="524">HINCRBY</text>
+<rect class="pill" x="595" y="490" width="100" height="20" rx="10" stroke="var(--t-redis)"/>
+<text class="el" text-anchor="middle" x="645" y="504">đọc tập dirty</text>
+<rect class="pill" x="742.5" y="610" width="100" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="792.5" y="624">UPDATE unnest</text>
+<rect class="pill" x="1018.5" y="622" width="153" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="1095" y="636">UPDATE lô SKIP LOCKED</text>
+<rect class="pill" x="68.5" y="610" width="193" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="165" y="624">UPDATE trực tiếp (mặc định)</text>
+<rect x="24" y="768" width="14" height="14" rx="4" fill="none" stroke="var(--t-service)" stroke-width="1.6"/>
+<text class="lg" x="44" y="779">core-api (SERVICE)</text>
+<rect x="180" y="768" width="14" height="14" rx="4" fill="none" stroke="var(--t-postgres)" stroke-width="1.6"/>
+<text class="lg" x="200" y="779">POSTGRES</text>
+<rect x="273" y="768" width="14" height="14" rx="4" fill="none" stroke="var(--t-external)" stroke-width="1.6"/>
+<text class="lg" x="293" y="779">bên ngoài / media</text>
+<rect x="423" y="768" width="14" height="14" rx="4" fill="none" stroke="var(--t-redis)" stroke-width="1.6"/>
+<text class="lg" x="443" y="779">REDIS</text>
+<rect x="497" y="768" width="14" height="14" rx="4" fill="none" stroke="var(--t-worker)" stroke-width="1.6"/>
+<text class="lg" x="517" y="779">job nền (WORKER)</text>
+<line x1="641" y1="775" x2="667" y2="775" stroke="var(--muted)" stroke-width="1.6"/><text class="lg" x="673" y="779">gọi đồng bộ</text>
+<line x1="761" y1="775" x2="787" y2="775" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="6 4"/><text class="lg" x="793" y="779">bất đồng bộ / best-effort</text>
+</svg>

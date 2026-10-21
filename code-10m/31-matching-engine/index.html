@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Matching engine: một tick của matcher: code theo từng endpoint</title>
+<title>Matching engine: matcher, định tuyến shard và repair hàng đợi: code theo từng endpoint</title>
 <style>
 :root{color-scheme:light;--bg:#fff;--fg:#1f2328;--muted:#59636e;--border:#d1d9e0;--subtle:#f6f8fa;--accent:#0969da;--lnum:#818b98;--target:#fff8c5;--sec:#ddf4ff;--secfg:#0550ae;
 --pl-c:#6e7781;--pl-k:#cf222e;--pl-en:#8250df;--pl-c1:#0550ae;--pl-s:#0a3069;--ok:#1a7f37;--info:#0969da;--warn:#bc4c00;--t-controller:#1a7f37;--t-service:#bc4c00;--t-worker:#8250df;--t-postgres:#0969da;--t-redis:#cf222e;--t-kafka:#57606a;--t-bullmq:#bf3989;--t-external:#0a7a6b;--t-gateway:#9a6700;--on-t:#fff;--guide:#d8dee4}
@@ -51,7 +51,10 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .tbl td.tb{color:var(--muted);font-size:12px}.tbl td.lk,.tbl td.ep{white-space:nowrap}
 .tbl code{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--subtle);border:1px solid var(--border);border-radius:6px;padding:1px 6px}
 .m{display:inline-block;min-width:44px;text-align:center;font:700 11px/18px ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:4px;border:1px solid var(--border);padding:0 6px}
-.m-job{color:var(--t-worker)}.m-ws{color:var(--t-gateway)}.m-get{color:var(--ok)}.m-post{color:var(--info)}.m-put{color:var(--warn)}
+.m-job{color:var(--t-worker)}.m-ws{color:var(--t-gateway)}.m-get{color:var(--ok)}.m-post{color:var(--info)}.m-put{color:var(--warn)}.m-http{color:var(--t-external)}.m-boot{color:var(--t-gateway)}.m-queue{color:var(--t-redis)}
+.org{display:inline-block;font:600 11px/18px -apple-system,"Segoe UI",sans-serif;padding:0 8px;border:1px solid currentColor;border-radius:999px;white-space:nowrap;cursor:help}
+.org-pushed{color:var(--ok)}.org-local{color:var(--warn)}
+.idx p.lnk{margin:0 0 10px;font-size:13px}
 @media (max-width:760px){
 main{padding:8px 0 32px}
 .box{border-radius:0;border-left:0;border-right:0}
@@ -76,13 +79,16 @@ main{padding:8px 0 32px}
 <div class="box">
   <div class="bar">
     <div class="path"><a href="https://github.com/ducmanh001/litmatch-feature-flows">litmatch-feature-flows</a> / <a href="https://github.com/ducmanh001/litmatch-feature-flows/tree/main/code-10m/31-matching-engine">31-matching-engine</a> / <b>các endpoint</b></div>
-    <div class="actions"><a class="btn" href="../index.html">Tổng quan</a><a class="btn" href="../../code/index.html">Bản gốc (/code)</a><button class="btn" id="theme" type="button" title="Đổi theme">Theme: Tự động</button></div>
+    <div class="actions"><a class="btn" href="../index.html">Tổng quan</a><a class="btn" href="../../architecture-10m/matching.html">Kiến trúc 10M</a>
+      <a class="btn" href="../../index.html#01-matching-engine">Sơ đồ sản phẩm</a><a class="btn" href="../../code/index.html">Bản gốc (/code)</a><button class="btn" id="theme" type="button" title="Đổi theme">Theme: Tự động</button></div>
   </div>
   <div class="idx">
-    <h1>Matching engine: một tick của matcher: code theo từng endpoint</h1>
+    <h1>Matching engine: matcher, định tuyến shard và repair hàng đợi: code theo từng endpoint</h1>
     <p>Mỗi endpoint là một file, đọc từ trên xuống theo thứ tự chạy: code controller, hàm nó gọi được chép ngay tại dòng gọi, ngang cấp (chỉ thân hàm; chỉ khối { } của code mới thụt vào), cứ thế xuống service, Postgres, Redis, worker. Mỗi khối có dòng tiêu đề [TẦNG] tô màu (CONTROLLER, SERVICE, WORKER, POSTGRES, REDIS, KAFKA, BULLMQ, EXTERNAL, GATEWAY), có đánh số Step, và một constructor gom hạ tầng trực tiếp và phần khởi tạo liên quan ở đầu trang. Có cấu hình và logic middleware, guard, interceptor, pipe và exception filter thực sự áp dụng. Chỉ lược DTO, Metrics và implementation của thư viện ngoài. Comment chỉ trả lời "vì sao" ở chỗ logic khó.</p>
     <table class="tbl"><thead><tr><th>#</th><th>Endpoint</th><th>Làm gì</th><th>Bảng</th><th></th></tr></thead><tbody>
-<tr><td class="num">01</td><td class="ep"><span class="m m-job">JOB</span> <code>MatcherWorkerService.runOnce (đánh thức khi có ticket + backstop định kỳ)</code></td><td>Duyệt các shard đang có vé, chọn cặp tương thích trong cửa sổ đầu shard, claim cả hai vé nguyên tử, xác minh lại dưới khoá rồi tạo session.</td><td class="tb">match_tickets, match_sessions, users, notifications</td><td class="lk"><a href="01-job-matcher-tick.html">Xem</a> · <a href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/31-matching-engine/01-job-matcher-tick.ts">GitHub</a></td></tr>
+<tr><td class="num">01</td><td class="ep"><span class="m m-job">JOB</span> <code>MatcherWorkerService.runOnce (đánh thức khi có ticket + backstop định kỳ)</code><div class="rt"><span class="org org-local" title="Code trang này đọc từ working tree CHƯA COMMIT (nền 0c052aa); chưa có trên GitHub. File: apps/core-api/src/modules/matching/jobs/matcher-worker.service.ts">local · chưa commit</span></div></td><td>Duyệt các shard đang có vé, chọn cặp tương thích trong cửa sổ đầu shard, claim cả hai vé nguyên tử, xác minh lại dưới khoá rồi tạo session.</td><td class="tb">match_tickets, match_sessions, users, notifications</td><td class="lk"><a href="01-job-matcher-tick.html">Xem</a> · <a href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code-10m/31-matching-engine/01-job-matcher-tick.ts">GitHub</a></td></tr>
+<tr><td class="num">02</td><td class="ep"><span class="m m-job">JOB</span> <code>QueueRepairService.runOnce (mỗi MATCHING_QUEUE_REPAIR_INTERVAL_MS, một pod duy nhất)</code><div class="rt"><span class="org org-local" title="Code trang này đọc từ working tree CHƯA COMMIT (nền 0c052aa); chưa có trên GitHub. File: apps/core-api/src/modules/matching/redis/matching-redis.provider.ts, apps/core-api/src/modules/matching/jobs/queue-repair.service.ts">local · chưa commit</span></div></td><td>Quét một trang vé queued còn trong hạn theo cursor bền vững (enqueued_at, id), khôi phục vé thiếu trong Redis bằng NX rồi refresh score theo DB bằng XX LT, đánh dấu shard active và đánh thức matcher.</td><td class="tb">match_tickets, runtime_job_checkpoints</td><td class="lk"><a href="02-job-matching-queue-repair.html">Xem</a> · <a href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code-10m/31-matching-engine/02-job-matching-queue-repair.ts">GitHub</a></td></tr>
+<tr><td class="num">03</td><td class="ep"><span class="m m-queue">QUEUE</span> <code>ShardedMatchingQueue (khi MATCHING_REDIS_URLS có từ hai Redis trở lên)</code><div class="rt"><span class="org org-local" title="Code trang này đọc từ working tree CHƯA COMMIT (nền 0c052aa); chưa có trên GitHub. File: apps/core-api/src/modules/matching/redis/sharded-matching-queue.adapter.ts">local · chưa commit</span></div></td><td>Mỗi hàng đợi logic được băm (FNV-1a) tới đúng MỘT Redis vật lý nên claim hai vé vẫn nguyên tử; liệt kê shard active gộp từ các Redis còn khoẻ và bỏ mục lỗi thời sau khi đổi topology.</td><td class="tb"></td><td class="lk"><a href="03-queue-sharded-routing.html">Xem</a> · <a href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code-10m/31-matching-engine/03-queue-sharded-routing.ts">GitHub</a></td></tr>
     </tbody></table>
   </div>
 </div>

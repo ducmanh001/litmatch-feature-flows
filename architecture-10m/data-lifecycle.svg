@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1280 800" width="1280" height="800" role="img" aria-label="Vòng đời dữ liệu: retention, sweeper, admission cho job nền" font-family="-apple-system,Segoe UI,Noto Sans,Helvetica,Arial,sans-serif">
+<title>Vòng đời dữ liệu: retention, sweeper, admission cho job nền</title>
+<style>
+:root{--bg:#ffffff;--fg:#1f2328;--muted:#59636e;--border:#d1d9e0;--subtle:#f6f8fa;--accent:#0969da;--ok:#1a7f37;--warn:#bc4c00;
+--t-controller:#1a7f37;--t-service:#bc4c00;--t-worker:#8250df;--t-postgres:#0969da;--t-redis:#cf222e;--t-kafka:#57606a;--t-external:#0a7a6b;--t-gateway:#9a6700}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--ok:#56d364;--warn:#ffa657;
+--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-external:#39d0bb;--t-gateway:#e3b341}}
+.bg{fill:var(--bg)}
+.ttl{font:700 17px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--fg)}
+.sub{font:12px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.nt{font:700 13px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--fg)}
+.nl{font:11.5px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.gt{font:600 12px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.el{font:600 11px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--fg)}
+.lg{font:11.5px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.node{fill:var(--subtle);stroke-width:1.6}
+.node.ops{stroke-dasharray:5 4}
+.grp{fill:none;stroke:var(--border);stroke-width:1.2;stroke-dasharray:6 4}
+.edge{fill:none;stroke-width:1.6;stroke-linejoin:round}
+.edge.async{stroke-dasharray:6 4}
+.pill{fill:var(--bg);stroke-width:1}
+.tag{font:700 10px -apple-system,"Segoe UI",sans-serif}
+.tagbg{stroke-width:1}
+a:hover .nt{text-decoration:underline}</style>
+<defs>
+<marker id="ah-client" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+<marker id="ah-gateway" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-gateway)"/></marker>
+<marker id="ah-service" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-service)"/></marker>
+<marker id="ah-worker" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-worker)"/></marker>
+<marker id="ah-postgres" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-postgres)"/></marker>
+<marker id="ah-redis" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-redis)"/></marker>
+<marker id="ah-kafka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-kafka)"/></marker>
+<marker id="ah-external" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-external)"/></marker>
+<marker id="ah-ops" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+</defs>
+<rect class="bg" x="0" y="0" width="1280" height="800"/>
+<text class="ttl" x="24" y="30">Vòng đời dữ liệu: retention, sweeper, admission cho job nền</text>
+<text class="sub" x="24" y="50">Bảng tăng theo hoạt động phải có người xoá, và việc xoá không được tranh kết nối với request. RETENTION_MODE mặc định off (K8s production/hosted: dry-run).</text>
+<path class="edge" d="M255,180 L255,210 Q255,215 260,215 L260,215 Q265,215 265,220 L265,250" stroke="var(--t-worker)" marker-end="url(#ah-worker)"/>
+<path class="edge" d="M670,180 L670,250" stroke="var(--t-worker)" marker-end="url(#ah-worker)"/>
+<path class="edge" d="M265,420 L265,450 Q265,455 260,455 L260,455 Q255,455 255,460 L255,490" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+<path class="edge" d="M670,420 L670,490" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+<path class="edge async" d="M1045,420 L1045,450 Q1045,455 1050,455 L1050,455 Q1055,455 1055,460 L1055,490" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+<path class="edge" d="M640,566 L640,640" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+<a href="../code-10m/32-data-lifecycle/01-job-retention-tick.html">
+<rect class="node" stroke="var(--t-worker)" x="40" y="84" width="1200" height="96" rx="9"/>
+<text class="nt" text-anchor="middle" x="640" y="108">Lịch chạy chung cho job nền: ManagedInterval</text>
+<text class="nl" text-anchor="middle" x="640" y="126">① setInterval theo job; tick chồng nhau trong process bị bỏ  →  ② admission FIFO theo DataSource: người chờ không giữ kết nối</text>
+<text class="nl" text-anchor="middle" x="640" y="142">③ ConcurrencyBudget: retention tối đa 2 tick cùng lúc, hết chỗ thì bỏ tick  →  ④ khoá cluster-singleton (advisory lock, pod chết thì tự nhả)</text>
+</a>
+<rect class="tagbg" x="1192" y="76" width="42" height="16" rx="8" fill="var(--bg)" stroke="var(--warn)"/>
+<text class="tag" text-anchor="middle" x="1213" y="87.5" fill="var(--warn)">local</text>
+<a href="../code-10m/32-data-lifecycle/01-job-retention-tick.html">
+<rect class="node" stroke="var(--t-worker)" x="40" y="250" width="450" height="170" rx="9"/>
+<text class="nt" text-anchor="middle" x="265" y="274">Retention job (khung dùng chung)</text>
+<text class="nl" text-anchor="middle" x="265" y="292">RETENTION_MODE = off | dry-run | delete</text>
+<text class="nl" text-anchor="middle" x="265" y="308">quy tắc do từng module khai báo: refresh_tokens (expires_at),</text>
+<text class="nl" text-anchor="middle" x="265" y="324">phone_otps, quota ghép, outbox đã publish, video_views,</text>
+<text class="nl" text-anchor="middle" x="265" y="340">bình luận video xoá mềm, mood, notifications</text>
+<text class="nl" text-anchor="middle" x="265" y="356">mỗi tick ≤ 30 s và ≤ 60 lô, nghỉ giữa các lô</text>
+</a>
+<rect class="tagbg" x="442" y="242" width="42" height="16" rx="8" fill="var(--bg)" stroke="var(--warn)"/>
+<text class="tag" text-anchor="middle" x="463" y="253.5" fill="var(--warn)">local</text>
+<a href="../code-10m/32-data-lifecycle/02-job-story-sweeper-tick.html">
+<rect class="node" stroke="var(--t-worker)" x="520" y="250" width="300" height="170" rx="9"/>
+<text class="nt" text-anchor="middle" x="670" y="274">Story sweeper</text>
+<text class="nl" text-anchor="middle" x="670" y="292">lô 500 story; story_views xoá cascade</text>
+<text class="nl" text-anchor="middle" x="670" y="308">(≈ 96 triệu hàng/ngày ở đề bài)</text>
+<text class="nl" text-anchor="middle" x="670" y="324">lặp tới hết backlog hoặc 30 s</text>
+<text class="nl" text-anchor="middle" x="670" y="340">dừng khi shutdown</text>
+</a>
+<a href="../code-10m/17-dang-ky-onboarding-va-guest/01-post-refresh.html">
+<rect class="node" stroke="var(--t-service)" x="850" y="250" width="390" height="170" rx="9"/>
+<text class="nt" text-anchor="middle" x="1045" y="274">Xoay refresh token</text>
+<text class="nl" text-anchor="middle" x="1045" y="292">POST /auth/refresh: INSERT + UPDATE mỗi lần xoay</text>
+<text class="nl" text-anchor="middle" x="1045" y="308">(≈ 290 triệu hàng/ngày ở đề bài: bảng tăng nhanh nhất)</text>
+<text class="nl" text-anchor="middle" x="1045" y="324">dọn token đã xoay cũ của cùng họ: TẮT mặc định</text>
+<text class="nl" text-anchor="middle" x="1045" y="340">cần review bảo mật: rút ngắn cửa sổ phát hiện dùng lại</text>
+</a>
+<a href="../code-10m/32-data-lifecycle/01-job-retention-tick.html">
+<rect class="node" stroke="var(--t-worker)" x="40" y="490" width="1200" height="76" rx="9"/>
+<text class="nt" text-anchor="middle" x="640" y="514">Mỗi lô là MỘT câu lệnh ngắn tự commit</text>
+<text class="nl" text-anchor="middle" x="640" y="532">DELETE … WHERE ctid IN (SELECT … FOR UPDATE SKIP LOCKED): không giữ transaction hay khoá hàng lâu</text>
+<text class="nl" text-anchor="middle" x="640" y="548">PROTECTED_TABLES: bảng sổ cái, ví, chứng từ bị từ chối ngay lúc dựng SQL (khớp cả bảng con phân vùng)</text>
+</a>
+
+<path class="node" stroke="var(--t-postgres)" d="M40,648 a600,8 0 0 1 1200,0 v94 a600,8 0 0 1 -1200,0 z"/>
+<path class="node" stroke="var(--t-postgres)" fill="none" d="M40,648 a600,8 0 0 0 1200,0"/>
+<text class="nt" text-anchor="middle" x="640" y="672">PostgreSQL</text>
+<text class="nl" text-anchor="middle" x="640" y="690">index B-tree theo expires_at / created_at (thay BRIN: BRIN mất chọn lọc sau chu kỳ xoá-rồi-chèn-lại)</text>
+<text class="nl" text-anchor="middle" x="640" y="706">dry-run chỉ ghi gauge retention_eligible_rows; delete ghi counter retention_rows_total</text>
+<text class="nl" text-anchor="middle" x="640" y="722">chưa có retention/archive/partition cho tin nhắn chat, match_tickets, match_sessions (quyết định còn mở)</text>
+
+<rect class="pill" x="193.5" y="205" width="133" height="20" rx="10" stroke="var(--t-worker)"/>
+<text class="el" text-anchor="middle" x="260" y="219">tick qua admission</text>
+<rect class="pill" x="649.5" y="205" width="41" height="20" rx="10" stroke="var(--t-worker)"/>
+<text class="el" text-anchor="middle" x="670" y="219">tick</text>
+<rect class="pill" x="206.5" y="445" width="107" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="260" y="459">DELETE theo lô</text>
+<rect class="pill" x="620" y="445" width="100" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="670" y="459">DELETE lô 500</text>
+<rect class="pill" x="983.5" y="445" width="133" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="1050" y="459">dọn lúc xoay (tắt)</text>
+<rect class="pill" x="583.5" y="593" width="113" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="640" y="607">ngắn, tự commit</text>
+<rect x="24" y="768" width="14" height="14" rx="4" fill="none" stroke="var(--t-worker)" stroke-width="1.6"/>
+<text class="lg" x="44" y="779">job nền (WORKER)</text>
+<rect x="168" y="768" width="14" height="14" rx="4" fill="none" stroke="var(--t-postgres)" stroke-width="1.6"/>
+<text class="lg" x="188" y="779">POSTGRES</text>
+<rect x="261" y="768" width="14" height="14" rx="4" fill="none" stroke="var(--t-service)" stroke-width="1.6"/>
+<text class="lg" x="281" y="779">core-api (SERVICE)</text>
+<line x1="417" y1="775" x2="443" y2="775" stroke="var(--muted)" stroke-width="1.6"/><text class="lg" x="449" y="779">gọi đồng bộ</text>
+<line x1="537" y1="775" x2="563" y2="775" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="6 4"/><text class="lg" x="569" y="779">bất đồng bộ / best-effort</text>
+<rect x="746" y="767" width="34" height="16" rx="8" fill="var(--bg)" stroke="var(--warn)"/><text class="tag" text-anchor="middle" x="763" y="778.5" fill="var(--warn)">local</text><text class="lg" x="786" y="779">code chưa commit</text>
+</svg>

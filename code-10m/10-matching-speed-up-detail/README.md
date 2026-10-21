@@ -5,8 +5,10 @@ Mỗi khối có dòng tiêu đề "// [TẦNG] Class.method" (CONTROLLER, SERVI
 Code trích nguyên văn từ repo (đường dẫn nguồn hiện khi chuyển file, không ghi số dòng), đã lược import, comment cũ, decorator Swagger, class và chữ ký của hàm được gọi; ngoại lệ là các dòng "const ... = ..." ở đầu mỗi khối (tham số truyền vào, do công cụ gán từ chỗ gọi). Comment viết thêm chỉ trả lời "vì sao" ở chỗ logic khó, đặt ngay cạnh dòng code liên quan.
 Pipeline request lấy từ main.ts, AppModule và decorator thực tế của endpoint. Lời gọi nội bộ bung đệ quy tới hạ tầng; mỗi hàm chỉ bung một lần. Cho phép lược DTO và Metrics; thư viện ngoài giữ lời gọi.
 
-| # | Endpoint | Làm gì | Bảng | File |
-|---|----------|--------|------|------|
-| 01 | `POST /api/v1/matching/tickets/:id/speedup` | Trả Diamond để vé được ưu tiên: trừ tiền trước, cộng boost vào DB, rồi đặt lại điểm trong Redis. | match_tickets, wallets, transactions, ledger_entries, outbox_events | [01-post-speedup-ticket.ts](01-post-speedup-ticket.ts) · [Pages](https://ducmanh001.github.io/litmatch-feature-flows/code-10m/10-matching-speed-up-detail/01-post-speedup-ticket.html) |
+| # | Endpoint | Làm gì | Bảng | File | Nguồn |
+|---|----------|--------|------|------|-------|
+| 01 | `POST /api/v1/matching/tickets/:id/speedup` | Trả Diamond để vé được ưu tiên: trừ tiền trước, cộng boost vào DB, rồi đặt lại điểm trong Redis. | match_tickets, wallets, transactions, ledger_entries, outbox_events | [01-post-speedup-ticket.ts](01-post-speedup-ticket.ts) · [Pages](https://ducmanh001.github.io/litmatch-feature-flows/code-10m/10-matching-speed-up-detail/01-post-speedup-ticket.html) | đã đẩy (PR #84) |
 
-Sơ đồ luồng của tính năng: https://ducmanh001.github.io/litmatch-feature-flows/#10-matching-speed-up-detail
+Kiến trúc 10M của tính năng: https://ducmanh001.github.io/litmatch-feature-flows/architecture-10m/matching.html
+
+Sơ đồ sản phẩm của tính năng: https://ducmanh001.github.io/litmatch-feature-flows/#10-matching-speed-up-detail

@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="description" content="Gộp các probe song song, cache kết quả 1 giây và chỉ giữ tối đa một SQL probe chưa xong, để kubelet thăm dò dày hoặc DB chậm không làm đầy pool."/>
+<title>GET /health/ready — Bảo vệ tài nguyên: admission HTTP và readiness</title>
+<style>
+:root{color-scheme:light;--bg:#fff;--fg:#1f2328;--muted:#59636e;--border:#d1d9e0;--subtle:#f6f8fa;--accent:#0969da;--lnum:#818b98;--target:#fff8c5;--sec:#ddf4ff;--secfg:#0550ae;
+--pl-c:#6e7781;--pl-k:#cf222e;--pl-en:#8250df;--pl-c1:#0550ae;--pl-s:#0a3069;--ok:#1a7f37;--info:#0969da;--warn:#bc4c00;--t-controller:#1a7f37;--t-service:#bc4c00;--t-worker:#8250df;--t-postgres:#0969da;--t-redis:#cf222e;--t-kafka:#57606a;--t-bullmq:#bf3989;--t-external:#0a7a6b;--t-gateway:#9a6700;--on-t:#fff;--guide:#d8dee4}
+:root[data-theme=dark]{color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--lnum:#6e7681;--target:#3b2e0b;--sec:#10294a;--secfg:#79c0ff;
+--pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341;--on-t:#0d1117;--guide:#3d444d}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--lnum:#6e7681;--target:#3b2e0b;--sec:#10294a;--secfg:#79c0ff;
+--pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341;--on-t:#0d1117;--guide:#3d444d}}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:24px 16px 48px}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.box{border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--bg)}
+.bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--subtle);border-bottom:1px solid var(--border)}
+.path{font-size:14px}.path b{font-weight:600}.meta{margin-left:12px;color:var(--muted);font-size:12px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:500 12px/20px -apple-system,"Segoe UI",sans-serif;padding:3px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer}
+.btn:hover{background:var(--subtle);text-decoration:none}
+.toc{display:flex;flex-wrap:wrap;gap:4px 16px;padding:8px 16px;border-bottom:1px solid var(--border);font-size:13px}
+.toc a.cur{color:var(--fg);font-weight:600;text-decoration:underline}
+.legend{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--border);font-size:12px;color:var(--muted)}
+.lg{font:700 11px/18px ui-monospace,SFMono-Regular,Consolas,monospace;padding:0 8px;border:1px solid currentColor;border-radius:999px}
+.src{overflow-x:auto;padding:8px 0;font:12px/20px ui-monospace,SFMono-Regular,"SF Mono","Cascadia Mono",Menlo,Consolas,"Liberation Mono",monospace;tab-size:2}
+.ln{display:flex;min-width:max-content;border-left:3px solid transparent}
+.ln .n{flex:none;width:56px;padding:0 16px 0 0;text-align:right;color:var(--lnum);user-select:none;text-decoration:none}
+.ln .n::before{content:attr(data-n)}.ln .n:hover{color:var(--fg)}
+.ln .t{white-space:pre;padding-right:24px;background:repeating-linear-gradient(to right,var(--guide) 0,var(--guide) 1px,transparent 1px,transparent 2ch) no-repeat;background-size:calc(var(--ind,0) * 1ch) 100%}
+.src.wrap .ln{min-width:0}
+.src.wrap .ln.rule .t{white-space:pre;overflow:hidden;padding-left:0;text-indent:0}
+.src.wrap .ln .t{white-space:pre-wrap;overflow-wrap:anywhere;padding-left:calc(var(--ind,0) * 1ch);text-indent:calc(var(--ind,0) * -1ch)}
+.ln:target{background:var(--target)}
+.ln.tag{background:var(--subtle);border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-top:2px}
+.ln.sec{background:var(--sec)}.ln.sec .pl-c{color:var(--secfg);font-weight:600}.ln.rule .pl-c{color:var(--border)}
+.pl-c{color:var(--pl-c)}.pl-k{color:var(--pl-k)}.pl-en{color:var(--pl-en)}.pl-c1{color:var(--pl-c1)}.pl-s{color:var(--pl-s)}
+.tg{font-weight:700}
+.ln.nhead .ttl{font-weight:600}
+.ln.step .pl-c{color:var(--fg);font-weight:700}
+.ln.synfirst .t::after{content:"  ← tham số";color:var(--muted);font:italic 11px -apple-system,"Segoe UI",sans-serif}
+.tg-controller{color:var(--t-controller)}.ln.tag.tier-controller{box-shadow:inset 4px 0 0 var(--t-controller)}.ln.code.tier-controller,.ln.nhead.tier-controller{border-left-color:var(--t-controller)}.tg-service{color:var(--t-service)}.ln.tag.tier-service{box-shadow:inset 4px 0 0 var(--t-service)}.ln.code.tier-service,.ln.nhead.tier-service{border-left-color:var(--t-service)}.tg-worker{color:var(--t-worker)}.ln.tag.tier-worker{box-shadow:inset 4px 0 0 var(--t-worker)}.ln.code.tier-worker,.ln.nhead.tier-worker{border-left-color:var(--t-worker)}.tg-postgres{color:var(--t-postgres)}.ln.tag.tier-postgres{box-shadow:inset 4px 0 0 var(--t-postgres)}.ln.code.tier-postgres,.ln.nhead.tier-postgres{border-left-color:var(--t-postgres)}.tg-redis{color:var(--t-redis)}.ln.tag.tier-redis{box-shadow:inset 4px 0 0 var(--t-redis)}.ln.code.tier-redis,.ln.nhead.tier-redis{border-left-color:var(--t-redis)}.tg-kafka{color:var(--t-kafka)}.ln.tag.tier-kafka{box-shadow:inset 4px 0 0 var(--t-kafka)}.ln.code.tier-kafka,.ln.nhead.tier-kafka{border-left-color:var(--t-kafka)}.tg-bullmq{color:var(--t-bullmq)}.ln.tag.tier-bullmq{box-shadow:inset 4px 0 0 var(--t-bullmq)}.ln.code.tier-bullmq,.ln.nhead.tier-bullmq{border-left-color:var(--t-bullmq)}.tg-external{color:var(--t-external)}.ln.tag.tier-external{box-shadow:inset 4px 0 0 var(--t-external)}.ln.code.tier-external,.ln.nhead.tier-external{border-left-color:var(--t-external)}.tg-gateway{color:var(--t-gateway)}.ln.tag.tier-gateway{box-shadow:inset 4px 0 0 var(--t-gateway)}.ln.code.tier-gateway,.ln.nhead.tier-gateway{border-left-color:var(--t-gateway)}
+.idx{padding:20px 24px 28px}.idx h1{margin:0 0 8px;font-size:22px;font-weight:600}.idx p{margin:0 0 16px;color:var(--muted);max-width:820px}
+.idx h2{margin:30px 0 4px;font-size:17px;font-weight:600}.idx .sum{margin:0 0 10px}
+.tbl td.fn>a{font-weight:600}.tbl td.fn .rt{margin-top:3px;color:var(--muted)}.tbl td.tiers .lg{display:inline-block;margin:0 4px 4px 0}
+.tbl.ov{table-layout:fixed}.tbl.ov th:nth-child(1){width:32%}.tbl.ov th:nth-child(2){width:40%}.tbl.ov th:nth-child(3){width:28%}.tbl.ov code{overflow-wrap:anywhere}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}.tbl th,.tbl td{padding:8px 12px;text-align:left;border-top:1px solid var(--border);vertical-align:top}
+.tbl th{background:var(--subtle);font-size:12px;color:var(--muted);font-weight:600}.tbl td.num{color:var(--muted);font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.tbl td.tb{color:var(--muted);font-size:12px}.tbl td.lk,.tbl td.ep{white-space:nowrap}
+.tbl code{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--subtle);border:1px solid var(--border);border-radius:6px;padding:1px 6px}
+.m{display:inline-block;min-width:44px;text-align:center;font:700 11px/18px ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:4px;border:1px solid var(--border);padding:0 6px}
+.m-job{color:var(--t-worker)}.m-ws{color:var(--t-gateway)}.m-get{color:var(--ok)}.m-post{color:var(--info)}.m-put{color:var(--warn)}.m-http{color:var(--t-external)}.m-boot{color:var(--t-gateway)}.m-queue{color:var(--t-redis)}
+.org{display:inline-block;font:600 11px/18px -apple-system,"Segoe UI",sans-serif;padding:0 8px;border:1px solid currentColor;border-radius:999px;white-space:nowrap;cursor:help}
+.org-pushed{color:var(--ok)}.org-local{color:var(--warn)}
+.idx p.lnk{margin:0 0 10px;font-size:13px}
+@media (max-width:760px){
+main{padding:8px 0 32px}
+.box{border-radius:0;border-left:0;border-right:0}
+.bar{padding:8px 12px;gap:6px 8px}
+.path{font-size:13px;overflow-wrap:anywhere}.meta{display:block;margin:2px 0 0}
+.actions{gap:6px}.btn{padding:2px 10px}
+.toc{flex-direction:column;gap:2px;padding:8px 12px}
+.legend{padding:8px 12px}
+.src{font-size:11px;line-height:18px;padding:6px 0}
+.ln{border-left-width:2px}.ln .n{width:34px;padding-right:8px}.ln .t{padding-right:12px}
+.idx{padding:14px 12px}.idx h1{font-size:19px}
+.tbl{table-layout:auto}.tbl thead{display:none}
+.tbl,.tbl tbody,.tbl tr,.tbl td{display:block;width:auto}
+.tbl tr{border-top:1px solid var(--border);padding:8px 0}.tbl td{border:0;padding:2px 0}
+.tbl td.num,.tbl td.tb{display:none}
+.tbl td.lk,.tbl td.ep{white-space:normal}
+}
+</style>
+</head>
+<body>
+<main>
+<div class="box">
+  <div class="bar">
+    <div class="path"><a href="https://github.com/ducmanh001/litmatch-feature-flows">litmatch-feature-flows</a> / <a href="https://github.com/ducmanh001/litmatch-feature-flows/tree/main/code-10m/38-runtime-protection">38-runtime-protection</a> / <b>02-get-health-ready.ts</b><span class="meta">139 dòng · 90 dòng code · litmatch @ 0c052aa <span class="org org-local" title="Code trang này đọc từ working tree CHƯA COMMIT (nền 0c052aa); chưa có trên GitHub. File: apps/core-api/src/app/health.controller.ts, apps/core-api/src/app/readiness.service.ts">local · chưa commit</span></span></div>
+    <div class="actions">
+      <a class="btn" href="../index.html">Tổng quan</a>
+      <a class="btn" href="index.html">Các endpoint</a>
+      <a class="btn" href="../../architecture-10m/protection.html">Kiến trúc 10M</a>
+      <a class="btn" href="../../code/index.html">Bản gốc (/code)</a>
+      <a class="btn" href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code-10m/38-runtime-protection/02-get-health-ready.ts">GitHub</a>
+      <a class="btn" href="https://raw.githubusercontent.com/ducmanh001/litmatch-feature-flows/main/code-10m/38-runtime-protection/02-get-health-ready.ts">Raw</a>
+      <button class="btn" id="copy" type="button">Sao chép</button>
+      <button class="btn" id="wrap" type="button" title="Bật/tắt xuống dòng cho dòng dài">Xuống dòng</button>
+      <button class="btn" id="theme" type="button" title="Đổi theme">Theme: Tự động</button>
+    </div>
+  </div>
+  <nav class="toc"><a href="01-http-request-admission.html">01 HTTP admission HTTP</a><a href="02-get-health-ready.html" class="cur">02 GET /health/ready</a></nav>
+  <div class="legend"><span>Tầng:</span><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b><b class="lg tg-redis">REDIS</b></div>
+  <div class="src">
+<div class="ln sec" id="L1"><a class="n" href="#L1" data-n="1"></a><span class="t"><span class="pl-c">//  GET /health/ready</span></span></div>
+<div class="ln sec" id="L2"><a class="n" href="#L2" data-n="2"></a><span class="t"><span class="pl-c">//  Gộp các probe song song, cache kết quả 1 giây và chỉ giữ tối đa một SQL probe chưa xong, để kubelet thăm dò dày hoặc DB chậm không làm đầy pool.</span></span></div>
+<div class="ln head" id="L3"><a class="n" href="#L3" data-n="3"></a><span class="t"><span class="pl-c">//  Step 1: Endpoint readiness: 503 khi dependency chưa sẵn sàng</span></span></div>
+<div class="ln head" id="L4"><a class="n" href="#L4" data-n="4"></a><span class="t"><span class="pl-c">//  Step 2: Kết quả còn mới (1 giây): dùng lại, không kiểm tra lại</span></span></div>
+<div class="ln head" id="L5"><a class="n" href="#L5" data-n="5"></a><span class="t"><span class="pl-c">//  Step 3: Đã có một lượt kiểm tra đang chạy: các lời gọi đồng thời chờ chung kết quả</span></span></div>
+<div class="ln head" id="L6"><a class="n" href="#L6" data-n="6"></a><span class="t"><span class="pl-c">//  Step 4: Chỉ một SQL probe chưa xong tại một thời điểm</span></span></div>
+<div class="ln head" id="L7"><a class="n" href="#L7" data-n="7"></a><span class="t"><span class="pl-c">//  Step 5: Redis PING có deadline 1 giây</span></span></div>
+<div class="ln head" id="L8"><a class="n" href="#L8" data-n="8"></a><span class="t"><span class="pl-c">//  Step 6: Ít nhất một dependency down thì trả 503 để pod bị rút khỏi Service</span></span></div>
+<div class="ln blank" id="L9"><a class="n" href="#L9" data-n="9"></a><span class="t">&nbsp;</span></div>
+<div class="ln nhead tier-controller" id="L10"><a class="n" href="#L10" data-n="10"></a><span class="t"><span class="pl-c">// <b class="tg tg-controller">[CONTROLLER]</b> <span class="ttl">HealthController.ready</span> <span class="rf">· app/health.controller.ts</span></span></span></div>
+<div class="ln code tier-controller" id="L11"><a class="n" href="#L11" data-n="11"></a><span class="t">@<span class="pl-en">Controller</span>(<span class="pl-s">'health'</span>)</span></div>
+<div class="ln code tier-controller" id="L12"><a class="n" href="#L12" data-n="12"></a><span class="t">@<span class="pl-en">SkipRequestConcurrency</span>()</span></div>
+<div class="ln code tier-controller" id="L13"><a class="n" href="#L13" data-n="13"></a><span class="t">@<span class="pl-en">SkipThrottle</span>()</span></div>
+<div class="ln code tier-controller" id="L14"><a class="n" href="#L14" data-n="14"></a><span class="t"><span class="pl-k">export</span> <span class="pl-k">class</span> <span class="pl-en">HealthController</span> {</span></div>
+<div class="ln code tier-controller" id="L15"><a class="n" href="#L15" data-n="15"></a><span class="t" style="--ind:2">  <span class="pl-c">// ReadinessService</span></span></div>
+<div class="ln code tier-controller" id="L16"><a class="n" href="#L16" data-n="16"></a><span class="t" style="--ind:2">  <span class="pl-k">private</span> <span class="pl-k">readonly</span> redis: <span class="pl-en">Redis</span>;</span></div>
+<div class="ln code tier-controller" id="L17"><a class="n" href="#L17" data-n="17"></a><span class="t" style="--ind:2">  <span class="pl-k">private</span> inFlight: <span class="pl-en">Promise</span>&lt;<span class="pl-en">ReadinessResult</span>&gt; | <span class="pl-c1">undefined</span>;</span></div>
+<div class="ln code tier-controller" id="L18"><a class="n" href="#L18" data-n="18"></a><span class="t" style="--ind:2">  <span class="pl-k">private</span> cached: { expiresAt: <span class="pl-c1">number</span>; result: <span class="pl-en">ReadinessResult</span> } | <span class="pl-c1">undefined</span>;</span></div>
+<div class="ln code tier-controller" id="L19"><a class="n" href="#L19" data-n="19"></a><span class="t" style="--ind:2">  <span class="pl-k">private</span> postgresProbe: <span class="pl-en">Promise</span>&lt;<span class="pl-s">'up'</span> | <span class="pl-s">'down'</span>&gt; | <span class="pl-c1">undefined</span>;</span></div>
+<div class="ln code tier-controller syn" id="L20"><a class="n" href="#L20" data-n="20"></a><span class="t" style="--ind:2">  <span class="pl-en">constructor</span>(</span></div>
+<div class="ln code tier-controller syn" id="L21"><a class="n" href="#L21" data-n="21"></a><span class="t" style="--ind:4">    <span class="pl-k">private</span> <span class="pl-k">readonly</span> readiness: <span class="pl-en">ReadinessService</span>,</span></div>
+<div class="ln code tier-controller" id="L22"><a class="n" href="#L22" data-n="22"></a><span class="t" style="--ind:4">    <span class="pl-c">// ReadinessService</span></span></div>
+<div class="ln code tier-controller" id="L23"><a class="n" href="#L23" data-n="23"></a><span class="t" style="--ind:4">    @<span class="pl-en">InjectDataSource</span>() <span class="pl-k">private</span> <span class="pl-k">readonly</span> dataSource: <span class="pl-en">DataSource</span>,</span></div>
+<div class="ln code tier-controller" id="L24"><a class="n" href="#L24" data-n="24"></a><span class="t" style="--ind:4">    config: <span class="pl-en">ConfigService</span>&lt;<span class="pl-en">CoreApiEnv</span>, <span class="pl-c1">true</span>&gt;,</span></div>
+<div class="ln code tier-controller syn" id="L25"><a class="n" href="#L25" data-n="25"></a><span class="t" style="--ind:2">  ) {</span></div>
+<div class="ln code tier-controller" id="L26"><a class="n" href="#L26" data-n="26"></a><span class="t" style="--ind:4">    <span class="pl-c">// ReadinessService</span></span></div>
+<div class="ln code tier-controller" id="L27"><a class="n" href="#L27" data-n="27"></a><span class="t" style="--ind:4">    <span class="pl-c1">this</span>.redis = <span class="pl-k">new</span> <span class="pl-en">Redis</span>(config.<span class="pl-en">getOrThrow</span>(<span class="pl-s">'REDIS_URL'</span>, { <span class="pl-k">infer</span>: <span class="pl-c1">true</span> }), {</span></div>
+<div class="ln code tier-controller" id="L28"><a class="n" href="#L28" data-n="28"></a><span class="t" style="--ind:6">      lazyConnect: <span class="pl-c1">true</span>,</span></div>
+<div class="ln code tier-controller" id="L29"><a class="n" href="#L29" data-n="29"></a><span class="t" style="--ind:6">      connectTimeout: <span class="pl-c1">1_000</span>,</span></div>
+<div class="ln code tier-controller" id="L30"><a class="n" href="#L30" data-n="30"></a><span class="t" style="--ind:6">      commandTimeout: <span class="pl-c1">1_000</span>,</span></div>
+<div class="ln code tier-controller" id="L31"><a class="n" href="#L31" data-n="31"></a><span class="t" style="--ind:6">      maxRetriesPerRequest: <span class="pl-c1">0</span>,</span></div>
+<div class="ln code tier-controller" id="L32"><a class="n" href="#L32" data-n="32"></a><span class="t" style="--ind:6">      enableOfflineQueue: <span class="pl-c1">false</span>,</span></div>
+<div class="ln code tier-controller" id="L33"><a class="n" href="#L33" data-n="33"></a><span class="t" style="--ind:4">    });</span></div>
+<div class="ln code tier-controller" id="L34"><a class="n" href="#L34" data-n="34"></a><span class="t" style="--ind:4">    <span class="pl-c1">this</span>.redis.<span class="pl-en">on</span>(<span class="pl-s">'error'</span>, () =&gt; <span class="pl-c1">undefined</span>);</span></div>
+<div class="ln code tier-controller syn" id="L35"><a class="n" href="#L35" data-n="35"></a><span class="t" style="--ind:2">  }</span></div>
+<div class="ln code tier-controller" id="L36"><a class="n" href="#L36" data-n="36"></a><span class="t" style="--ind:2">&nbsp;</span></div>
+<div class="ln code tier-controller" id="L37"><a class="n" href="#L37" data-n="37"></a><span class="t" style="--ind:2">  @<span class="pl-en">Public</span>()</span></div>
+<div class="ln code tier-controller" id="L38"><a class="n" href="#L38" data-n="38"></a><span class="t" style="--ind:2">  @<span class="pl-en">Get</span>(<span class="pl-s">'ready'</span>)</span></div>
+<div class="ln code tier-controller" id="L39"><a class="n" href="#L39" data-n="39"></a><span class="t" style="--ind:2">&nbsp;</span></div>
+<div class="ln code tier-controller step" id="L40"><a class="n" href="#L40" data-n="40"></a><span class="t" style="--ind:2"><span class="pl-c">  // Step 1: Endpoint readiness: 503 khi dependency chưa sẵn sàng</span></span></div>
+<div class="ln code tier-controller" id="L41"><a class="n" href="#L41" data-n="41"></a><span class="t" style="--ind:2">  <span class="pl-k">async</span> <span class="pl-en">ready</span>(</span></div>
+<div class="ln code tier-controller" id="L42"><a class="n" href="#L42" data-n="42"></a><span class="t" style="--ind:4">    @<span class="pl-en">Res</span>({ passthrough: <span class="pl-c1">true</span> }) response: <span class="pl-en">Response</span>,</span></div>
+<div class="ln code tier-controller" id="L43"><a class="n" href="#L43" data-n="43"></a><span class="t" style="--ind:2">  ): <span class="pl-en">Promise</span>&lt;<span class="pl-en">ReadinessResult</span>&gt; {</span></div>
+<div class="ln code tier-controller" id="L44"><a class="n" href="#L44" data-n="44"></a><span class="t" style="--ind:4">    <span class="pl-k">const</span> <span class="pl-c1">result</span> = <span class="pl-k">await</span> <span class="pl-c1">this</span>.readiness.<span class="pl-en">check</span>();</span></div>
+<div class="ln code tier-controller" id="L45"><a class="n" href="#L45" data-n="45"></a><span class="t" style="--ind:4">&nbsp;</span></div>
+<div class="ln nhead tier-service" id="L46"><a class="n" href="#L46" data-n="46"></a><span class="t" style="--ind:4">    <span class="pl-c">// <b class="tg tg-service">[SERVICE]</b> <span class="ttl">ReadinessService.check</span> <span class="rf">· app/readiness.service.ts</span></span></span></div>
+<div class="ln code tier-service step" id="L47"><a class="n" href="#L47" data-n="47"></a><span class="t" style="--ind:4">    <span class="pl-c">// Step 2: Kết quả còn mới (1 giây): dùng lại, không kiểm tra lại</span></span></div>
+<div class="ln code tier-service" id="L48"><a class="n" href="#L48" data-n="48"></a><span class="t" style="--ind:4">    <span class="pl-k">if</span> (<span class="pl-c1">this</span>.cached &amp;&amp; Date.<span class="pl-en">now</span>() &lt; <span class="pl-c1">this</span>.cached.expiresAt) {</span></div>
+<div class="ln code tier-service" id="L49"><a class="n" href="#L49" data-n="49"></a><span class="t" style="--ind:6">      <span class="pl-k">return</span> Promise.<span class="pl-en">resolve</span>(<span class="pl-c1">this</span>.cached.result);</span></div>
+<div class="ln code tier-service" id="L50"><a class="n" href="#L50" data-n="50"></a><span class="t" style="--ind:4">    }</span></div>
+<div class="ln code tier-service" id="L51"><a class="n" href="#L51" data-n="51"></a><span class="t" style="--ind:4">&nbsp;</span></div>
+<div class="ln code tier-service step" id="L52"><a class="n" href="#L52" data-n="52"></a><span class="t" style="--ind:4">    <span class="pl-c">// Step 3: Đã có một lượt kiểm tra đang chạy: các lời gọi đồng thời chờ chung kết quả</span></span></div>
+<div class="ln code tier-service" id="L53"><a class="n" href="#L53" data-n="53"></a><span class="t" style="--ind:4">    <span class="pl-k">if</span> (<span class="pl-c1">this</span>.inFlight) <span class="pl-k">return</span> <span class="pl-c1">this</span>.inFlight;</span></div>
+<div class="ln code tier-service" id="L54"><a class="n" href="#L54" data-n="54"></a><span class="t" style="--ind:4">    <span class="pl-c">// Probe bỏ qua throttle chung của request nên phải tự gộp và cache cục bộ: nhiều kubelet hoặc</span></span></div>
+<div class="ln code tier-service" id="L55"><a class="n" href="#L55" data-n="55"></a><span class="t" style="--ind:4">    <span class="pl-c">// proxy cùng thăm dò một lúc (thường chung địa chỉ IP khi số pod tăng) chỉ tạo một lượt kiểm</span></span></div>
+<div class="ln code tier-service" id="L56"><a class="n" href="#L56" data-n="56"></a><span class="t" style="--ind:4">    <span class="pl-c">// tra, và không bị vòng lặp 429.</span></span></div>
+<div class="ln code tier-service" id="L57"><a class="n" href="#L57" data-n="57"></a><span class="t" style="--ind:4">    <span class="pl-c1">this</span>.inFlight = <span class="pl-c1">this</span>.<span class="pl-en">probe</span>()</span></div>
+<div class="ln code tier-service" id="L58"><a class="n" href="#L58" data-n="58"></a><span class="t" style="--ind:6">      .<span class="pl-en">then</span>((result) =&gt; {</span></div>
+<div class="ln code tier-service" id="L59"><a class="n" href="#L59" data-n="59"></a><span class="t" style="--ind:8">        <span class="pl-c1">this</span>.cached = { result, expiresAt: Date.<span class="pl-en">now</span>() + <span class="pl-c1">PROBE_CACHE_MS</span> };</span></div>
+<div class="ln code tier-service" id="L60"><a class="n" href="#L60" data-n="60"></a><span class="t" style="--ind:8">        <span class="pl-k">return</span> result;</span></div>
+<div class="ln code tier-service" id="L61"><a class="n" href="#L61" data-n="61"></a><span class="t" style="--ind:6">      })</span></div>
+<div class="ln code tier-service" id="L62"><a class="n" href="#L62" data-n="62"></a><span class="t" style="--ind:6">      .<span class="pl-en">finally</span>(() =&gt; {</span></div>
+<div class="ln code tier-service" id="L63"><a class="n" href="#L63" data-n="63"></a><span class="t" style="--ind:8">        <span class="pl-c1">this</span>.inFlight = <span class="pl-c1">undefined</span>;</span></div>
+<div class="ln code tier-service" id="L64"><a class="n" href="#L64" data-n="64"></a><span class="t" style="--ind:6">      });</span></div>
+<div class="ln code tier-service" id="L65"><a class="n" href="#L65" data-n="65"></a><span class="t" style="--ind:4">&nbsp;</span></div>
+<div class="ln nhead tier-service" id="L66"><a class="n" href="#L66" data-n="66"></a><span class="t" style="--ind:4">    <span class="pl-c">// <b class="tg tg-service">[SERVICE]</b> <span class="ttl">ReadinessService.probe</span></span></span></div>
+<div class="ln code tier-service" id="L67"><a class="n" href="#L67" data-n="67"></a><span class="t" style="--ind:4">    <span class="pl-k">const</span> [postgres, redis] = <span class="pl-k">await</span> Promise.<span class="pl-en">all</span>([</span></div>
+<div class="ln code tier-service" id="L68"><a class="n" href="#L68" data-n="68"></a><span class="t" style="--ind:6">      <span class="pl-c1">this</span>.<span class="pl-en">checkPostgres</span>(),</span></div>
+<div class="ln code tier-service" id="L69"><a class="n" href="#L69" data-n="69"></a><span class="t" style="--ind:6">      <span class="pl-c1">this</span>.<span class="pl-en">checkRedis</span>(),</span></div>
+<div class="ln code tier-service" id="L70"><a class="n" href="#L70" data-n="70"></a><span class="t" style="--ind:4">    ]);</span></div>
+<div class="ln code tier-service" id="L71"><a class="n" href="#L71" data-n="71"></a><span class="t" style="--ind:4">&nbsp;</span></div>
+<div class="ln nhead tier-postgres" id="L72"><a class="n" href="#L72" data-n="72"></a><span class="t" style="--ind:4">    <span class="pl-c">// <b class="tg tg-postgres">[POSTGRES]</b> <span class="ttl">ReadinessService.checkPostgres</span></span></span></div>
+<div class="ln code tier-postgres" id="L73"><a class="n" href="#L73" data-n="73"></a><span class="t" style="--ind:4">    <span class="pl-k">try</span> {</span></div>
+<div class="ln code tier-postgres" id="L74"><a class="n" href="#L74" data-n="74"></a><span class="t" style="--ind:4">&nbsp;</span></div>
+<div class="ln code tier-postgres step" id="L75"><a class="n" href="#L75" data-n="75"></a><span class="t" style="--ind:6">    <span class="pl-c">  // Step 4: Chỉ một SQL probe chưa xong tại một thời điểm</span></span></div>
+<div class="ln code tier-postgres" id="L76"><a class="n" href="#L76" data-n="76"></a><span class="t" style="--ind:6">    <span class="pl-c">  // Deadline HTTP không huỷ được SQL đang chạy: giữ lại chính truy vấn đó cho tới khi nó</span></span></div>
+<div class="ln code tier-postgres" id="L77"><a class="n" href="#L77" data-n="77"></a><span class="t" style="--ind:6">    <span class="pl-c">  // xong, để các probe quá hạn liên tiếp không mở thêm truy vấn và làm đầy pool kết nối.</span></span></div>
+<div class="ln code tier-postgres" id="L78"><a class="n" href="#L78" data-n="78"></a><span class="t" style="--ind:6">      <span class="pl-c1">this</span>.postgresProbe ??= <span class="pl-c1">this</span>.dataSource</span></div>
+<div class="ln code tier-postgres" id="L79"><a class="n" href="#L79" data-n="79"></a><span class="t" style="--ind:8">        .<span class="pl-en">query</span>(<span class="pl-s">'SELECT 1'</span>)</span></div>
+<div class="ln code tier-postgres" id="L80"><a class="n" href="#L80" data-n="80"></a><span class="t" style="--ind:8">        .<span class="pl-en">then</span>(</span></div>
+<div class="ln code tier-postgres" id="L81"><a class="n" href="#L81" data-n="81"></a><span class="t" style="--ind:10">          () =&gt; <span class="pl-s">'up'</span> <span class="pl-k">as</span> <span class="pl-k">const</span>,</span></div>
+<div class="ln code tier-postgres" id="L82"><a class="n" href="#L82" data-n="82"></a><span class="t" style="--ind:10">          () =&gt; <span class="pl-s">'down'</span> <span class="pl-k">as</span> <span class="pl-k">const</span>,</span></div>
+<div class="ln code tier-postgres" id="L83"><a class="n" href="#L83" data-n="83"></a><span class="t" style="--ind:8">        )</span></div>
+<div class="ln code tier-postgres" id="L84"><a class="n" href="#L84" data-n="84"></a><span class="t" style="--ind:8">        .<span class="pl-en">finally</span>(() =&gt; {</span></div>
+<div class="ln code tier-postgres" id="L85"><a class="n" href="#L85" data-n="85"></a><span class="t" style="--ind:10">          <span class="pl-c1">this</span>.postgresProbe = <span class="pl-c1">undefined</span>;</span></div>
+<div class="ln code tier-postgres" id="L86"><a class="n" href="#L86" data-n="86"></a><span class="t" style="--ind:8">        });</span></div>
+<div class="ln code tier-postgres" id="L87"><a class="n" href="#L87" data-n="87"></a><span class="t" style="--ind:6">      <span class="pl-k">return</span> <span class="pl-k">await</span> <span class="pl-c1">this</span>.<span class="pl-en">withTimeout</span>(<span class="pl-c1">this</span>.postgresProbe, <span class="pl-c1">PROBE_TIMEOUT_MS</span>);</span></div>
+<div class="ln code tier-postgres" id="L88"><a class="n" href="#L88" data-n="88"></a><span class="t" style="--ind:6">&nbsp;</span></div>
+<div class="ln nhead tier-redis" id="L89"><a class="n" href="#L89" data-n="89"></a><span class="t" style="--ind:6">      <span class="pl-c">// <b class="tg tg-redis">[REDIS]</b> <span class="ttl">ReadinessService.withTimeout</span></span></span></div>
+<div class="ln code tier-redis syn synfirst" id="L90"><a class="n" href="#L90" data-n="90"></a><span class="t" style="--ind:6">      <span class="pl-k">const</span> <span class="pl-c1">promise</span> = <span class="pl-c1">this</span>.postgresProbe;</span></div>
+<div class="ln code tier-redis syn synfirst" id="L91"><a class="n" href="#L91" data-n="91"></a><span class="t" style="--ind:6">      <span class="pl-k">const</span> <span class="pl-c1">timeoutMs</span> = <span class="pl-c1">PROBE_TIMEOUT_MS</span>;</span></div>
+<div class="ln code tier-redis" id="L92"><a class="n" href="#L92" data-n="92"></a><span class="t" style="--ind:6">      <span class="pl-k">let</span> timeout: NodeJS.<span class="pl-en">Timeout</span> | <span class="pl-c1">undefined</span>;</span></div>
+<div class="ln code tier-redis" id="L93"><a class="n" href="#L93" data-n="93"></a><span class="t" style="--ind:6">      <span class="pl-k">const</span> <span class="pl-c1">deadline</span> = <span class="pl-k">new</span> <span class="pl-en">Promise</span>&lt;<span class="pl-c1">never</span>&gt;((_, reject) =&gt; {</span></div>
+<div class="ln code tier-redis" id="L94"><a class="n" href="#L94" data-n="94"></a><span class="t" style="--ind:8">        timeout = <span class="pl-en">setTimeout</span>(</span></div>
+<div class="ln code tier-redis" id="L95"><a class="n" href="#L95" data-n="95"></a><span class="t" style="--ind:10">          () =&gt; <span class="pl-en">reject</span>(<span class="pl-k">new</span> <span class="pl-en">Error</span>(<span class="pl-s">'readiness timeout'</span>)),</span></div>
+<div class="ln code tier-redis" id="L96"><a class="n" href="#L96" data-n="96"></a><span class="t" style="--ind:10">          timeoutMs,</span></div>
+<div class="ln code tier-redis" id="L97"><a class="n" href="#L97" data-n="97"></a><span class="t" style="--ind:8">        );</span></div>
+<div class="ln code tier-redis" id="L98"><a class="n" href="#L98" data-n="98"></a><span class="t" style="--ind:8">        timeout.<span class="pl-en">unref</span>();</span></div>
+<div class="ln code tier-redis" id="L99"><a class="n" href="#L99" data-n="99"></a><span class="t" style="--ind:6">      });</span></div>
+<div class="ln code tier-redis" id="L100"><a class="n" href="#L100" data-n="100"></a><span class="t" style="--ind:6">&nbsp;</span></div>
+<div class="ln code tier-redis" id="L101"><a class="n" href="#L101" data-n="101"></a><span class="t" style="--ind:6">      <span class="pl-k">try</span> {</span></div>
+<div class="ln code tier-redis" id="L102"><a class="n" href="#L102" data-n="102"></a><span class="t" style="--ind:8">        <span class="pl-k">return</span> <span class="pl-k">await</span> Promise.<span class="pl-en">race</span>([promise, deadline]);</span></div>
+<div class="ln code tier-redis" id="L103"><a class="n" href="#L103" data-n="103"></a><span class="t" style="--ind:6">      } <span class="pl-k">finally</span> {</span></div>
+<div class="ln code tier-redis" id="L104"><a class="n" href="#L104" data-n="104"></a><span class="t" style="--ind:8">        <span class="pl-k">if</span> (timeout) <span class="pl-en">clearTimeout</span>(timeout);</span></div>
+<div class="ln code tier-redis" id="L105"><a class="n" href="#L105" data-n="105"></a><span class="t" style="--ind:6">      }</span></div>
+<div class="ln code tier-postgres" id="L106"><a class="n" href="#L106" data-n="106"></a><span class="t" style="--ind:4">    } <span class="pl-k">catch</span> {</span></div>
+<div class="ln code tier-postgres" id="L107"><a class="n" href="#L107" data-n="107"></a><span class="t" style="--ind:6">      <span class="pl-k">return</span> <span class="pl-s">'down'</span>;</span></div>
+<div class="ln code tier-postgres" id="L108"><a class="n" href="#L108" data-n="108"></a><span class="t" style="--ind:4">    }</span></div>
+<div class="ln code tier-service" id="L109"><a class="n" href="#L109" data-n="109"></a><span class="t" style="--ind:4">&nbsp;</span></div>
+<div class="ln nhead tier-redis" id="L110"><a class="n" href="#L110" data-n="110"></a><span class="t" style="--ind:4">    <span class="pl-c">// <b class="tg tg-redis">[REDIS]</b> <span class="ttl">ReadinessService.checkRedis</span></span></span></div>
+<div class="ln code tier-redis" id="L111"><a class="n" href="#L111" data-n="111"></a><span class="t" style="--ind:4">    <span class="pl-k">try</span> {</span></div>
+<div class="ln code tier-redis" id="L112"><a class="n" href="#L112" data-n="112"></a><span class="t" style="--ind:6">      <span class="pl-k">if</span> (<span class="pl-c1">this</span>.redis.status === <span class="pl-s">'wait'</span>) <span class="pl-k">await</span> <span class="pl-c1">this</span>.redis.<span class="pl-en">connect</span>();</span></div>
+<div class="ln code tier-redis" id="L113"><a class="n" href="#L113" data-n="113"></a><span class="t" style="--ind:6">&nbsp;</span></div>
+<div class="ln code tier-redis step" id="L114"><a class="n" href="#L114" data-n="114"></a><span class="t" style="--ind:6">    <span class="pl-c">  // Step 5: Redis PING có deadline 1 giây</span></span></div>
+<div class="ln code tier-redis" id="L115"><a class="n" href="#L115" data-n="115"></a><span class="t" style="--ind:6">    <span class="pl-c">  // Kết nối readiness không có hàng đợi offline và không thử lại lệnh (enableOfflineQueue:</span></span></div>
+<div class="ln code tier-redis" id="L116"><a class="n" href="#L116" data-n="116"></a><span class="t" style="--ind:6">    <span class="pl-c">  // false, maxRetriesPerRequest: 0), nên khi Redis mất kết nối probe thất bại ngay và hiện</span></span></div>
+<div class="ln code tier-redis" id="L117"><a class="n" href="#L117" data-n="117"></a><span class="t" style="--ind:6">    <span class="pl-c">  // thành down thay vì treo tới hết deadline.</span></span></div>
+<div class="ln code tier-redis" id="L118"><a class="n" href="#L118" data-n="118"></a><span class="t" style="--ind:6">      <span class="pl-k">await</span> <span class="pl-c1">this</span>.<span class="pl-en">withTimeout</span>(<span class="pl-c1">this</span>.redis.<span class="pl-en">ping</span>(), <span class="pl-c1">PROBE_TIMEOUT_MS</span>);</span></div>
+<div class="ln code tier-redis" id="L119"><a class="n" href="#L119" data-n="119"></a><span class="t" style="--ind:6">      <span class="pl-k">return</span> <span class="pl-s">'up'</span>;</span></div>
+<div class="ln code tier-redis" id="L120"><a class="n" href="#L120" data-n="120"></a><span class="t" style="--ind:4">    } <span class="pl-k">catch</span> {</span></div>
+<div class="ln code tier-redis" id="L121"><a class="n" href="#L121" data-n="121"></a><span class="t" style="--ind:6">      <span class="pl-k">return</span> <span class="pl-s">'down'</span>;</span></div>
+<div class="ln code tier-redis" id="L122"><a class="n" href="#L122" data-n="122"></a><span class="t" style="--ind:4">    }</span></div>
+<div class="ln code tier-service" id="L123"><a class="n" href="#L123" data-n="123"></a><span class="t" style="--ind:4">&nbsp;</span></div>
+<div class="ln code tier-service" id="L124"><a class="n" href="#L124" data-n="124"></a><span class="t" style="--ind:4">    <span class="pl-k">const</span> <span class="pl-c1">ready</span> = postgres === <span class="pl-s">'up'</span> &amp;&amp; redis === <span class="pl-s">'up'</span>;</span></div>
+<div class="ln code tier-service" id="L125"><a class="n" href="#L125" data-n="125"></a><span class="t" style="--ind:4">&nbsp;</span></div>
+<div class="ln code tier-service" id="L126"><a class="n" href="#L126" data-n="126"></a><span class="t" style="--ind:4">    <span class="pl-k">return</span> {</span></div>
+<div class="ln code tier-service" id="L127"><a class="n" href="#L127" data-n="127"></a><span class="t" style="--ind:6">      status: ready ? <span class="pl-s">'ok'</span> : <span class="pl-s">'unavailable'</span>,</span></div>
+<div class="ln code tier-service" id="L128"><a class="n" href="#L128" data-n="128"></a><span class="t" style="--ind:6">      checks: { postgres, redis },</span></div>
+<div class="ln code tier-service" id="L129"><a class="n" href="#L129" data-n="129"></a><span class="t" style="--ind:4">    };</span></div>
+<div class="ln code tier-service" id="L130"><a class="n" href="#L130" data-n="130"></a><span class="t" style="--ind:4">&nbsp;</span></div>
+<div class="ln code tier-service" id="L131"><a class="n" href="#L131" data-n="131"></a><span class="t" style="--ind:4">    <span class="pl-k">return</span> <span class="pl-c1">this</span>.inFlight;</span></div>
+<div class="ln code tier-controller" id="L132"><a class="n" href="#L132" data-n="132"></a><span class="t" style="--ind:4">&nbsp;</span></div>
+<div class="ln code tier-controller step" id="L133"><a class="n" href="#L133" data-n="133"></a><span class="t" style="--ind:4"><span class="pl-c">    // Step 6: Ít nhất một dependency down thì trả 503 để pod bị rút khỏi Service</span></span></div>
+<div class="ln code tier-controller" id="L134"><a class="n" href="#L134" data-n="134"></a><span class="t" style="--ind:4"><span class="pl-c">    // 503 để kubelet và load balancer ngừng gửi traffic vào pod này; chỉ khi cả Postgres lẫn</span></span></div>
+<div class="ln code tier-controller" id="L135"><a class="n" href="#L135" data-n="135"></a><span class="t" style="--ind:4"><span class="pl-c">    // Redis đều up pod mới được coi là ready.</span></span></div>
+<div class="ln code tier-controller" id="L136"><a class="n" href="#L136" data-n="136"></a><span class="t" style="--ind:4">    <span class="pl-k">if</span> (result.status !== <span class="pl-s">'ok'</span>) response.<span class="pl-en">status</span>(HttpStatus.<span class="pl-c1">SERVICE_UNAVAILABLE</span>);</span></div>
+<div class="ln code tier-controller" id="L137"><a class="n" href="#L137" data-n="137"></a><span class="t" style="--ind:4">    <span class="pl-k">return</span> result;</span></div>
+<div class="ln code tier-controller" id="L138"><a class="n" href="#L138" data-n="138"></a><span class="t" style="--ind:2">  }</span></div>
+<div class="ln code tier-controller" id="L139"><a class="n" href="#L139" data-n="139"></a><span class="t">}</span></div>
+  </div>
+</div>
+</main>
+<script>(function(){
+var root=document.documentElement,key='litmatch-code-theme',btn=document.getElementById('theme'),labels={auto:'Tự động',light:'Sáng',dark:'Tối'};
+var mode='auto';try{var s=localStorage.getItem(key);if(s==='light'||s==='dark')mode=s}catch(e){}
+function apply(){if(mode==='auto')root.removeAttribute('data-theme');else root.setAttribute('data-theme',mode);btn.textContent='Theme: '+labels[mode]}
+apply();
+btn.addEventListener('click',function(){mode=mode==='auto'?'light':mode==='light'?'dark':'auto';try{if(mode==='auto')localStorage.removeItem(key);else localStorage.setItem(key,mode)}catch(e){}apply()});
+})();
+(function(){
+var copy=document.getElementById('copy');
+copy.addEventListener('click',function(){
+var text=Array.prototype.map.call(document.querySelectorAll('.ln .t'),function(n){return n.textContent.replace(/\u00a0/g,'')}).join('\n')+'\n';
+var done=function(){copy.textContent='Đã sao chép';setTimeout(function(){copy.textContent='Sao chép'},1500)};
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done,function(){})}
+else{var a=document.createElement('textarea');a.value=text;document.body.appendChild(a);a.select();try{document.execCommand('copy');done()}catch(e){}document.body.removeChild(a)}
+});
+})();
+(function(){
+var btn=document.getElementById('wrap'),src=document.querySelector('.src');if(!btn||!src)return;
+var key='litmatch-code-wrap',on=null;try{var s=localStorage.getItem(key);if(s==='1'||s==='0')on=s==='1'}catch(e){}
+if(on===null)on=!!(window.matchMedia&&window.matchMedia('(max-width:760px)').matches);
+function apply(){if(on)src.classList.add('wrap');else src.classList.remove('wrap');btn.textContent=on?'Cuộn ngang':'Xuống dòng'}
+apply();
+btn.addEventListener('click',function(){on=!on;try{localStorage.setItem(key,on?'1':'0')}catch(e){}apply()});
+})();</script>
+</body>
+</html>

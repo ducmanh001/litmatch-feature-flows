@@ -77,3 +77,8 @@
 - [User Profile và Privacy](https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/23-user-profile-va-privacy.json): feature sequence, actors, branches/conditions, dependencies and architecture edges.
 - [Analytics và thông báo privacy](https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/24-analytics-consent.json): feature sequence, actors, branches/conditions, dependencies and architecture edges.
 - [Realtime Fanout](https://ducmanh001.github.io/litmatch-feature-flows/ai/diagrams/25-realtime-fanout.json): feature sequence, actors, branches/conditions, dependencies and architecture edges.
+
+## 10M concurrency (separate from the 25 flows above)
+
+- [Architecture 10M](https://ducmanh001.github.io/litmatch-feature-flows/architecture-10m/index.html): overview plus eight architecture diagrams (realtime gateway, matching, calling recovery, data lifecycle, ledger integrity, batch jobs, hot paths, resource protection). The system is NOT certified for 10 million concurrent users; figures are lab measurements, models or arithmetic on default configuration.
+- [Code 10M](https://ducmanh001.github.io/litmatch-feature-flows/code-10m/index.html): 31 annotated walkthroughs of the hard flows changed for 10M. Each page is labelled "pushed" (matches PR #84 head 0c052aa) or "local" (uncommitted working-tree changes snapshotted on 2026-10-21; not on GitHub).

@@ -1,5 +1,5 @@
 //  JOB RetentionJob.runOnce (mỗi RETENTION_INTERVAL_MS, một pod duy nhất)
-//  Chạy dưới khoá cluster-singleton và ngân sách đồng thời, lấy quy tắc của module, xoá theo lô bằng câu lệnh ngắn tự commit, ghi metric.
+//  Xếp hàng admission theo DataSource (chờ mà không giữ kết nối), chạy dưới ngân sách đồng thời và khoá cluster-singleton, lấy quy tắc của module, xoá theo lô bằng câu lệnh ngắn tự commit, ghi metric.
 //  Step 1: Một tick retention; không chạy chồng nhau trong cùng process
 //  Step 2: Lấy các quy tắc của module (module sở hữu bảng tự khai báo SQL của nó)
 //  Step 3: Quy tắc của module: điều kiện, thứ tự xoá và tham số (SQL tĩnh, không nội suy input)
@@ -8,8 +8,9 @@
 //  Step 6: Chốt chặn cấu trúc: không bao giờ xoá bảng sổ cái, ví, chứng từ
 //  Step 7: Chọn lô rồi xoá trong MỘT câu lệnh (FOR UPDATE SKIP LOCKED)
 //  Step 8: Ghi metric: dry-run chỉ ghi gauge số hàng đủ điều kiện, delete ghi counter số hàng đã xoá
-//  Step 9: Ngân sách đồng thời dùng chung: hết chỗ thì BỎ tick trước khi lấy kết nối pool
-//  Step 10: Chỉ một pod chạy mỗi tick: advisory lock theo transaction, tự nhả khi kết nối đóng kể cả pod chết
+//  Step 9: Admission FIFO theo DataSource: đợi lượt mà KHÔNG giữ kết nối pool (làn thường và làn riêng cho calling timer)
+//  Step 10: Ngân sách đồng thời dùng chung: hết chỗ thì BỎ tick trước khi lấy kết nối pool
+//  Step 11: Chỉ một pod chạy mỗi tick: advisory lock theo transaction, tự nhả khi kết nối đóng kể cả pod chết
 
 // [WORKER] RetentionJob.runOnce · common/retention/retention-job.ts
 export abstract class RetentionJob
@@ -22,6 +23,11 @@ export abstract class RetentionJob
   // ManagedInterval
   private scheduledRunInFlight = false;
   private clusterRetryAfter = 0;
+  private generation = 0;
+  private cancelAdmission: (() => void) | undefined;
+  // AdmissionLane
+  private inUse = 0;
+  private readonly pending: Array<(release: Release | undefined) => void> = [];
   // ConcurrencyBudget
   private inFlight = 0;
   constructor(
@@ -33,7 +39,7 @@ export abstract class RetentionJob
     config: ConfigService<CoreApiEnv, true>,
     scheduler: SchedulerRegistry,
     @Inject(METRICS_METER) meter: Meter,
-    // ConcurrencyBudget
+    // AdmissionLane
     private readonly limit: number,
   ) {
     // AuthRetentionJob
@@ -255,14 +261,18 @@ export abstract class RetentionJob
 
 // [WORKER] ManagedInterval.runScheduled · common/scheduling/managed-interval.ts
 export class ManagedInterval {
-  private async runScheduled(options: {
-    jobName: string;
-    intervalMs: number;
-    task: () => Promise<unknown>;
-    clusterSingleton?: ClusterSingletonOptions;
-    skipWhenIdle?: boolean;
-  }): Promise<void> {
-    if (this.scheduledRunInFlight) return;
+  private async runScheduled(
+    options: {
+      jobName: string;
+      intervalMs: number;
+      task: () => Promise<unknown>;
+      clusterSingleton?: ClusterSingletonOptions;
+      databaseAdmission?: ClusterSingletonOptions;
+      skipWhenIdle?: boolean;
+    },
+    generation: number,
+  ): Promise<void> {
+    if (this.scheduledRunInFlight || generation !== this.generation) return;
     if (options.skipWhenIdle && !isRuntimeActive()) {
       recordRuntimeBackgroundSkip(options.jobName);
       return;
@@ -277,81 +287,167 @@ export class ManagedInterval {
     this.scheduledRunInFlight = true;
     try {
       const clusterSingleton = options.clusterSingleton;
-      if (clusterSingleton === undefined) {
+      const databaseAdmission = clusterSingleton ?? options.databaseAdmission;
+      if (databaseAdmission === undefined) {
         await options.task();
         return;
       }
 
-      // Step 9: Ngân sách đồng thời dùng chung: hết chỗ thì BỎ tick trước khi lấy kết nối pool
-      const release = clusterSingleton.budget?.tryAcquire();
+      // Step 9: Admission FIFO theo DataSource: đợi lượt mà KHÔNG giữ kết nối pool (làn thường và
+      // làn riêng cho calling timer)
+      // Chờ lượt TRƯỚC khi mở bất kỳ kết nối nào: hàng đợi FIFO theo DataSource, người chờ không
+      // giữ kết nối pool nên nhiều job nền cùng đến hạn không chiếm hết pool của request. Mỗi job
+      // chỉ có một người chờ vì scheduledRunInFlight chặn tick chồng.
+      const admission = acquireBackgroundDatabaseAdmission(
+        databaseAdmission.dataSource,
+        databaseAdmission.priority,
+      );
 
-      // [WORKER] ConcurrencyBudget.tryAcquire · common/scheduling/concurrency-budget.ts
-      // Không chờ và không xếp hàng: hết ngân sách thì tick bị bỏ, tick sau thử lại. Hàng đợi
-      // luôn có trần bằng 0 nên không thể phình, và việc chậm lại rơi vào job nền chứ không phải
-      // request người dùng. Mỗi tick giữ ≤ 2 kết nối pool (một cho advisory lock, một cho task),
-      // nên RETENTION_MAX_CONCURRENT_JOBS=2 giữ retention ở ≤ 4 kết nối.
-      if (this.inFlight >= this.limit) return undefined;
-      this.inFlight += 1;
-      let released = false;
-      return () => {
-        if (released) return;
-        released = true;
-        this.inFlight -= 1;
+      // [WORKER] acquireBackgroundDatabaseAdmission · common/scheduling/background-database-admission.ts
+      const dataSource = databaseAdmission.dataSource;
+      const priority = databaseAdmission.priority;
+      let lanes = admissions.get(dataSource);
+      if (lanes === undefined) {
+        const poolSize = dataSource.options?.poolSize ?? MOCK_POOL_SIZE;
+        // Mỗi slot của làn thường được tính là một lượt claim cộng bằng đó worker song song
+        // (pool/4): pool 5 có 1 slot, pool 10 có 2 slot. Phần còn lại của pool là một kết nối
+        // dành cho HTTP và hai cho calling timer.
+        const jobCost =
+          1 + Math.max(1, Math.floor(poolSize / WORKER_POOL_FRACTION));
+        const regularSlots = Math.max(
+          1,
+          Math.floor(
+            (poolSize - HTTP_RESERVED_CONNECTIONS - CRITICAL_RESERVED_CONNECTIONS) /
+              jobCost,
+          ),
+        );
+        lanes = {
+          regular: new AdmissionLane(regularSlots),
+          // Calling timer đi làn riêng chỉ có một slot: cleanup/SFU chậm của các job thường không
+          // chặn được timer kết thúc cuộc gọi.
+          critical: new AdmissionLane(1),
+        };
+        admissions.set(dataSource, lanes);
+      }
+      return lanes[priority].acquire();
+
+      // [WORKER] AdmissionLane.acquire
+      let waiter: ((release: Release | undefined) => void) | undefined;
+      const ready = new Promise<Release | undefined>((resolve) => {
+        if (this.inUse < this.limit) {
+          resolve(this.permit());
+
+          // [WORKER] AdmissionLane.permit
+          this.inUse += 1;
+          let released = false;
+          return () => {
+            if (released) return;
+            released = true;
+            this.inUse -= 1;
+            const next = this.pending.shift();
+            // Nhả slot thì trao ngay cho người chờ lâu nhất: thứ tự FIFO nên không job nào bị bỏ
+            // đói.
+            if (next !== undefined) next(this.permit());
+          };
+        } else {
+          waiter = resolve;
+          // Hết slot thì chỉ xếp một hàm resolve vào hàng đợi: không có kết nối hay timer nào bị
+          // giữ trong lúc chờ, và cancel() gỡ đúng người chờ đó (stop() huỷ được).
+          this.pending.push(resolve);
+        }
+      });
+      return {
+        ready,
+        cancel: () => {
+          if (waiter === undefined) return;
+          const index = this.pending.indexOf(waiter);
+          if (index < 0) return;
+          this.pending.splice(index, 1);
+          waiter(undefined);
+        },
       };
 
-      if (clusterSingleton.budget !== undefined && release === undefined) {
-        recordRuntimeBackgroundSkip(options.jobName);
-        return;
-      }
+      this.cancelAdmission = admission.cancel;
+      const releaseAdmission = await admission.ready;
+      if (this.cancelAdmission === admission.cancel)
+        this.cancelAdmission = undefined;
       try {
-        await this.runClusterSingleton({
-          ...options,
-          clusterSingleton,
-        });
+        // stop() phải phủ cả khoảng vi tác vụ giữa lúc được cấp lượt và lúc mở runner: kiểm lại
+        // thế hệ rồi mới làm tiếp, nếu không một job đã dừng vẫn chạy thêm một tick.
+        if (releaseAdmission === undefined || generation !== this.generation)
+          return;
 
-        // [WORKER] ManagedInterval.runClusterSingleton
-        // options = { ...options, clusterSingleton, }
-        const retryMs =
-          options.clusterSingleton.followerRetryMs ??
-          Math.max(options.intervalMs, CLUSTER_FOLLOWER_RETRY_MIN_MS);
-        let runner: QueryRunner | undefined;
+        // Step 10: Ngân sách đồng thời dùng chung: hết chỗ thì BỎ tick trước khi lấy kết nối pool
+        const release = databaseAdmission.budget?.tryAcquire();
 
+        // [WORKER] ConcurrencyBudget.tryAcquire · common/scheduling/concurrency-budget.ts
+        // Không chờ và không xếp hàng: hết ngân sách thì job nền bỏ tick và thử lại ở chu kỳ sau
+        // (caller HTTP thì trả 503). Job cluster-singleton còn giữ một kết nối cho advisory lock
+        // nên ngân sách của job phải dành chỗ cho cả lock lẫn task; RETENTION_MAX_CONCURRENT_JOBS
+        // giới hạn số tick retention chạy cùng lúc trong process.
+        if (this.inFlight >= this.limit) return undefined;
+        this.inFlight += 1;
+        let released = false;
+        return () => {
+          if (released) return;
+          released = true;
+          this.inFlight -= 1;
+        };
+
+        if (databaseAdmission.budget !== undefined && release === undefined) {
+          recordRuntimeBackgroundSkip(options.jobName);
+          return;
+        }
         try {
-          runner = options.clusterSingleton.dataSource.createQueryRunner();
-          await runner.connect();
-          await runner.startTransaction();
+          if (clusterSingleton === undefined) await options.task();
+          else await this.runClusterSingleton({ ...options, clusterSingleton });
 
-          // Step 10: Chỉ một pod chạy mỗi tick: advisory lock theo transaction, tự nhả khi kết nối
-          // đóng kể cả pod chết
-          const rows = (await runner.query(
-            `SELECT pg_try_advisory_xact_lock(
-                      hashtextextended($1, 0)
-                    ) AS acquired`,
-            [`litmatch:cluster-job:${options.jobName}`],
-          )) as Array<{ acquired: boolean }>;
+          // [WORKER] ManagedInterval.runClusterSingleton
+          // options = { ...options, clusterSingleton }
+          const retryMs =
+            options.clusterSingleton.followerRetryMs ??
+            Math.max(options.intervalMs, CLUSTER_FOLLOWER_RETRY_MIN_MS);
+          let runner: QueryRunner | undefined;
 
-          if (rows[0]?.acquired !== true) {
-            // DB hỏng không được làm mọi replica thử giành khoá ở mỗi tick ngắn: nhớ thời điểm
-            // được phép thử lại.
+          try {
+            runner = options.clusterSingleton.dataSource.createQueryRunner();
+            await runner.connect();
+            await runner.startTransaction();
+
+            // Step 11: Chỉ một pod chạy mỗi tick: advisory lock theo transaction, tự nhả khi kết
+            // nối đóng kể cả pod chết
+            const rows = (await runner.query(
+              `SELECT pg_try_advisory_xact_lock(
+                        hashtextextended($1, 0)
+                      ) AS acquired`,
+              [`litmatch:cluster-job:${options.jobName}`],
+            )) as Array<{ acquired: boolean }>;
+
+            if (rows[0]?.acquired !== true) {
+              // DB hỏng không được làm mọi replica thử giành khoá ở mỗi tick ngắn: nhớ thời điểm
+              // được phép thử lại.
+              this.clusterRetryAfter = Date.now() + retryMs;
+              await runner.rollbackTransaction();
+              return;
+            }
+
+            this.clusterRetryAfter = 0;
+            await options.task();
+            await runner.commitTransaction();
+          } catch (error) {
+            if (runner?.isTransactionActive) {
+              await runner.rollbackTransaction().catch(() => undefined);
+            }
             this.clusterRetryAfter = Date.now() + retryMs;
-            await runner.rollbackTransaction();
-            return;
+            throw error;
+          } finally {
+            await runner?.release().catch(() => undefined);
           }
-
-          this.clusterRetryAfter = 0;
-          await options.task();
-          await runner.commitTransaction();
-        } catch (error) {
-          if (runner?.isTransactionActive) {
-            await runner.rollbackTransaction().catch(() => undefined);
-          }
-          this.clusterRetryAfter = Date.now() + retryMs;
-          throw error;
         } finally {
-          await runner?.release().catch(() => undefined);
+          release?.();
         }
       } finally {
-        release?.();
+        releaseAdmission?.();
       }
     } finally {
       this.scheduledRunInFlight = false;

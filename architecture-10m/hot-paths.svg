@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1280 800" width="1280" height="800" role="img" aria-label="Đường nóng trong Postgres: khoá, một kết nối, SKIP LOCKED" font-family="-apple-system,Segoe UI,Noto Sans,Helvetica,Arial,sans-serif">
+<title>Đường nóng trong Postgres: khoá, một kết nối, SKIP LOCKED</title>
+<style>
+:root{--bg:#ffffff;--fg:#1f2328;--muted:#59636e;--border:#d1d9e0;--subtle:#f6f8fa;--accent:#0969da;--ok:#1a7f37;--warn:#bc4c00;
+--t-controller:#1a7f37;--t-service:#bc4c00;--t-worker:#8250df;--t-postgres:#0969da;--t-redis:#cf222e;--t-kafka:#57606a;--t-external:#0a7a6b;--t-gateway:#9a6700}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--ok:#56d364;--warn:#ffa657;
+--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-external:#39d0bb;--t-gateway:#e3b341}}
+.bg{fill:var(--bg)}
+.ttl{font:700 17px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--fg)}
+.sub{font:12px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.nt{font:700 13px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--fg)}
+.nl{font:11.5px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.gt{font:600 12px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.el{font:600 11px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--fg)}
+.lg{font:11.5px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.node{fill:var(--subtle);stroke-width:1.6}
+.node.ops{stroke-dasharray:5 4}
+.grp{fill:none;stroke:var(--border);stroke-width:1.2;stroke-dasharray:6 4}
+.edge{fill:none;stroke-width:1.6;stroke-linejoin:round}
+.edge.async{stroke-dasharray:6 4}
+.pill{fill:var(--bg);stroke-width:1}
+.tag{font:700 10px -apple-system,"Segoe UI",sans-serif}
+.tagbg{stroke-width:1}
+a:hover .nt{text-decoration:underline}</style>
+<defs>
+<marker id="ah-client" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+<marker id="ah-gateway" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-gateway)"/></marker>
+<marker id="ah-service" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-service)"/></marker>
+<marker id="ah-worker" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-worker)"/></marker>
+<marker id="ah-postgres" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-postgres)"/></marker>
+<marker id="ah-redis" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-redis)"/></marker>
+<marker id="ah-kafka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-kafka)"/></marker>
+<marker id="ah-external" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-external)"/></marker>
+<marker id="ah-ops" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+</defs>
+<rect class="bg" x="0" y="0" width="1280" height="800"/>
+<text class="ttl" x="24" y="30">Đường nóng trong Postgres: khoá, một kết nối, SKIP LOCKED</text>
+<text class="sub" x="24" y="50">Mỗi cột là một đường nóng đã đổi: cái gì được khoá, khoá theo thứ tự nào, và mỗi request giữ bao nhiêu kết nối pool.</text>
+<path class="edge" d="M165,522 L165,563 Q165,571 157,571 L153,571 Q145,571 145,579 L145,620" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+<path class="edge" d="M470,368 L470,486 Q470,494 462,494 L458,494 Q450,494 450,502 L450,620" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+<path class="edge" d="M790,516 L790,620" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+<path class="edge" d="M1112.5,518 L1112.5,561.75 Q1112.5,569 1119.75,569 L1119.75,569 Q1127,569 1127,576.25 L1127,620" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+<a href="../code-10m/05-movie-match-anon/01-post-join-anon-queue.html">
+<rect class="node" stroke="var(--t-service)" x="40" y="90" width="250" height="112" rx="9"/>
+<text class="nt" text-anchor="middle" x="165" y="114">Movie/Palm: vào hàng đợi</text>
+<text class="nl" text-anchor="middle" x="165" y="132">POST movie-match/anon/queue và</text>
+<text class="nl" text-anchor="middle" x="165" y="148">palm-match/queue: cùng cơ chế</text>
+<text class="nl" text-anchor="middle" x="165" y="164">lượt join của CÙNG user tuần tự</text>
+<text class="nl" text-anchor="middle" x="165" y="180">hoá bằng advisory lock theo user</text>
+</a>
+<a href="../code-10m/06-palm-match/01-post-join-queue.html">
+<rect class="node" stroke="var(--t-service)" x="40" y="240" width="250" height="128" rx="9"/>
+<text class="nt" text-anchor="middle" x="165" y="264">Người mới giành người cũ</text>
+<text class="nl" text-anchor="middle" x="165" y="282">FOR UPDATE SKIP LOCKED trên entry</text>
+<text class="nl" text-anchor="middle" x="165" y="298">cũ hơn rồi xoá entry của mình để</text>
+<text class="nl" text-anchor="middle" x="165" y="314">chốt; mọi cạnh chờ đi cũ → mới</text>
+<text class="nl" text-anchor="middle" x="165" y="330">nên không deadlock</text>
+</a>
+
+<rect class="node" stroke="var(--t-service)" x="40" y="410" width="250" height="112" rx="9"/>
+<text class="nt" text-anchor="middle" x="165" y="434">Không còn khoá toàn cục</text>
+<text class="nl" text-anchor="middle" x="165" y="452">người chờ tự thử ghép lại mỗi</text>
+<text class="nl" text-anchor="middle" x="165" y="468">lượt poll; dọn entry quá hạn</text>
+<text class="nl" text-anchor="middle" x="165" y="484">tối đa 50 hàng mỗi lượt</text>
+
+<a href="../code-10m/02-soul-match/01-post-rating.html">
+<rect class="node" stroke="var(--t-service)" x="345" y="90" width="250" height="112" rx="9"/>
+<text class="nt" text-anchor="middle" x="470" y="114">Soul Match: đánh giá</text>
+<text class="nl" text-anchor="middle" x="470" y="132">POST …/sessions/:id/rating</text>
+<text class="nl" text-anchor="middle" x="470" y="148">rating bất biến; cả hai cùng like</text>
+<text class="nl" text-anchor="middle" x="470" y="164">→ Friendship + Conversation + chuyển</text>
+<text class="nl" text-anchor="middle" x="470" y="180">lịch sử chat trong một transaction</text>
+</a>
+<a href="../code-10m/02-soul-match/01-post-rating.html">
+<rect class="node" stroke="var(--t-service)" x="345" y="240" width="250" height="128" rx="9"/>
+<text class="nt" text-anchor="middle" x="470" y="264">Một kết nối pool cho cả bước</text>
+<text class="nl" text-anchor="middle" x="470" y="282">areFriends / canPair nhận</text>
+<text class="nl" text-anchor="middle" x="470" y="298">EntityManager đang giữ, chạy trên</text>
+<text class="nl" text-anchor="middle" x="470" y="314">cùng transaction</text>
+<text class="nl" text-anchor="middle" x="470" y="330">(trước: mỗi request giữ 2 kết nối)</text>
+</a>
+<a href="../code-10m/16-friend-va-chat-1-1/01-post-send-message.html">
+<rect class="node" stroke="var(--t-service)" x="650" y="90" width="280" height="112" rx="9"/>
+<text class="nt" text-anchor="middle" x="790" y="114">Chat 1-1: gửi tin</text>
+<text class="nl" text-anchor="middle" x="790" y="132">POST /conversations/:id/messages</text>
+<text class="nl" text-anchor="middle" x="790" y="148">idempotent theo key</text>
+<text class="nl" text-anchor="middle" x="790" y="164">luôn lưu + publish realtime + tính unread</text>
+</a>
+<a href="../code-10m/16-friend-va-chat-1-1/01-post-send-message.html">
+<path class="node" stroke="var(--t-redis)" d="M650,248 a140,8 0 0 1 280,0 v124 a140,8 0 0 1 -280,0 z"/>
+<path class="node" stroke="var(--t-redis)" fill="none" d="M650,248 a140,8 0 0 0 280,0"/>
+<text class="nt" text-anchor="middle" x="790" y="272">Cổng cửa sổ thông báo</text>
+<text class="nl" text-anchor="middle" x="790" y="290">SET NX EX theo (người nhận,</text>
+<text class="nl" text-anchor="middle" x="790" y="306">hội thoại): chỉ tin ĐẦU cửa sổ</text>
+<text class="nl" text-anchor="middle" x="790" y="322">(mặc định 60 s) tạo notification</text>
+<text class="nl" text-anchor="middle" x="790" y="338">và push; Redis lỗi → fail-open</text>
+</a>
+<a href="../code-10m/16-friend-va-chat-1-1/01-post-send-message.html">
+<rect class="node" stroke="var(--t-service)" x="650" y="420" width="280" height="96" rx="9"/>
+<text class="nt" text-anchor="middle" x="790" y="444">Streak đọc không khoá</text>
+<text class="nl" text-anchor="middle" x="790" y="462">bỏ transaction khi người gửi</text>
+<text class="nl" text-anchor="middle" x="790" y="478">đã được ghi nhận hôm nay</text>
+</a>
+<a href="../code-10m/17-dang-ky-onboarding-va-guest/01-post-refresh.html">
+<rect class="node" stroke="var(--t-service)" x="985" y="90" width="255" height="112" rx="9"/>
+<text class="nt" text-anchor="middle" x="1112.5" y="114">Refresh token: xoay</text>
+<text class="nl" text-anchor="middle" x="1112.5" y="132">POST /auth/refresh</text>
+<text class="nl" text-anchor="middle" x="1112.5" y="148">mỗi lần dùng: INSERT token mới</text>
+<text class="nl" text-anchor="middle" x="1112.5" y="164">+ UPDATE token cũ (≈ 290 triệu</text>
+<text class="nl" text-anchor="middle" x="1112.5" y="180">hàng/ngày ở đề bài)</text>
+</a>
+<a href="../code-10m/17-dang-ky-onboarding-va-guest/01-post-refresh.html">
+<rect class="node" stroke="var(--t-service)" x="985" y="240" width="255" height="112" rx="9"/>
+<text class="nt" text-anchor="middle" x="1112.5" y="264">Phát hiện dùng lại</text>
+<text class="nl" text-anchor="middle" x="1112.5" y="282">token đã xoay mà bị dùng lại</text>
+<text class="nl" text-anchor="middle" x="1112.5" y="298">→ thu hồi cả họ token</text>
+</a>
+<a href="../code-10m/17-dang-ky-onboarding-va-guest/01-post-refresh.html">
+<rect class="node" stroke="var(--t-service)" x="985" y="390" width="255" height="128" rx="9"/>
+<text class="nt" text-anchor="middle" x="1112.5" y="414">Dọn lúc xoay (tắt mặc định)</text>
+<text class="nl" text-anchor="middle" x="1112.5" y="432">xoá token đã xoay cũ hơn N ngày</text>
+<text class="nl" text-anchor="middle" x="1112.5" y="448">của cùng họ, chỉ khi</text>
+<text class="nl" text-anchor="middle" x="1112.5" y="464">RETENTION_MODE=delete; cần review</text>
+<text class="nl" text-anchor="middle" x="1112.5" y="480">bảo mật trước khi bật</text>
+</a>
+
+<path class="node" stroke="var(--t-postgres)" d="M40,628 a600,8 0 0 1 1200,0 v104 a600,8 0 0 1 -1200,0 z"/>
+<path class="node" stroke="var(--t-postgres)" fill="none" d="M40,628 a600,8 0 0 0 1200,0"/>
+<text class="nt" text-anchor="middle" x="640" y="652">PostgreSQL</text>
+<text class="nl" text-anchor="middle" x="640" y="670">khoá hàng theo thứ tự cố định, transaction ngắn, mỗi request giữ ít kết nối pool nhất có thể</text>
+<text class="nl" text-anchor="middle" x="640" y="686">chưa làm: cache đọc, hot wallet của Gift (thứ tự khoá đã chống deadlock), archive/partition chat, PgBouncer/replica</text>
+<text class="nl" text-anchor="middle" x="640" y="702">mọi con số tải ở đề bài là mô hình hoặc đo lab, không phải năng lực đã chứng nhận</text>
+
+<rect class="pill" x="58.5" y="561" width="193" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="155" y="575">SKIP LOCKED + advisory lock</text>
+<rect class="pill" x="373.5" y="484" width="173" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="460" y="498">1 kết nối, 1 transaction</text>
+<rect class="pill" x="733.5" y="558" width="113" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="790" y="572">insert + streak</text>
+<rect class="pill" x="1063.25" y="559" width="113" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="1119.75" y="573">INSERT + UPDATE</text>
+<rect x="24" y="768" width="14" height="14" rx="4" fill="none" stroke="var(--t-postgres)" stroke-width="1.6"/>
+<text class="lg" x="44" y="779">POSTGRES</text>
+<rect x="117" y="768" width="14" height="14" rx="4" fill="none" stroke="var(--t-service)" stroke-width="1.6"/>
+<text class="lg" x="137" y="779">core-api (SERVICE)</text>
+<rect x="273" y="768" width="14" height="14" rx="4" fill="none" stroke="var(--t-redis)" stroke-width="1.6"/>
+<text class="lg" x="293" y="779">REDIS</text>
+<line x1="347" y1="775" x2="373" y2="775" stroke="var(--muted)" stroke-width="1.6"/><text class="lg" x="379" y="779">gọi đồng bộ</text>
+<line x1="467" y1="775" x2="493" y2="775" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="6 4"/><text class="lg" x="499" y="779">bất đồng bộ / best-effort</text>
+</svg>

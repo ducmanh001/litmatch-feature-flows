@@ -1,13 +1,17 @@
 //  JOB ReconciliationService.runFast (mỗi ECONOMY_RECONCILIATION_FAST_INTERVAL_MS)
-//  Cộng thêm các cửa sổ giao dịch mới vào tổng Nợ − Có cộng dồn, đếm receipt đã credit mà thiếu giao dịch, rồi báo lệch qua log và metric.
-//  Step 1: Tier rẻ chạy dày: kiểm bất biến Nợ = Có theo currency và đếm receipt mồ côi
-//  Step 2: Cập nhật tổng Nợ − Có cộng dồn rồi lấy các currency đang lệch (tổng khác 0)
-//  Step 3: Lưới an toàn: dựng lại tổng từ TOÀN BỘ lịch sử (lần đầu hoặc mỗi FULL_INTERVAL)
-//  Step 4: Đường thường: cận trên cửa sổ kế tiếp tính bằng đồng hồ DB (now() − LAG)
-//  Step 5: Cộng Nợ − Có của các giao dịch MỚI trong [watermark, to)
-//  Step 6: Dịch watermark SAU khi cửa sổ cộng xong
-//  Step 7: Đếm receipt đã credit mà chưa có transaction (index một phần gần như rỗng)
-//  Step 8: Lệch thì log error (metric đã ghi ở trên để alert fire); job không tự sửa
+//  Tiến checkpoint bền theo từng trang transaction (keyset created_at, id) trong ngân sách mỗi tick, đếm receipt đã credit mà thiếu transaction, rồi báo lệch qua log và metric; quét dở không bao giờ báo sạch.
+//  Step 1: Tier rẻ chạy dày: kiểm Nợ = Có theo currency và đếm receipt mồ côi
+//  Step 2: Tiến checkpoint bền thêm vài trang, rồi lấy các currency còn lệch
+//  Step 3: Lặp theo trang tới khi hết trần lô, hết ngân sách hoặc đã bắt kịp
+//  Step 4: Mở một transaction cho đúng một trang
+//  Step 5: Khoá dòng checkpoint, lấy cutoff = now − LAG từ đồng hồ DB
+//  Step 6: Đến kỳ rebase thì đặt lại tổng và cursor
+//  Step 7: Đọc trang transaction kế tiếp (keyset) kèm tổng Nợ − Có theo currency
+//  Step 8: Xác định đã bắt kịp cutoff hay chưa
+//  Step 9: Ghi tổng và cursor mới vào dòng checkpoint
+//  Step 10: Đếm receipt đã credit mà chưa có transaction
+//  Step 11: Tính ok từ ba điều kiện: đã bắt kịp, không lệch, không receipt mồ côi
+//  Step 12: Lệch thì log error (metric đã ghi ở trên); job không tự sửa
 
 // [WORKER] ReconciliationService.runFast · economy/jobs/reconciliation.service.ts
 @Injectable()
@@ -15,133 +19,180 @@ export class ReconciliationService
   implements OnApplicationBootstrap, OnApplicationShutdown
 {
   private readonly logger = new Logger(ReconciliationService.name);
-  private ledgerBalance: LedgerBalanceState | undefined;
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly config: ConfigService<CoreApiEnv, true>,
     private readonly metrics: EconomyMetrics,
+    // LedgerReconciliationCheckpoint
+    private readonly dataSource: DataSource,
   ) {}
 
-  // Step 1: Tier rẻ chạy dày: kiểm bất biến Nợ = Có theo currency và đếm receipt mồ côi
+  // Step 1: Tier rẻ chạy dày: kiểm Nợ = Có theo currency và đếm receipt mồ côi
   async runFast(): Promise<FastReconciliationReport> {
     const startedAt = Date.now();
 
-    // Step 2: Cập nhật tổng Nợ − Có cộng dồn rồi lấy các currency đang lệch (tổng khác 0)
-    const imbalances = await this.currentImbalances();
+    // Step 2: Tiến checkpoint bền thêm vài trang, rồi lấy các currency còn lệch
+    const progress = await this.currentImbalances();
 
     // [WORKER] ReconciliationService.currentImbalances
-    const lagSeconds =
-      this.config.getOrThrow('ECONOMY_RECONCILIATION_LAG_MS', { infer: true }) /
-      1000;
-    const fullIntervalMs = this.config.getOrThrow(
-      'ECONOMY_RECONCILIATION_FULL_INTERVAL_MS',
-      { infer: true },
-    );
-    // Tổng cộng dồn chỉ nằm trong bộ nhớ của pod đang giữ khoá cluster-singleton: job vẫn
-    // READ-ONLY tuyệt đối (không bảng trạng thái, không ghi gì xuống DB). Pod mới giành khoá chưa
-    // có trạng thái thì dựng lại từ đầu.
-    const current = this.ledgerBalance;
-    if (
-      current === undefined ||
-      Date.now() - current.rebasedAt >= fullIntervalMs
-    ) {
-      const startedAt = Date.now();
-      // Lưới an toàn: mỗi ECONOMY_RECONCILIATION_FULL_INTERVAL_MS (và khi pod lần đầu giành khoá)
-      // dựng lại tổng từ TOÀN BỘ lịch sử. Đây là lần duy nhất chi phí tỉ lệ với cả bảng.
-      const { to } = await this.nextWindow(null, lagSeconds);
+    return new LedgerReconciliationCheckpoint(this.dataSource).advance({
+      // LAG phải lớn hơn giao dịch ghi sổ lâu nhất: created_at là giờ BẮT ĐẦU transaction, nên
+      // giao dịch chạy lâu có thể commit sau khi cursor đã đi qua mốc của nó; nó chỉ bị bắt lại ở
+      // lần rebase kế tiếp.
+      lagMs: this.config.getOrThrow('ECONOMY_RECONCILIATION_LAG_MS', {
+        infer: true,
+      }),
+      fullIntervalMs: this.config.getOrThrow(
+        'ECONOMY_RECONCILIATION_FULL_INTERVAL_MS',
+        { infer: true },
+      ),
+      batchSize: this.config.getOrThrow('ECONOMY_RECONCILIATION_BATCH_SIZE', {
+        infer: true,
+      }),
+      maxBatches: this.config.getOrThrow(
+        'ECONOMY_RECONCILIATION_MAX_BATCHES_PER_TICK',
+        { infer: true },
+      ),
+      budgetMs: this.config.getOrThrow(
+        'ECONOMY_RECONCILIATION_TICK_BUDGET_MS',
+        { infer: true },
+      ),
+    });
 
-      // Step 3: Lưới an toàn: dựng lại tổng từ TOÀN BỘ lịch sử (lần đầu hoặc mỗi FULL_INTERVAL)
-      const imbalance = await this.sumImbalance(null, to);
-      this.ledgerBalance = { watermark: to, imbalance, rebasedAt: Date.now() };
-      this.logger.log(
-        `Đối soát ledger: dựng lại tổng từ toàn bộ lịch sử tới ${to} (${Date.now() - startedAt} ms)`,
-      );
-    } else {
-      // Đường thường: chỉ cộng các cửa sổ mới [watermark, now() − LAG), tối đa 50 cửa sổ × 6 giờ
-      // mỗi tick (≈ 12 ngày bắt kịp sau khi job nghỉ lâu). Chi phí mỗi tick tỉ lệ với số giao
-      // dịch MỚI, không với cả bảng ledger_entries.
-      for (let i = 0; i < MAX_WINDOWS_PER_TICK; i += 1) {
+    // [WORKER] LedgerReconciliationCheckpoint.advance · economy/jobs/ledger-reconciliation-checkpoint.ts
+    // options = đối số 1 của lời gọi ở trên
+    const deadline = Date.now() + options.budgetMs;
+    let progress: LedgerReconciliationProgress = {
+      imbalances: [],
+      complete: false,
+      completedBefore: null,
+    };
 
-        // Step 4: Đường thường: cận trên cửa sổ kế tiếp tính bằng đồng hồ DB (now() − LAG)
-        const { to, advances, final } = await this.nextWindow(
-          current.watermark,
-          lagSeconds,
+    // Step 3: Lặp theo trang tới khi hết trần lô, hết ngân sách hoặc đã bắt kịp
+    for (let batch = 0; batch < options.maxBatches; batch++) {
+      // Lô đầu luôn chạy nên tick nào cũng tiến được ít nhất một trang. Ngân sách thời gian chỉ
+      // được kiểm GIỮA các trang: một trang đang chạy không bị cắt, trần của riêng trang là
+      // statement deadline.
+      if (batch > 0 && Date.now() >= deadline) break;
+      progress = await this.advancePage(options);
+
+      // [POSTGRES] LedgerReconciliationCheckpoint.advancePage
+      // Step 4: Mở một transaction cho đúng một trang
+      // Tổng cộng dồn và cursor commit CÙNG NHAU hoặc không gì cả: lỗi giữa chừng rollback cả
+      // hai, pod thay thế tiếp tục đúng chỗ, không cộng trùng và không bỏ sót trang.
+      return this.dataSource.transaction(async (manager) => {
+        await manager.query(
+          `INSERT INTO runtime_job_checkpoints (job_key, state) VALUES ($1, $2::jsonb)
+           ON CONFLICT (job_key) DO NOTHING`,
+          [CHECKPOINT_KEY, JSON.stringify(initialState())],
         );
 
-        // [WORKER] ReconciliationService.nextWindow
-        const from = current.watermark;
-        // Cận trên cửa sổ tính bằng ĐỒNG HỒ DB (now() − LAG), không lệch đồng hồ giữa pod và DB,
-        // và tối đa 6 giờ sau watermark. transactions.created_at là giờ BẮT ĐẦU transaction nên
-        // giao dịch chạy lâu có thể commit sau khi cửa sổ của nó đã qua: LAG
-        // (ECONOMY_RECONCILIATION_LAG_MS) phải lớn hơn giao dịch ghi sổ lâu nhất.
-        const [row]: Array<{ to: string; advances: boolean; final: boolean }> =
-          await this.dataSource.query(
-            `SELECT w.hi::text AS "to",
-                    ($1::timestamptz IS NULL OR w.hi > $1::timestamptz) AS advances,
-                    ($1::timestamptz IS NULL OR w.hi = w.safe) AS final
-               FROM (
-                 SELECT s.safe,
-                        CASE WHEN $1::timestamptz IS NULL THEN s.safe
-                             ELSE LEAST($1::timestamptz + make_interval(hours => $3::int), s.safe) END AS hi
-                   FROM (SELECT now() - make_interval(secs => $2::double precision) AS safe) s
-               ) w`,
-            [from, lagSeconds, MAX_WINDOW_HOURS],
-          );
-        return row;
+        // Step 5: Khoá dòng checkpoint, lấy cutoff = now − LAG từ đồng hồ DB
+        // Tính đúng đắn khi nhiều pod nằm ở khoá dòng này, không ở khoá cluster-singleton: hai
+        // pod chạy cùng lúc phải xếp hàng và nhận hai trang KHÁC nhau.
+        const [checkpoint] = (await manager.query(
+          `SELECT state,
+                  (clock_timestamp() - ($2::double precision * interval '1 millisecond'))::text AS cutoff,
+                  (extract(epoch FROM clock_timestamp()) * 1000)::bigint::text AS "nowMs"
+             FROM runtime_job_checkpoints WHERE job_key = $1 FOR UPDATE`,
+          [CHECKPOINT_KEY, options.lagMs],
+        )) as Array<{ state: CheckpointState; cutoff: string; nowMs: string }>;
+        let state = checkpoint.state;
+        const nowMs = Number(checkpoint.nowMs);
+        if (
+          !state.rebuilding &&
+          state.rebasedAt !== null &&
+          nowMs - state.rebasedAt >= options.fullIntervalMs
+        ) {
 
-        if (!advances) break;
+          // Step 6: Đến kỳ rebase thì đặt lại tổng và cursor
+          // Rebase quét LẠI từ đầu nhưng vẫn theo trang và bị chặn như mọi tick. Mục đích là bắt
+          // transaction commit muộn, backdate hoặc entry chèn ngoài write path chuẩn mà lượt tăng
+          // dần đã đi qua; thời gian hoàn tất phụ thuộc backlog, không có cam kết 24 giờ.
+          state = initialState();
+        }
+        const parameters: unknown[] = [checkpoint.cutoff, options.batchSize];
+        if (state.cursorAt !== null)
+          parameters.push(state.cursorAt, state.cursorId);
 
-        // Step 5: Cộng Nợ − Có của các giao dịch MỚI trong [watermark, to)
-        const delta = await this.sumImbalance(current.watermark, to);
-
-        // [WORKER] ReconciliationService.sumImbalance
-        // from = current.watermark
-        // Cộng THEO TRANSACTION (join qua transactions), không theo từng entry: cửa sổ luôn chứa
-        // trọn các giao dịch đã cân Nợ = Có, cắt giữa chừng sẽ báo lệch giả.
-        const select = `SELECT le.currency,
+        // Step 7: Đọc trang transaction kế tiếp (keyset) kèm tổng Nợ − Có theo currency
+        // Keyset (created_at, id) trên idx_transactions_reconciliation_cursor: đọc tiếp ngay sau
+        // cursor, không sort cả lịch sử. Trang chứa trọn từng transaction (join ledger_entries
+        // theo id của lô) nên tổng luôn cân nếu dữ liệu đúng. Cursor lấy dạng text để giữ đủ
+        // micro giây.
+        const [page] = (await manager.query(
+          `WITH batch AS MATERIALIZED (
+             SELECT id, created_at FROM transactions
+              WHERE created_at < $1::timestamptz
+                ${state.cursorAt === null ? '' : 'AND (created_at, id) > ($3::timestamptz, $4::uuid)'}
+              ORDER BY created_at, id LIMIT $2
+           ), deltas AS (
+             SELECT le.currency,
                     SUM(CASE WHEN le.direction = 'debit' THEN le.amount ELSE -le.amount END)::text AS delta
-               FROM transactions t
-               JOIN ledger_entries le ON le.transaction_id = t.id`;
-        // Hai câu SQL riêng thay vì một câu `$1 IS NULL OR …` để planner dùng được BRIN cho cửa
-        // sổ hẹp.
-        const rows: Array<{ currency: string; delta: string }> =
-          from === null
-            ? await this.dataSource.query(
-                `${select} WHERE t.created_at < $1::timestamptz GROUP BY le.currency`,
-                [to],
-              )
-            : await this.dataSource.query(
-                `${select} WHERE t.created_at >= $1::timestamptz AND t.created_at < $2::timestamptz
-                  GROUP BY le.currency`,
-                [from, to],
-              );
-        return new Map(rows.map((row) => [row.currency, BigInt(row.delta)]));
-
-        for (const [currency, amount] of delta) {
-          current.imbalance.set(
-            currency,
-            (current.imbalance.get(currency) ?? 0n) + amount,
-          );
+               FROM batch b JOIN ledger_entries le ON le.transaction_id = b.id
+              GROUP BY le.currency
+           )
+           SELECT (SELECT count(*)::int FROM batch) AS count,
+                  (SELECT created_at::text FROM batch ORDER BY created_at DESC, id DESC LIMIT 1) AS at,
+                  (SELECT id::text FROM batch ORDER BY created_at DESC, id DESC LIMIT 1) AS id,
+                  COALESCE((SELECT jsonb_object_agg(currency, delta) FROM deltas), '{}'::jsonb) AS sums`,
+          parameters,
+        )) as Array<{
+          count: number;
+          at: string | null;
+          id: string | null;
+          sums: Record<string, string>;
+        }>;
+        // amount là bigint (driver trả string) nên cộng bằng BigInt, không dùng number.
+        for (const [currency, delta] of Object.entries(page.sums)) {
+          state.sums[currency] = (
+            BigInt(state.sums[currency] ?? '0') + BigInt(delta)
+          ).toString();
+        }
+        if (page.count > 0) {
+          state.cursorAt = page.at;
+          state.cursorId = page.id;
         }
 
-        // Step 6: Dịch watermark SAU khi cửa sổ cộng xong
-        // Trạng thái chỉ đổi SAU khi một cửa sổ tính xong: lỗi DB giữa chừng không làm mất hay
-        // nhân đôi cửa sổ nào, tick sau tính lại đúng chỗ.
-        current.watermark = to;
-        if (final) break;
-      }
-    }
-    return [...(this.ledgerBalance?.imbalance ?? [])]
-      .filter(([, amount]) => amount !== 0n)
-      .map(([currency, amount]) => ({
-        currency,
-        imbalance: amount.toString(),
-      }));
+        // Step 8: Xác định đã bắt kịp cutoff hay chưa
+        // Trang ngắn hơn BATCH_SIZE nghĩa là đã hết transaction cũ hơn cutoff. Chỉ khi đó mới đặt
+        // completedBefore (và rebasedAt nếu vừa xong một lượt rebase); trang đầy thì chưa biết
+        // còn bao nhiêu nên không báo hoàn tất.
+        const complete = page.count < options.batchSize;
+        if (complete) {
+          state.completedBefore = checkpoint.cutoff;
+          if (state.rebuilding) state.rebasedAt = nowMs;
+          state.rebuilding = false;
+        }
 
-    // Step 7: Đếm receipt đã credit mà chưa có transaction (index một phần gần như rỗng)
-    // Receipt đã credit phải có đúng một transaction ledger đi kèm. COUNT này chạy trên index một
-    // phần chỉ chứa receipt credited chưa gắn transaction (thường rỗng) nên không quét bảng
-    // receipt.
+        // Step 9: Ghi tổng và cursor mới vào dòng checkpoint
+        // Chỉ metadata chẩn đoán dựng lại được mới được ghi, trong cùng transaction đang giữ
+        // khoá; transactions, ledger_entries, wallets và iap_receipts không bao giờ bị chạm.
+        await manager.query(
+          'UPDATE runtime_job_checkpoints SET state = $2::jsonb, updated_at = now() WHERE job_key = $1',
+          [CHECKPOINT_KEY, JSON.stringify(state)],
+        );
+        return {
+          // Báo lệch ngay từ tổng đang có, kể cả khi mới quét dở: mỗi transaction đã cân Nợ = Có
+          // lúc ghi và trang chứa trọn transaction, nên tổng riêng phần khác 0 là lệch thật chứ
+          // không do cắt ngang.
+          imbalances: Object.entries(state.sums)
+            .filter(([, amount]) => BigInt(amount) !== 0n)
+            .map(([currency, imbalance]) => ({ currency, imbalance })),
+          complete,
+          completedBefore: complete ? state.completedBefore : null,
+        };
+      });
+
+      if (progress.complete) break;
+    }
+    return progress;
+
+    const imbalances = progress.imbalances;
+
+    // Step 10: Đếm receipt đã credit mà chưa có transaction
+    // COUNT chạy trên index một phần chỉ chứa receipt đã credit mà chưa gắn transaction (thường
+    // rỗng), nên không quét bảng receipt.
     const [{ count: orphanReceipts }]: Array<{ count: string }> =
       await this.dataSource.query(
         `SELECT COUNT(*)::text AS count FROM iap_receipts WHERE status = 'credited' AND transaction_id IS NULL`,
@@ -150,7 +201,16 @@ export class ReconciliationService
     const report: FastReconciliationReport = {
       currencyImbalances: imbalances,
       receiptsWithoutTransaction: Number(orphanReceipts),
-      ok: imbalances.length === 0 && Number(orphanReceipts) === 0,
+
+      // Step 11: Tính ok từ ba điều kiện: đã bắt kịp, không lệch, không receipt mồ côi
+      // Quét dở không bao giờ báo sạch: complete = false luôn kéo ok xuống false dù tổng đang
+      // cân, vì phần lịch sử chưa quét có thể còn lệch.
+      ok:
+        progress.complete &&
+        imbalances.length === 0 &&
+        Number(orphanReceipts) === 0,
+      complete: progress.complete,
+      completedBefore: progress.completedBefore,
     };
 
     for (const { currency } of imbalances)
@@ -166,11 +226,21 @@ export class ReconciliationService
       (Date.now() - startedAt) / 1000,
     );
 
-    // Step 8: Lệch thì log error (metric đã ghi ở trên để alert fire); job không tự sửa
-    // Job này READ-ONLY tuyệt đối: lệch chỉ ghi log và metric để alert, không tự sửa. Sửa lệch
-    // thật phải đi qua reversal entry ở write path chuẩn (LedgerService), không bao giờ từ job
-    // chẩn đoán.
-    if (!report.ok) {
+    // Đang bắt kịp mà chưa thấy lệch thì chỉ cảnh báo: chưa phải thành công (gauge
+    // last_run_status = 0) và cũng chưa phải lệch. Backlog lớn giữ trạng thái này qua nhiều tick.
+    if (
+      !progress.complete &&
+      imbalances.length === 0 &&
+      Number(orphanReceipts) === 0
+    ) {
+      this.logger.warn(
+        'Reconciliation is catching up; incomplete history is not a successful audit',
+      );
+    } else if (!report.ok) {
+
+      // Step 12: Lệch thì log error (metric đã ghi ở trên); job không tự sửa
+      // Chỉ log và metric để alert fire: sửa lệch thật phải đi qua reversal entry của
+      // LedgerService, không bao giờ từ job chẩn đoán.
       this.logger.error(
         { report },
         'ĐỐI SOÁT LỆCH (fast) — tổng Nợ/Có hoặc receipt không khớp, cần điều tra ngay',
@@ -182,20 +252,29 @@ export class ReconciliationService
   }
 }
 
-// [POSTGRES] 1758400000000-reconciliation-indexes.ts · database/migrations/1758400000000-reconciliation-indexes.ts
+// [POSTGRES] runtime_job_checkpoints (bảng checkpoint) · database/migrations/1759100000000-runtime-recovery-checkpoints.ts
+// Một dòng cho mỗi job: job_key là khoá chính, vừa là đích ON CONFLICT vừa là dòng bị khoá FOR
+// UPDATE; state (jsonb) giữ tiến độ của job, ở đối soát sổ cái là tổng và cursor, ở mẫu ví là
+// afterUserId. Chỉ là trạng thái điều phối thêm vào, không viết lại lịch sử tài chính và dựng lại
+// được.
+await queryRunner.query(`CREATE TABLE runtime_job_checkpoints (
+  job_key text PRIMARY KEY,
+  state jsonb NOT NULL DEFAULT '{}'::jsonb,
+  updated_at timestamptz NOT NULL DEFAULT now()
+)`);
+
+// [POSTGRES] idx_transactions_reconciliation_cursor (index keyset) · database/migrations/1759200000000-recovery-cursor-indexes.ts
 {
-  name: 'idx_transactions_created_at_brin',
-  // BRIN chỉ dùng cho bảng append-only không bao giờ xoá: transactions chỉ được thêm vào cuối
-  // theo thời gian nên BRIN đủ chọn lọc cho cửa sổ created_at và gần như không tốn gì ở đường ghi
-  // nóng. Bảng bị retention xoá rồi chèn lại thì BRIN mất chọn lọc (đã đổi sang B-tree, xem trang
-  // Vòng đời dữ liệu).
-  sql: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transactions_created_at_brin ON transactions USING brin (created_at)',
+  // B-tree (created_at, id) đúng thứ tự keyset nên ORDER BY created_at, id LIMIT n đọc n khoá đầu
+  // sau cursor thay vì sort cả lịch sử. Migration tạo CONCURRENTLY, ngoài transaction.
+  name: 'idx_transactions_reconciliation_cursor',
+  sql: 'ON transactions (created_at, id)',
 },
 
-// [POSTGRES] 1758400000000-reconciliation-indexes.ts
+// [POSTGRES] idx_iap_receipts_orphan (index một phần) · database/migrations/1758400000000-reconciliation-indexes.ts
 {
-  name: 'idx_iap_receipts_orphan',
   // Index một phần chỉ chứa receipt đã credit mà chưa gắn transaction (thường rỗng): câu COUNT
   // orphan của tier fast gần như không tốn gì.
+  name: 'idx_iap_receipts_orphan',
   sql: "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_iap_receipts_orphan ON iap_receipts (id) WHERE status = 'credited' AND transaction_id IS NULL",
 },

@@ -434,8 +434,9 @@ export class MatcherWorkerService
                         // Score chỉ có thể GIẢM trong đời ticket (boost chỉ tăng; enqueuedAt và
                         // trustPenalty là snapshot lúc tạo), nên LT chặn đúng loại ghi lỗi thời
                         // mà vẫn cho mọi lần hạ score hợp lệ qua. Bước này best-effort: DB lỗi
-                        // thì vé giữ score lúc claim cho tới khi speed-up được gọi lại cùng
-                        // Idempotency-Key.
+                        // thì vé giữ score lúc claim; QueueRepairService quét lại vé sống và
+                        // refresh score từ DB, và client replay speed-up cùng Idempotency-Key
+                        // cũng đặt lại score ngay.
                         const rows = await this.dataSource.manager.find(MatchTicket, {
                           where: {
                             id: In(claimed.map((c) => c.id)),

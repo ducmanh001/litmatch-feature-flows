@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Đối soát sổ cái: kiểm Nợ = Có theo cửa sổ, không quét cả bảng: code theo từng endpoint</title>
+<title>Đối soát sổ cái: trang bền vững có checkpoint, quét dở không báo sạch: code theo từng endpoint</title>
 <style>
 :root{color-scheme:light;--bg:#fff;--fg:#1f2328;--muted:#59636e;--border:#d1d9e0;--subtle:#f6f8fa;--accent:#0969da;--lnum:#818b98;--target:#fff8c5;--sec:#ddf4ff;--secfg:#0550ae;
 --pl-c:#6e7781;--pl-k:#cf222e;--pl-en:#8250df;--pl-c1:#0550ae;--pl-s:#0a3069;--ok:#1a7f37;--info:#0969da;--warn:#bc4c00;--t-controller:#1a7f37;--t-service:#bc4c00;--t-worker:#8250df;--t-postgres:#0969da;--t-redis:#cf222e;--t-kafka:#57606a;--t-bullmq:#bf3989;--t-external:#0a7a6b;--t-gateway:#9a6700;--on-t:#fff;--guide:#d8dee4}
@@ -51,7 +51,10 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .tbl td.tb{color:var(--muted);font-size:12px}.tbl td.lk,.tbl td.ep{white-space:nowrap}
 .tbl code{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--subtle);border:1px solid var(--border);border-radius:6px;padding:1px 6px}
 .m{display:inline-block;min-width:44px;text-align:center;font:700 11px/18px ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:4px;border:1px solid var(--border);padding:0 6px}
-.m-job{color:var(--t-worker)}.m-ws{color:var(--t-gateway)}.m-get{color:var(--ok)}.m-post{color:var(--info)}.m-put{color:var(--warn)}
+.m-job{color:var(--t-worker)}.m-ws{color:var(--t-gateway)}.m-get{color:var(--ok)}.m-post{color:var(--info)}.m-put{color:var(--warn)}.m-http{color:var(--t-external)}.m-boot{color:var(--t-gateway)}.m-queue{color:var(--t-redis)}
+.org{display:inline-block;font:600 11px/18px -apple-system,"Segoe UI",sans-serif;padding:0 8px;border:1px solid currentColor;border-radius:999px;white-space:nowrap;cursor:help}
+.org-pushed{color:var(--ok)}.org-local{color:var(--warn)}
+.idx p.lnk{margin:0 0 10px;font-size:13px}
 @media (max-width:760px){
 main{padding:8px 0 32px}
 .box{border-radius:0;border-left:0;border-right:0}
@@ -76,13 +79,15 @@ main{padding:8px 0 32px}
 <div class="box">
   <div class="bar">
     <div class="path"><a href="https://github.com/ducmanh001/litmatch-feature-flows">litmatch-feature-flows</a> / <a href="https://github.com/ducmanh001/litmatch-feature-flows/tree/main/code-10m/35-ledger-reconciliation">35-ledger-reconciliation</a> / <b>các endpoint</b></div>
-    <div class="actions"><a class="btn" href="../index.html">Tổng quan</a><a class="btn" href="../../code/index.html">Bản gốc (/code)</a><button class="btn" id="theme" type="button" title="Đổi theme">Theme: Tự động</button></div>
+    <div class="actions"><a class="btn" href="../index.html">Tổng quan</a><a class="btn" href="../../architecture-10m/ledger-integrity.html">Kiến trúc 10M</a>
+      <a class="btn" href="../../index.html#09-diamond-top-up-va-vip">Sơ đồ sản phẩm</a><a class="btn" href="../../code/index.html">Bản gốc (/code)</a><button class="btn" id="theme" type="button" title="Đổi theme">Theme: Tự động</button></div>
   </div>
   <div class="idx">
-    <h1>Đối soát sổ cái: kiểm Nợ = Có theo cửa sổ, không quét cả bảng: code theo từng endpoint</h1>
+    <h1>Đối soát sổ cái: trang bền vững có checkpoint, quét dở không báo sạch: code theo từng endpoint</h1>
     <p>Mỗi endpoint là một file, đọc từ trên xuống theo thứ tự chạy: code controller, hàm nó gọi được chép ngay tại dòng gọi, ngang cấp (chỉ thân hàm; chỉ khối { } của code mới thụt vào), cứ thế xuống service, Postgres, Redis, worker. Mỗi khối có dòng tiêu đề [TẦNG] tô màu (CONTROLLER, SERVICE, WORKER, POSTGRES, REDIS, KAFKA, BULLMQ, EXTERNAL, GATEWAY), có đánh số Step, và một constructor gom hạ tầng trực tiếp và phần khởi tạo liên quan ở đầu trang. Có cấu hình và logic middleware, guard, interceptor, pipe và exception filter thực sự áp dụng. Chỉ lược DTO, Metrics và implementation của thư viện ngoài. Comment chỉ trả lời "vì sao" ở chỗ logic khó.</p>
     <table class="tbl"><thead><tr><th>#</th><th>Endpoint</th><th>Làm gì</th><th>Bảng</th><th></th></tr></thead><tbody>
-<tr><td class="num">01</td><td class="ep"><span class="m m-job">JOB</span> <code>ReconciliationService.runFast (mỗi ECONOMY_RECONCILIATION_FAST_INTERVAL_MS)</code></td><td>Cộng thêm các cửa sổ giao dịch mới vào tổng Nợ − Có cộng dồn, đếm receipt đã credit mà thiếu giao dịch, rồi báo lệch qua log và metric.</td><td class="tb">transactions, ledger_entries, iap_receipts</td><td class="lk"><a href="01-job-ledger-reconciliation-fast.html">Xem</a> · <a href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code/35-ledger-reconciliation/01-job-ledger-reconciliation-fast.ts">GitHub</a></td></tr>
+<tr><td class="num">01</td><td class="ep"><span class="m m-job">JOB</span> <code>ReconciliationService.runFast (mỗi ECONOMY_RECONCILIATION_FAST_INTERVAL_MS)</code><div class="rt"><span class="org org-local" title="Code trang này đọc từ working tree CHƯA COMMIT (nền 0c052aa); chưa có trên GitHub. File: apps/core-api/src/modules/economy/jobs/reconciliation.service.ts, apps/core-api/src/database/migrations/1759100000000-runtime-recovery-checkpoints.ts, apps/core-api/src/database/migrations/1759200000000-recovery-cursor-indexes.ts, apps/core-api/src/modules/economy/jobs/ledger-reconciliation-checkpoint.ts">local · chưa commit</span></div></td><td>Tiến checkpoint bền theo từng trang transaction (keyset created_at, id) trong ngân sách mỗi tick, đếm receipt đã credit mà thiếu transaction, rồi báo lệch qua log và metric; quét dở không bao giờ báo sạch.</td><td class="tb">transactions, ledger_entries, runtime_job_checkpoints, iap_receipts</td><td class="lk"><a href="01-job-ledger-reconciliation-fast.html">Xem</a> · <a href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code-10m/35-ledger-reconciliation/01-job-ledger-reconciliation-fast.ts">GitHub</a></td></tr>
+<tr><td class="num">02</td><td class="ep"><span class="m m-job">JOB</span> <code>ReconciliationService.runDeep (mỗi ECONOMY_RECONCILIATION_INTERVAL_MS)</code><div class="rt"><span class="org org-local" title="Code trang này đọc từ working tree CHƯA COMMIT (nền 0c052aa); chưa có trên GitHub. File: apps/core-api/src/modules/economy/jobs/reconciliation.service.ts, apps/core-api/src/modules/economy/jobs/wallet-reconciliation-sampler.ts">local · chưa commit</span></div></td><td>Lấy một mẫu ví kế tiếp theo cursor user_id bền, so snapshot với số dư dẫn xuất từ ledger trong cùng một statement, rồi lưu cursor cùng transaction; ok chỉ phản ánh mẫu vừa kiểm.</td><td class="tb">wallets, ledger_accounts, ledger_entries, runtime_job_checkpoints</td><td class="lk"><a href="02-job-wallet-reconciliation-deep.html">Xem</a> · <a href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code-10m/35-ledger-reconciliation/02-job-wallet-reconciliation-deep.ts">GitHub</a></td></tr>
     </tbody></table>
   </div>
 </div>
