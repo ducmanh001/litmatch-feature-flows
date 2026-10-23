@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Palm Match: hàng đợi không khoá toàn cục: code theo từng endpoint</title>
+<style>
+:root{color-scheme:light;--bg:#fff;--fg:#1f2328;--muted:#59636e;--border:#d1d9e0;--subtle:#f6f8fa;--accent:#0969da;--lnum:#818b98;--target:#fff8c5;--sec:#ddf4ff;--secfg:#0550ae;
+--pl-c:#6e7781;--pl-k:#cf222e;--pl-en:#8250df;--pl-c1:#0550ae;--pl-s:#0a3069;--ok:#1a7f37;--info:#0969da;--warn:#bc4c00;--t-controller:#1a7f37;--t-service:#bc4c00;--t-worker:#8250df;--t-postgres:#0969da;--t-redis:#cf222e;--t-kafka:#57606a;--t-bullmq:#bf3989;--t-external:#0a7a6b;--t-gateway:#9a6700;--on-t:#fff;--guide:#d8dee4}
+:root[data-theme=dark]{color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--lnum:#6e7681;--target:#3b2e0b;--sec:#10294a;--secfg:#79c0ff;
+--pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341;--on-t:#0d1117;--guide:#3d444d}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--lnum:#6e7681;--target:#3b2e0b;--sec:#10294a;--secfg:#79c0ff;
+--pl-c:#8b949e;--pl-k:#ff7b72;--pl-en:#d2a8ff;--pl-c1:#79c0ff;--pl-s:#a5d6ff;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341;--on-t:#0d1117;--guide:#3d444d}}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:24px 16px 48px}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.box{border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--bg)}
+.bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--subtle);border-bottom:1px solid var(--border)}
+.path{font-size:14px}.path b{font-weight:600}.meta{margin-left:12px;color:var(--muted);font-size:12px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:500 12px/20px -apple-system,"Segoe UI",sans-serif;padding:3px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer}
+.btn:hover{background:var(--subtle);text-decoration:none}
+.toc{display:flex;flex-wrap:wrap;gap:4px 16px;padding:8px 16px;border-bottom:1px solid var(--border);font-size:13px}
+.toc a.cur{color:var(--fg);font-weight:600;text-decoration:underline}
+.legend{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--border);font-size:12px;color:var(--muted)}
+.lg{font:700 11px/18px ui-monospace,SFMono-Regular,Consolas,monospace;padding:0 8px;border:1px solid currentColor;border-radius:999px}
+.src{overflow-x:auto;padding:8px 0;font:12px/20px ui-monospace,SFMono-Regular,"SF Mono","Cascadia Mono",Menlo,Consolas,"Liberation Mono",monospace;tab-size:2}
+.ln{display:flex;min-width:max-content;border-left:3px solid transparent}
+.ln .n{flex:none;width:56px;padding:0 16px 0 0;text-align:right;color:var(--lnum);user-select:none;text-decoration:none}
+.ln .n::before{content:attr(data-n)}.ln .n:hover{color:var(--fg)}
+.ln .t{white-space:pre;padding-right:24px;background:repeating-linear-gradient(to right,var(--guide) 0,var(--guide) 1px,transparent 1px,transparent 2ch) no-repeat;background-size:calc(var(--ind,0) * 1ch) 100%}
+.src.wrap .ln{min-width:0}
+.src.wrap .ln.rule .t{white-space:pre;overflow:hidden;padding-left:0;text-indent:0}
+.src.wrap .ln .t{white-space:pre-wrap;overflow-wrap:anywhere;padding-left:calc(var(--ind,0) * 1ch);text-indent:calc(var(--ind,0) * -1ch)}
+.ln:target{background:var(--target)}
+.ln.tag{background:var(--subtle);border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-top:2px}
+.ln.sec{background:var(--sec)}.ln.sec .pl-c{color:var(--secfg);font-weight:600}.ln.rule .pl-c{color:var(--border)}
+.pl-c{color:var(--pl-c)}.pl-k{color:var(--pl-k)}.pl-en{color:var(--pl-en)}.pl-c1{color:var(--pl-c1)}.pl-s{color:var(--pl-s)}
+.tg{font-weight:700}
+.ln.nhead .ttl{font-weight:600}
+.ln.step .pl-c{color:var(--fg);font-weight:700}
+.ln.synfirst .t::after{content:"  ← tham số";color:var(--muted);font:italic 11px -apple-system,"Segoe UI",sans-serif}
+.tg-controller{color:var(--t-controller)}.ln.tag.tier-controller{box-shadow:inset 4px 0 0 var(--t-controller)}.ln.code.tier-controller,.ln.nhead.tier-controller{border-left-color:var(--t-controller)}.tg-service{color:var(--t-service)}.ln.tag.tier-service{box-shadow:inset 4px 0 0 var(--t-service)}.ln.code.tier-service,.ln.nhead.tier-service{border-left-color:var(--t-service)}.tg-worker{color:var(--t-worker)}.ln.tag.tier-worker{box-shadow:inset 4px 0 0 var(--t-worker)}.ln.code.tier-worker,.ln.nhead.tier-worker{border-left-color:var(--t-worker)}.tg-postgres{color:var(--t-postgres)}.ln.tag.tier-postgres{box-shadow:inset 4px 0 0 var(--t-postgres)}.ln.code.tier-postgres,.ln.nhead.tier-postgres{border-left-color:var(--t-postgres)}.tg-redis{color:var(--t-redis)}.ln.tag.tier-redis{box-shadow:inset 4px 0 0 var(--t-redis)}.ln.code.tier-redis,.ln.nhead.tier-redis{border-left-color:var(--t-redis)}.tg-kafka{color:var(--t-kafka)}.ln.tag.tier-kafka{box-shadow:inset 4px 0 0 var(--t-kafka)}.ln.code.tier-kafka,.ln.nhead.tier-kafka{border-left-color:var(--t-kafka)}.tg-bullmq{color:var(--t-bullmq)}.ln.tag.tier-bullmq{box-shadow:inset 4px 0 0 var(--t-bullmq)}.ln.code.tier-bullmq,.ln.nhead.tier-bullmq{border-left-color:var(--t-bullmq)}.tg-external{color:var(--t-external)}.ln.tag.tier-external{box-shadow:inset 4px 0 0 var(--t-external)}.ln.code.tier-external,.ln.nhead.tier-external{border-left-color:var(--t-external)}.tg-gateway{color:var(--t-gateway)}.ln.tag.tier-gateway{box-shadow:inset 4px 0 0 var(--t-gateway)}.ln.code.tier-gateway,.ln.nhead.tier-gateway{border-left-color:var(--t-gateway)}
+.idx{padding:20px 24px 28px}.idx h1{margin:0 0 8px;font-size:22px;font-weight:600}.idx p{margin:0 0 16px;color:var(--muted);max-width:820px}
+.idx h2{margin:30px 0 4px;font-size:17px;font-weight:600}.idx .sum{margin:0 0 10px}
+.tbl td.fn>a{font-weight:600}.tbl td.fn .rt{margin-top:3px;color:var(--muted)}.tbl td.tiers .lg{display:inline-block;margin:0 4px 4px 0}
+.tbl.ov{table-layout:fixed}.tbl.ov th:nth-child(1){width:32%}.tbl.ov th:nth-child(2){width:40%}.tbl.ov th:nth-child(3){width:28%}.tbl.ov code{overflow-wrap:anywhere}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}.tbl th,.tbl td{padding:8px 12px;text-align:left;border-top:1px solid var(--border);vertical-align:top}
+.tbl th{background:var(--subtle);font-size:12px;color:var(--muted);font-weight:600}.tbl td.num{color:var(--muted);font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.tbl td.tb{color:var(--muted);font-size:12px}.tbl td.lk,.tbl td.ep{white-space:nowrap}
+.tbl code{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--subtle);border:1px solid var(--border);border-radius:6px;padding:1px 6px}
+.m{display:inline-block;min-width:44px;text-align:center;font:700 11px/18px ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:4px;border:1px solid var(--border);padding:0 6px}
+.m-job{color:var(--t-worker)}.m-ws{color:var(--t-gateway)}.m-get{color:var(--ok)}.m-post{color:var(--info)}.m-put{color:var(--warn)}.m-http{color:var(--t-external)}.m-boot{color:var(--t-gateway)}.m-queue{color:var(--t-redis)}
+.org{display:inline-block;font:600 11px/18px -apple-system,"Segoe UI",sans-serif;padding:0 8px;border:1px solid currentColor;border-radius:999px;white-space:nowrap;cursor:help}
+.org-pushed{color:var(--ok)}.org-local{color:var(--warn)}
+.idx p.lnk{margin:0 0 10px;font-size:13px}
+@media (max-width:760px){
+main{padding:8px 0 32px}
+.box{border-radius:0;border-left:0;border-right:0}
+.bar{padding:8px 12px;gap:6px 8px}
+.path{font-size:13px;overflow-wrap:anywhere}.meta{display:block;margin:2px 0 0}
+.actions{gap:6px}.btn{padding:2px 10px}
+.toc{flex-direction:column;gap:2px;padding:8px 12px}
+.legend{padding:8px 12px}
+.src{font-size:11px;line-height:18px;padding:6px 0}
+.ln{border-left-width:2px}.ln .n{width:34px;padding-right:8px}.ln .t{padding-right:12px}
+.idx{padding:14px 12px}.idx h1{font-size:19px}
+.tbl{table-layout:auto}.tbl thead{display:none}
+.tbl,.tbl tbody,.tbl tr,.tbl td{display:block;width:auto}
+.tbl tr{border-top:1px solid var(--border);padding:8px 0}.tbl td{border:0;padding:2px 0}
+.tbl td.num,.tbl td.tb{display:none}
+.tbl td.lk,.tbl td.ep{white-space:normal}
+}
+</style>
+</head>
+<body>
+<main>
+<div class="box">
+  <div class="bar">
+    <div class="path"><a href="https://github.com/ducmanh001/litmatch-feature-flows">litmatch-feature-flows</a> / <a href="https://github.com/ducmanh001/litmatch-feature-flows/tree/main/code-10m/06-palm-match">06-palm-match</a> / <b>các endpoint</b></div>
+    <div class="actions"><a class="btn" href="../index.html">Tổng quan</a><a class="btn" href="../../architecture-10m/hot-paths.html">Kiến trúc 10M</a>
+      <a class="btn" href="../../../index.html#06-palm-match">Sơ đồ sản phẩm</a><a class="btn" href="../../../code/index.html">Bản gốc (/code)</a><button class="btn" id="theme" type="button" title="Đổi theme">Theme: Tự động</button></div>
+  </div>
+  <div class="idx">
+    <h1>Palm Match: hàng đợi không khoá toàn cục: code theo từng endpoint</h1>
+    <p>Mỗi endpoint là một file, đọc từ trên xuống theo thứ tự chạy: code controller, hàm nó gọi được chép ngay tại dòng gọi, ngang cấp (chỉ thân hàm; chỉ khối { } của code mới thụt vào), cứ thế xuống service, Postgres, Redis, worker. Mỗi khối có dòng tiêu đề [TẦNG] tô màu (CONTROLLER, SERVICE, WORKER, POSTGRES, REDIS, KAFKA, BULLMQ, EXTERNAL, GATEWAY), có đánh số Step, và một constructor gom hạ tầng trực tiếp và phần khởi tạo liên quan ở đầu trang. Có cấu hình và logic middleware, guard, interceptor, pipe và exception filter thực sự áp dụng. Chỉ lược DTO, Metrics và implementation của thư viện ngoài. Comment chỉ trả lời "vì sao" ở chỗ logic khó.</p>
+    <table class="tbl"><thead><tr><th>#</th><th>Endpoint</th><th>Làm gì</th><th>Bảng</th><th></th></tr></thead><tbody>
+<tr><td class="num">01</td><td class="ep"><span class="m m-post">POST</span> <code>/api/v1/palm-match/queue</code><div class="rt"><span class="org org-pushed" title="Mọi file nguồn khớp commit 49b80ba đã đẩy lên PR #84">đã đẩy · PR #84</span></div></td><td>Vào hàng đợi ghép ẩn danh; nếu có người chờ phù hợp thì ghép ngay thành 1 phiên Palm Match.</td><td class="tb">palm_match_queue_entries, palm_match_active_participants, palm_match_sessions, palm_reading_templates</td><td class="lk"><a href="01-post-join-queue.html">Xem</a> · <a href="https://github.com/ducmanh001/litmatch-feature-flows/blob/main/code-10m/06-palm-match/01-post-join-queue.ts">GitHub</a></td></tr>
+    </tbody></table>
+  </div>
+</div>
+</main>
+<script>(function(){
+var root=document.documentElement,key='litmatch-code-theme',btn=document.getElementById('theme'),labels={auto:'Tự động',light:'Sáng',dark:'Tối'};
+var mode='auto';try{var s=localStorage.getItem(key);if(s==='light'||s==='dark')mode=s}catch(e){}
+function apply(){if(mode==='auto')root.removeAttribute('data-theme');else root.setAttribute('data-theme',mode);btn.textContent='Theme: '+labels[mode]}
+apply();
+btn.addEventListener('click',function(){mode=mode==='auto'?'light':mode==='light'?'dark':'auto';try{if(mode==='auto')localStorage.removeItem(key);else localStorage.setItem(key,mode)}catch(e){}apply()});
+})();</script>
+</body>
+</html>

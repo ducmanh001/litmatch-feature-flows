@@ -1,0 +1,194 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1280 860" width="1280" height="860" role="img" aria-label="Kiến trúc Litmatch ở 10 triệu đồng thời: tổng quan" font-family="-apple-system,Segoe UI,Noto Sans,Helvetica,Arial,sans-serif">
+<title>Kiến trúc Litmatch ở 10 triệu đồng thời: tổng quan</title>
+<style>
+:root{--bg:#ffffff;--fg:#1f2328;--muted:#59636e;--border:#d1d9e0;--subtle:#f6f8fa;--accent:#0969da;--ok:#1a7f37;--warn:#bc4c00;
+--t-controller:#1a7f37;--t-service:#bc4c00;--t-worker:#8250df;--t-postgres:#0969da;--t-redis:#cf222e;--t-kafka:#57606a;--t-external:#0a7a6b;--t-gateway:#9a6700}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--ok:#56d364;--warn:#ffa657;
+--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-external:#39d0bb;--t-gateway:#e3b341}}
+.bg{fill:var(--bg)}
+.ttl{font:700 17px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--fg)}
+.sub{font:12px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.nt{font:700 13px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--fg)}
+.nl{font:11.5px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.gt{font:600 12px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.el{font:600 11px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--fg)}
+.lg{font:11.5px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.node{fill:var(--subtle);stroke-width:1.6}
+.node.ops{stroke-dasharray:5 4}
+.grp{fill:none;stroke:var(--border);stroke-width:1.2;stroke-dasharray:6 4}
+.edge{fill:none;stroke-width:1.6;stroke-linejoin:round}
+.edge.async{stroke-dasharray:6 4}
+.pill{fill:var(--bg);stroke-width:1}
+.tag{font:700 10px -apple-system,"Segoe UI",sans-serif}
+.tagbg{stroke-width:1}
+a:hover .nt{text-decoration:underline}</style>
+<defs>
+<marker id="ah-client" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+<marker id="ah-gateway" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-gateway)"/></marker>
+<marker id="ah-service" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-service)"/></marker>
+<marker id="ah-worker" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-worker)"/></marker>
+<marker id="ah-postgres" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-postgres)"/></marker>
+<marker id="ah-redis" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-redis)"/></marker>
+<marker id="ah-kafka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-kafka)"/></marker>
+<marker id="ah-external" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-external)"/></marker>
+<marker id="ah-ops" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+</defs>
+<rect class="bg" x="0" y="0" width="1280" height="860"/>
+<text class="ttl" x="24" y="30">Kiến trúc Litmatch ở 10 triệu đồng thời: tổng quan</text>
+<text class="sub" x="24" y="50">Ba backend deployable + dữ liệu. Bấm vào từng khối để xem sơ đồ chi tiết. CHƯA được chứng nhận 10 triệu đồng thời: chưa có load test ở quy mô đó.</text>
+<path class="edge" d="M520,160 L520,182 Q520,190 512,190 L198,190 Q190,190 190,198 L190,220" stroke="var(--t-gateway)" marker-end="url(#ah-gateway)"/>
+<path class="edge" d="M640,160 L640,220" stroke="var(--t-service)" marker-end="url(#ah-service)"/>
+<path class="edge" d="M760,160 L760,182 Q760,190 768,190 L1142,190 Q1150,190 1150,198 L1150,220" stroke="var(--t-external)" marker-end="url(#ah-external)"/>
+<path class="edge" d="M1020,325 L1060,325" stroke="var(--t-external)" marker-end="url(#ah-external)" marker-start="url(#ah-external)"/>
+<path class="edge" d="M135,430 L135,640" stroke="var(--t-redis)" marker-end="url(#ah-redis)"/>
+<path class="edge" d="M250,430 L250,640" stroke="var(--t-redis)" marker-end="url(#ah-redis)"/>
+<path class="edge async" d="M370,550 L370,640" stroke="var(--t-redis)" marker-end="url(#ah-redis)"/>
+<path class="edge" d="M530,550 L530,640" stroke="var(--t-redis)" marker-end="url(#ah-redis)"/>
+<path class="edge" d="M700,550 L700,640" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+<path class="edge async" d="M950,550 L950,640" stroke="var(--t-kafka)" marker-end="url(#ah-kafka)"/>
+<path class="edge" d="M1150,430 L1150,640" stroke="var(--t-redis)" marker-end="url(#ah-redis)"/>
+
+<rect class="node" stroke="var(--muted)" x="480" y="84" width="320" height="76" rx="9"/>
+<text class="nt" text-anchor="middle" x="640" y="108">Client Web / Admin</text>
+<text class="nl" text-anchor="middle" x="640" y="126">REST · WebSocket (Socket.IO) · WebRTC</text>
+
+<a href="realtime-gateway.html">
+<rect class="node" stroke="var(--t-gateway)" x="40" y="220" width="300" height="210" rx="9"/>
+<text class="nt" text-anchor="middle" x="190" y="244">signaling-gateway</text>
+<text class="nl" text-anchor="middle" x="190" y="262">admission · lease slot theo user</text>
+<text class="nl" text-anchor="middle" x="190" y="278">SUBSCRIBE theo user · ngân sách gửi</text>
+<text class="nl" text-anchor="middle" x="190" y="294">guard topology quota lúc khởi động</text>
+<text class="nl" text-anchor="middle" x="190" y="310">production: HPA 3–30 pod</text>
+<text class="nl" text-anchor="middle" x="190" y="326">→ trang Realtime gateway</text>
+</a>
+
+<rect class="node" stroke="var(--t-service)" x="380" y="220" width="640" height="330" rx="9"/>
+<text class="nt" text-anchor="middle" x="700" y="244">core-api (mọi pod chạy REST và job nền)</text>
+
+<a href="matching.html">
+<rect class="node" stroke="var(--t-service)" x="400" y="268" width="190" height="84" rx="9"/>
+<text class="nt" text-anchor="middle" x="495" y="292">Matching</text>
+<text class="nl" text-anchor="middle" x="495" y="310">hàng đợi chia shard</text>
+<text class="nl" text-anchor="middle" x="495" y="326">matcher · repair · speed-up</text>
+</a>
+<a href="calling-recovery.html">
+<rect class="node" stroke="var(--t-service)" x="605" y="268" width="190" height="84" rx="9"/>
+<text class="nt" text-anchor="middle" x="700" y="292">Calling</text>
+<text class="nl" text-anchor="middle" x="700" y="310">worker có lease</text>
+<text class="nl" text-anchor="middle" x="700" y="326">grace · cleanup bền vững</text>
+</a>
+<a href="ledger-integrity.html">
+<rect class="node" stroke="var(--t-service)" x="810" y="268" width="190" height="84" rx="9"/>
+<text class="nt" text-anchor="middle" x="905" y="292">Sổ cái</text>
+<text class="nl" text-anchor="middle" x="905" y="310">đối soát phân trang</text>
+<text class="nl" text-anchor="middle" x="905" y="326">checkpoint · outbox</text>
+</a>
+<a href="data-lifecycle.html">
+<rect class="node" stroke="var(--t-service)" x="400" y="366" width="190" height="84" rx="9"/>
+<text class="nt" text-anchor="middle" x="495" y="390">Vòng đời dữ liệu</text>
+<text class="nl" text-anchor="middle" x="495" y="408">retention · sweeper</text>
+<text class="nl" text-anchor="middle" x="495" y="424">admission cho job nền</text>
+</a>
+<a href="batch-jobs.html">
+<rect class="node" stroke="var(--t-service)" x="605" y="366" width="190" height="84" rx="9"/>
+<text class="nt" text-anchor="middle" x="700" y="390">Việc nền theo lô</text>
+<text class="nl" text-anchor="middle" x="700" y="408">broadcast · xếp hạng</text>
+<text class="nl" text-anchor="middle" x="700" y="424">bộ đệm counter</text>
+</a>
+<a href="hot-paths.html">
+<rect class="node" stroke="var(--t-service)" x="810" y="366" width="190" height="84" rx="9"/>
+<text class="nt" text-anchor="middle" x="905" y="390">Đường nóng Postgres</text>
+<text class="nl" text-anchor="middle" x="905" y="408">khoá · một kết nối</text>
+<text class="nl" text-anchor="middle" x="905" y="424">SKIP LOCKED</text>
+</a>
+<a href="protection.html">
+<rect class="node" stroke="var(--t-service)" x="400" y="464" width="600" height="62" rx="9"/>
+<text class="nt" text-anchor="middle" x="700" y="488">Bảo vệ tài nguyên</text>
+<text class="nl" text-anchor="middle" x="700" y="506">admission HTTP · timeout SQL · readiness · HPA/PDB</text>
+</a>
+<a href="calling-recovery.html">
+<rect class="node" stroke="var(--t-external)" x="1060" y="220" width="180" height="210" rx="9"/>
+<text class="nt" text-anchor="middle" x="1150" y="244">media-server</text>
+<text class="nl" text-anchor="middle" x="1150" y="262">LiveKit</text>
+<text class="nl" text-anchor="middle" x="1150" y="278">production: 2 replica</text>
+<text class="nl" text-anchor="middle" x="1150" y="294">trên 2 host khác nhau</text>
+<text class="nl" text-anchor="middle" x="1150" y="310">một room = một node</text>
+<text class="nl" text-anchor="middle" x="1150" y="326">không có HPA</text>
+</a>
+
+<path class="node" stroke="var(--t-redis)" d="M40,648 a95,8 0 0 1 190,0 v104 a95,8 0 0 1 -190,0 z"/>
+<path class="node" stroke="var(--t-redis)" fill="none" d="M40,648 a95,8 0 0 0 190,0"/>
+<text class="nt" text-anchor="middle" x="135" y="672">Redis điều phối</text>
+<text class="nl" text-anchor="middle" x="135" y="690">Socket.IO adapter</text>
+<text class="nl" text-anchor="middle" x="135" y="706">key topology quota</text>
+
+
+<path class="node" stroke="var(--t-redis)" d="M250,648 a95,8 0 0 1 190,0 v104 a95,8 0 0 1 -190,0 z"/>
+<path class="node" stroke="var(--t-redis)" fill="none" d="M250,648 a95,8 0 0 0 190,0"/>
+<text class="nt" text-anchor="middle" x="345" y="672">Redis realtime</text>
+<text class="nl" text-anchor="middle" x="345" y="690">≤ 64 shard theo userId</text>
+<text class="nl" text-anchor="middle" x="345" y="706">lease · presence</text>
+<text class="nl" text-anchor="middle" x="345" y="722">pub/sub theo user</text>
+
+
+<path class="node" stroke="var(--t-redis)" d="M460,648 a95,8 0 0 1 190,0 v104 a95,8 0 0 1 -190,0 z"/>
+<path class="node" stroke="var(--t-redis)" fill="none" d="M460,648 a95,8 0 0 0 190,0"/>
+<text class="nt" text-anchor="middle" x="555" y="672">Redis matching</text>
+<text class="nl" text-anchor="middle" x="555" y="690">hàng đợi chia shard</text>
+<text class="nl" text-anchor="middle" x="555" y="706">bản chiếu dẫn xuất</text>
+
+
+<path class="node" stroke="var(--t-postgres)" d="M670,648 a115,8 0 0 1 230,0 v104 a115,8 0 0 1 -230,0 z"/>
+<path class="node" stroke="var(--t-postgres)" fill="none" d="M670,648 a115,8 0 0 0 230,0"/>
+<text class="nt" text-anchor="middle" x="785" y="672">PostgreSQL</text>
+<text class="nl" text-anchor="middle" x="785" y="690">một primary: nguồn sự thật</text>
+<text class="nl" text-anchor="middle" x="785" y="706">chưa có replica/PgBouncer</text>
+
+
+<path class="node" stroke="var(--t-kafka)" d="M920,648 a70,8 0 0 1 140,0 v104 a70,8 0 0 1 -140,0 z"/>
+<path class="node" stroke="var(--t-kafka)" fill="none" d="M920,648 a70,8 0 0 0 140,0"/>
+<text class="nt" text-anchor="middle" x="990" y="672">Kafka</text>
+<text class="nl" text-anchor="middle" x="990" y="690">relay tắt</text>
+<text class="nl" text-anchor="middle" x="990" y="706">chưa có consumer</text>
+
+
+<path class="node" stroke="var(--t-redis)" d="M1080,648 a80,8 0 0 1 160,0 v104 a80,8 0 0 1 -160,0 z"/>
+<path class="node" stroke="var(--t-redis)" fill="none" d="M1080,648 a80,8 0 0 0 160,0"/>
+<text class="nt" text-anchor="middle" x="1160" y="672">Redis LiveKit</text>
+<text class="nl" text-anchor="middle" x="1160" y="690">dùng chung 2 node</text>
+
+<rect class="pill" x="293" y="180" width="74" height="20" rx="10" stroke="var(--t-gateway)"/>
+<text class="el" text-anchor="middle" x="330" y="194">WebSocket</text>
+<rect class="pill" x="619.5" y="180" width="41" height="20" rx="10" stroke="var(--t-service)"/>
+<text class="el" text-anchor="middle" x="640" y="194">REST</text>
+<rect class="pill" x="923" y="180" width="54" height="20" rx="10" stroke="var(--t-external)"/>
+<text class="el" text-anchor="middle" x="950" y="194">WebRTC</text>
+<rect class="pill" x="78.5" y="499.8" width="113" height="20" rx="10" stroke="var(--t-redis)"/>
+<text class="el" text-anchor="middle" x="135" y="513.8">adapter · guard</text>
+<rect class="pill" x="186.5" y="558.6" width="127" height="20" rx="10" stroke="var(--t-redis)"/>
+<text class="el" text-anchor="middle" x="250" y="572.6">lease · subscribe</text>
+<rect class="pill" x="339.5" y="585" width="61" height="20" rx="10" stroke="var(--t-redis)"/>
+<text class="el" text-anchor="middle" x="370" y="599">PUBLISH</text>
+<rect class="pill" x="480" y="585" width="100" height="20" rx="10" stroke="var(--t-redis)"/>
+<text class="el" text-anchor="middle" x="530" y="599">hàng đợi ghép</text>
+<rect class="pill" x="683" y="585" width="34" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="700" y="599">SQL</text>
+<rect class="pill" x="903" y="585" width="94" height="20" rx="10" stroke="var(--t-kafka)"/>
+<text class="el" text-anchor="middle" x="950" y="599">outbox (tắt)</text>
+<rect class="pill" x="1110" y="525" width="80" height="20" rx="10" stroke="var(--t-redis)"/>
+<text class="el" text-anchor="middle" x="1150" y="539">room state</text>
+<rect x="24" y="828" width="14" height="14" rx="4" fill="none" stroke="var(--t-gateway)" stroke-width="1.6"/>
+<text class="lg" x="44" y="839">GATEWAY</text>
+<rect x="111" y="828" width="14" height="14" rx="4" fill="none" stroke="var(--t-service)" stroke-width="1.6"/>
+<text class="lg" x="131" y="839">core-api (SERVICE)</text>
+<rect x="267" y="828" width="14" height="14" rx="4" fill="none" stroke="var(--t-external)" stroke-width="1.6"/>
+<text class="lg" x="287" y="839">bên ngoài / media</text>
+<rect x="417" y="828" width="14" height="14" rx="4" fill="none" stroke="var(--t-redis)" stroke-width="1.6"/>
+<text class="lg" x="437" y="839">REDIS</text>
+<rect x="491" y="828" width="14" height="14" rx="4" fill="none" stroke="var(--t-postgres)" stroke-width="1.6"/>
+<text class="lg" x="511" y="839">POSTGRES</text>
+<rect x="584" y="828" width="14" height="14" rx="4" fill="none" stroke="var(--t-kafka)" stroke-width="1.6"/>
+<text class="lg" x="604" y="839">KAFKA</text>
+<line x1="658" y1="835" x2="684" y2="835" stroke="var(--muted)" stroke-width="1.6"/><text class="lg" x="690" y="839">gọi đồng bộ</text>
+<line x1="778" y1="835" x2="804" y2="835" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="6 4"/><text class="lg" x="810" y="839">bất đồng bộ / best-effort</text>
+</svg>

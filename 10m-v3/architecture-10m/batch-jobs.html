@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="description" content="Việc lớn không chạy trong request: request chỉ ghi một dòng, còn job nền xử lý theo lô có keyset, có thể huỷ và tiếp tục sau khi pod chết."/>
+<title>Kiến trúc 10M: Việc nền theo lô</title>
+<style>
+:root{color-scheme:light;--bg:#fff;--fg:#1f2328;--muted:#59636e;--border:#d1d9e0;--subtle:#f6f8fa;--accent:#0969da;--ok:#1a7f37;--info:#0969da;--warn:#bc4c00;--t-controller:#1a7f37;--t-service:#bc4c00;--t-worker:#8250df;--t-postgres:#0969da;--t-redis:#cf222e;--t-kafka:#57606a;--t-bullmq:#bf3989;--t-external:#0a7a6b;--t-gateway:#9a6700}
+:root[data-theme=dark]{color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark;--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--ok:#56d364;--info:#58a6ff;--warn:#ffa657;--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-bullmq:#ff80c8;--t-external:#39d0bb;--t-gateway:#e3b341}}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:24px 16px 48px}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.box{border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--bg)}
+.bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--subtle);border-bottom:1px solid var(--border)}
+.path{font-size:14px}.path b{font-weight:600}.meta{margin-left:12px;color:var(--muted);font-size:12px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{font:500 12px/20px -apple-system,"Segoe UI",sans-serif;padding:3px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--fg);cursor:pointer}
+.btn:hover{background:var(--subtle);text-decoration:none}
+.toc{display:flex;flex-wrap:wrap;gap:4px 16px;padding:8px 16px;border-bottom:1px solid var(--border);font-size:13px}
+.toc a.cur{color:var(--fg);font-weight:600;text-decoration:underline}
+.idx{padding:20px 24px 28px}.idx h1{margin:0 0 8px;font-size:22px;font-weight:600}
+.idx h2{margin:28px 0 8px;font-size:17px;font-weight:600}
+.idx p{margin:0 0 14px;max-width:860px}.idx p.sum{color:var(--muted)}
+.idx ul{margin:0 0 14px;padding-left:22px;max-width:900px}.idx li{margin:0 0 6px}
+.note{border:1px solid var(--border);border-left:4px solid var(--warn);background:var(--subtle);padding:10px 14px;border-radius:6px;max-width:900px;margin:0 0 18px}
+.note.info{border-left-color:var(--info)}
+.dia{overflow-x:auto;border:1px solid var(--border);border-radius:6px;margin:14px 0 8px;background:var(--bg)}
+.dia svg{display:block;width:100%;height:auto;min-width:980px}
+.dl{font-size:12px;color:var(--muted);margin:0 0 6px}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}.tbl th,.tbl td{padding:8px 12px;text-align:left;border-top:1px solid var(--border);vertical-align:top}
+.tbl th{background:var(--subtle);font-size:12px;color:var(--muted);font-weight:600}
+.tbl td.fn>a{font-weight:600}.tbl td .rt{margin-top:3px;color:var(--muted);font-size:12px}
+.tbl code{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--subtle);border:1px solid var(--border);border-radius:6px;padding:1px 6px}
+.lg{font:700 11px/18px ui-monospace,SFMono-Regular,Consolas,monospace;padding:0 8px;border:1px solid currentColor;border-radius:999px;display:inline-block;margin:0 4px 4px 0}
+.tg-controller{color:var(--t-controller)}.tg-service{color:var(--t-service)}.tg-worker{color:var(--t-worker)}.tg-postgres{color:var(--t-postgres)}.tg-redis{color:var(--t-redis)}.tg-kafka{color:var(--t-kafka)}.tg-bullmq{color:var(--t-bullmq)}.tg-external{color:var(--t-external)}.tg-gateway{color:var(--t-gateway)}
+.org{display:inline-block;font:600 11px/18px -apple-system,"Segoe UI",sans-serif;padding:0 8px;border:1px solid currentColor;border-radius:999px;white-space:nowrap;cursor:help}
+.org-pushed{color:var(--ok)}.org-local{color:var(--warn)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin:0 0 14px}
+.card{border:1px solid var(--border);border-radius:6px;padding:12px 14px;background:var(--subtle)}
+.card h3{margin:0 0 6px;font-size:15px}.card p{margin:0 0 8px;color:var(--muted);font-size:13px}.card .lk{font-size:12px}
+@media (max-width:760px){main{padding:8px 0 32px}.box{border-radius:0;border-left:0;border-right:0}.bar{padding:8px 12px}.idx{padding:16px 12px 24px}.toc{flex-direction:column;gap:2px;padding:8px 12px}
+.tbl,.tbl tbody,.tbl tr,.tbl td{display:block;width:100%}.tbl thead{display:none}.tbl tr{border-top:1px solid var(--border);padding:6px 0}.tbl td{border:0;padding:3px 12px}
+.dia svg{min-width:900px}}</style>
+</head>
+<body>
+<main>
+<div class="box">
+  <div class="bar">
+    <div class="path"><a href="https://github.com/ducmanh001/litmatch-feature-flows">litmatch-feature-flows</a> / <a href="index.html">architecture-10m</a> / <b>batch-jobs</b><span class="meta">snapshot 49b80ba + thay đổi local chưa commit · 2026-10-23</span></div>
+    <div class="actions">
+      <a class="btn" href="index.html">Tổng quan</a>
+      <a class="btn" href="../code-10m/index.html">Code 10M</a>
+      <a class="btn" href="../../index.html">Sơ đồ sản phẩm</a>
+      <a class="btn" href="batch-jobs.svg">SVG</a>
+      <a class="btn" href="batch-jobs.png">PNG</a>
+      <button class="btn" id="theme" type="button" title="Đổi theme">Theme: Tự động</button>
+    </div>
+  </div>
+  <nav class="toc"><a href="index.html">Tổng quan</a><a href="realtime-gateway.html">Realtime gateway</a><a href="matching.html">Matching</a><a href="calling-recovery.html">Calling recovery</a><a href="data-lifecycle.html">Vòng đời dữ liệu</a><a href="ledger-integrity.html">Sổ cái</a><a href="batch-jobs.html" class="cur">Việc nền theo lô</a><a href="hot-paths.html">Đường nóng</a><a href="protection.html">Bảo vệ tài nguyên</a></nav>
+  <div class="idx">
+    <h1>Việc nền theo lô: broadcast, xếp hạng video, bộ đệm đếm</h1>
+    <p class="sum">Việc lớn không chạy trong request: request chỉ ghi một dòng, còn job nền xử lý theo lô có keyset, có thể huỷ và tiếp tục sau khi pod chết.</p>
+    <div class="note">Hệ thống CHƯA được chứng nhận 10 triệu đồng thời: chưa có load test ở quy mô đó, chưa diễn tập failover Redis/Postgres/media. Mọi con số trên các sơ đồ là mặc định cấu hình, số học theo mặc định hoặc đo lab (Docker, một kết nối, dữ liệu trong cache); chúng cho biết hướng, không phải năng lực production.</div>
+<div class="dia"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1280 800" width="1280" height="800" role="img" aria-label="Việc nền theo lô: broadcast, xếp hạng video, bộ đệm đếm" font-family="-apple-system,Segoe UI,Noto Sans,Helvetica,Arial,sans-serif">
+<title>Việc nền theo lô: broadcast, xếp hạng video, bộ đệm đếm</title>
+<style>
+.bg{fill:var(--bg)}
+.ttl{font:700 17px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--fg)}
+.sub{font:12px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.nt{font:700 13px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--fg)}
+.nl{font:11.5px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.gt{font:600 12px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.el{font:600 11px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--fg)}
+.lg{font:11.5px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.node{fill:var(--subtle);stroke-width:1.6}
+.node.ops{stroke-dasharray:5 4}
+.grp{fill:none;stroke:var(--border);stroke-width:1.2;stroke-dasharray:6 4}
+.edge{fill:none;stroke-width:1.6;stroke-linejoin:round}
+.edge.async{stroke-dasharray:6 4}
+.pill{fill:var(--bg);stroke-width:1}
+.tag{font:700 10px -apple-system,"Segoe UI",sans-serif}
+.tagbg{stroke-width:1}
+a:hover .nt{text-decoration:underline}</style>
+<defs>
+<marker id="ah-client" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+<marker id="ah-gateway" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-gateway)"/></marker>
+<marker id="ah-service" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-service)"/></marker>
+<marker id="ah-worker" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-worker)"/></marker>
+<marker id="ah-postgres" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-postgres)"/></marker>
+<marker id="ah-redis" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-redis)"/></marker>
+<marker id="ah-kafka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-kafka)"/></marker>
+<marker id="ah-external" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-external)"/></marker>
+<marker id="ah-ops" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+</defs>
+<rect class="bg" x="0" y="0" width="1280" height="800"/>
+<text class="ttl" x="24" y="30">Việc nền theo lô: broadcast, xếp hạng video, bộ đệm đếm</text>
+<text class="sub" x="24" y="50">Việc lớn không chạy trong request: request chỉ ghi một dòng; job nền xử lý theo lô có keyset, có thể huỷ và tiếp tục sau khi pod chết.</text>
+<path class="edge" d="M310,138 L340,138" stroke="var(--t-service)" marker-end="url(#ah-service)"/>
+<path class="edge" d="M465,186 L465,235.5 Q465,238 462.5,238 L462.5,238 Q460,238 460,240.5 L460,290" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+<path class="edge" d="M795,214 L795,244.5 Q795,252 802.5,252 L802.5,252 Q810,252 810,259.5 L810,290" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+<path class="edge async" d="M970,132 L982,132 Q985,132 985,135 L985,135 Q985,138 988,138 L1000,138" stroke="var(--t-external)" marker-end="url(#ah-external)"/>
+<path class="edge async" d="M320,520 L350,520" stroke="var(--t-redis)" marker-end="url(#ah-redis)"/>
+<path class="edge" d="M630,500 L660,500" stroke="var(--t-redis)" marker-end="url(#ah-redis)"/>
+<path class="edge" d="M795,570 L795,617.5 Q795,620 792.5,620 L792.5,620 Q790,620 790,622.5 L790,670" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+<path class="edge" d="M1095,594 L1095,670" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+<path class="edge" d="M180,570 L180,612 Q180,620 172,620 L158,620 Q150,620 150,628 L150,670" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+
+<rect class="node" stroke="var(--muted)" x="40" y="90" width="270" height="96" rx="9"/>
+<text class="nt" text-anchor="middle" x="175" y="114">Admin UI</text>
+<text class="nl" text-anchor="middle" x="175" y="132">POST /admin/notifications/broadcast</text>
+<text class="nl" text-anchor="middle" x="175" y="148">header Idempotency-Key (bắt buộc)</text>
+<text class="nl" text-anchor="middle" x="175" y="164">POST …/:id/cancel (idempotent)</text>
+
+<a href="../code-10m/33-admin-broadcast/01-post-broadcast.html">
+<rect class="node" stroke="var(--t-service)" x="340" y="90" width="250" height="96" rx="9"/>
+<text class="nt" text-anchor="middle" x="465" y="114">Xếp hàng broadcast (202)</text>
+<text class="nl" text-anchor="middle" x="465" y="132">một dòng queued + audit</text>
+<text class="nl" text-anchor="middle" x="465" y="148">trùng key → trả bản cũ</text>
+<text class="nl" text-anchor="middle" x="465" y="164">khác nội dung → 409</text>
+</a>
+<a href="../code-10m/33-admin-broadcast/02-job-broadcast-dispatch-tick.html">
+<rect class="node" stroke="var(--t-worker)" x="620" y="90" width="350" height="124" rx="9"/>
+<text class="nt" text-anchor="middle" x="795" y="114">BroadcastDispatchJob (singleton)</text>
+<text class="nl" text-anchor="middle" x="795" y="132">keyset theo users.id, lô 500 người</text>
+<text class="nl" text-anchor="middle" x="795" y="148">thông báo + cursor + recipient_count CÙNG tx</text>
+<text class="nl" text-anchor="middle" x="795" y="164">push SAU commit, 20 lời gọi đồng thời</text>
+<text class="nl" text-anchor="middle" x="795" y="180">lô lỗi: retry rồi failed + audit</text>
+</a>
+
+<rect class="node" stroke="var(--t-external)" x="1000" y="90" width="240" height="96" rx="9"/>
+<text class="nt" text-anchor="middle" x="1120" y="114">FCM / APNs / Web Push</text>
+<text class="nl" text-anchor="middle" x="1120" y="132">best-effort, ngoài transaction</text>
+<text class="nl" text-anchor="middle" x="1120" y="148">lỗi push không làm mất thông báo</text>
+
+
+<path class="node" stroke="var(--t-postgres)" d="M340,298 a315,8 0 0 1 630,0 v74 a315,8 0 0 1 -630,0 z"/>
+<path class="node" stroke="var(--t-postgres)" fill="none" d="M340,298 a315,8 0 0 0 630,0"/>
+<text class="nt" text-anchor="middle" x="655" y="322">PostgreSQL</text>
+<text class="nl" text-anchor="middle" x="655" y="340">notification_broadcasts: queued → running → done / failed / cancelled</text>
+<text class="nl" text-anchor="middle" x="655" y="356">notifications (ghi cùng transaction với cursor) · users (keyset)</text>
+
+<a href="../code-10m/20-short-video/01-post-record-view.html">
+<rect class="node" stroke="var(--t-service)" x="40" y="470" width="280" height="100" rx="9"/>
+<text class="nt" text-anchor="middle" x="180" y="494">Ghi lượt xem video</text>
+<text class="nl" text-anchor="middle" x="180" y="512">POST /videos/:id/views</text>
+<text class="nl" text-anchor="middle" x="180" y="528">đủ ngưỡng xem → +1 viewCount, một lần</text>
+<text class="nl" text-anchor="middle" x="180" y="544">kể cả khi nhiều request cùng lúc</text>
+</a>
+
+<path class="node" stroke="var(--t-redis)" d="M350,466 a140,8 0 0 1 280,0 v108 a140,8 0 0 1 -280,0 z"/>
+<path class="node" stroke="var(--t-redis)" fill="none" d="M350,466 a140,8 0 0 0 280,0"/>
+<text class="nt" text-anchor="middle" x="490" y="490">Bộ đệm counter (Redis)</text>
+<text class="nl" text-anchor="middle" x="490" y="508">HINCRBY + SADD trong một MULTI</text>
+<text class="nl" text-anchor="middle" x="490" y="524">cờ VIDEO_COUNTER_BUFFER_ENABLED: tắt</text>
+<text class="nl" text-anchor="middle" x="490" y="540">Redis lỗi → fail-open về DB</text>
+
+
+<rect class="node" stroke="var(--t-worker)" x="660" y="470" width="270" height="100" rx="9"/>
+<text class="nt" text-anchor="middle" x="795" y="494">Flush counter (singleton)</text>
+<text class="nl" text-anchor="middle" x="795" y="512">một câu UPDATE … unnest cho cả lô</text>
+<text class="nl" text-anchor="middle" x="795" y="528">thay vì một UPDATE mỗi lượt xem</text>
+
+<a href="../code-10m/34-video-ranking/01-job-video-ranking-tick.html">
+<rect class="node" stroke="var(--t-worker)" x="950" y="470" width="290" height="124" rx="9"/>
+<text class="nt" text-anchor="middle" x="1095" y="494">Xếp hạng theo hạn (singleton)</text>
+<text class="nl" text-anchor="middle" x="1095" y="512">rank_due_at ∝ (decay + tuổi),</text>
+<text class="nl" text-anchor="middle" x="1095" y="528">kẹp trong [60 s, MAX_INTERVAL]</text>
+<text class="nl" text-anchor="middle" x="1095" y="544">lô SKIP LOCKED, video trẻ trước</text>
+</a>
+
+<path class="node" stroke="var(--t-postgres)" d="M40,678 a600,8 0 0 1 1200,0 v74 a600,8 0 0 1 -1200,0 z"/>
+<path class="node" stroke="var(--t-postgres)" fill="none" d="M40,678 a600,8 0 0 0 1200,0"/>
+<text class="nt" text-anchor="middle" x="640" y="702">PostgreSQL</text>
+<text class="nl" text-anchor="middle" x="640" y="720">videos (view/like/comment counters, rank_score, rank_due_at; index ranked và rank_due) · video_views</text>
+<text class="nl" text-anchor="middle" x="640" y="736">việc tỉ lệ với video trẻ và đang hoạt động, không tăng tuyến tính theo cả catalogue</text>
+
+<rect class="pill" x="308" y="128" width="34" height="20" rx="10" stroke="var(--t-service)"/>
+<text class="el" text-anchor="middle" x="325" y="142">202</text>
+<rect class="pill" x="382.5" y="228" width="160" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="462.5" y="242">INSERT queued (1 dòng)</text>
+<rect class="pill" x="709.5" y="242" width="186" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="802.5" y="256">mỗi lô: thông báo + cursor</text>
+<rect class="pill" x="964.5" y="125" width="41" height="20" rx="10" stroke="var(--t-external)"/>
+<text class="el" text-anchor="middle" x="985" y="139">push</text>
+<rect class="pill" x="304.5" y="510" width="61" height="20" rx="10" stroke="var(--t-redis)"/>
+<text class="el" text-anchor="middle" x="335" y="524">HINCRBY</text>
+<rect class="pill" x="595" y="490" width="100" height="20" rx="10" stroke="var(--t-redis)"/>
+<text class="el" text-anchor="middle" x="645" y="504">đọc tập dirty</text>
+<rect class="pill" x="742.5" y="610" width="100" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="792.5" y="624">UPDATE unnest</text>
+<rect class="pill" x="1018.5" y="622" width="153" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="1095" y="636">UPDATE lô SKIP LOCKED</text>
+<rect class="pill" x="68.5" y="610" width="193" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="165" y="624">UPDATE trực tiếp (mặc định)</text>
+<rect x="24" y="768" width="14" height="14" rx="4" fill="none" stroke="var(--t-service)" stroke-width="1.6"/>
+<text class="lg" x="44" y="779">core-api (SERVICE)</text>
+<rect x="180" y="768" width="14" height="14" rx="4" fill="none" stroke="var(--t-postgres)" stroke-width="1.6"/>
+<text class="lg" x="200" y="779">POSTGRES</text>
+<rect x="273" y="768" width="14" height="14" rx="4" fill="none" stroke="var(--t-external)" stroke-width="1.6"/>
+<text class="lg" x="293" y="779">bên ngoài / media</text>
+<rect x="423" y="768" width="14" height="14" rx="4" fill="none" stroke="var(--t-redis)" stroke-width="1.6"/>
+<text class="lg" x="443" y="779">REDIS</text>
+<rect x="497" y="768" width="14" height="14" rx="4" fill="none" stroke="var(--t-worker)" stroke-width="1.6"/>
+<text class="lg" x="517" y="779">job nền (WORKER)</text>
+<line x1="641" y1="775" x2="667" y2="775" stroke="var(--muted)" stroke-width="1.6"/><text class="lg" x="673" y="779">gọi đồng bộ</text>
+<line x1="761" y1="775" x2="787" y2="775" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="6 4"/><text class="lg" x="793" y="779">bất đồng bộ / best-effort</text>
+</svg></div>
+<p class="dl">Tải sơ đồ: <a href="batch-jobs.svg">SVG</a> · <a href="batch-jobs.png">PNG</a> · bấm vào tên khối để mở trang code tương ứng.</p>
+    <h2>Điểm quan trọng</h2>
+<ul><li>Broadcast: POST trả 202 sau khi ghi một dòng queued kèm audit; Idempotency-Key bắt buộc (gửi lại trả bản cũ, khác nội dung trả 409); huỷ là idempotent.</li><li>Job dispatch duyệt user theo keyset users.id, lô 500; thông báo, cursor và recipient_count commit trong CÙNG transaction nên đúng-một-lần cho in-app và tiếp tục được sau khi pod chết. Push chạy sau commit với 20 lời gọi đồng thời; lô lỗi retry rồi failed kèm audit.</li><li>Xếp hạng video: mỗi video có hạn tính lại rank_due_at tỉ lệ với (decay + tuổi), kẹp trong [60 giây, MAX]; việc mỗi giờ tỉ lệ với video trẻ và đang hoạt động, không với cả catalogue.</li><li>Counter view/like/comment có thể đệm trên Redis (HINCRBY và SADD trong MULTI) và flush bằng một UPDATE unnest cho cả lô; cờ mặc định tắt và Redis lỗi thì fail-open về DB.</li></ul>
+    <h2>Giới hạn và chưa làm</h2>
+<ul><li>Push vẫn là một lời gọi mỗi người nhận; cần topic hoặc batch của provider (chưa làm).</li><li>Hai giới hạn đã biết của counter đệm: timeout Redis mơ hồ có thể đếm hai lần, và tắt cờ khi bộ đệm còn delta thì delta nằm lại Redis.</li><li>Chưa load test broadcast tới 10 triệu người.</li></ul>
+    <h2>Code chi tiết của sơ đồ này</h2>
+    <table class="tbl"><thead><tr><th>Trang</th><th>Làm gì</th><th>Tầng</th><th>Nguồn</th></tr></thead><tbody>
+<tr><td class="fn"><a href="../code-10m/20-short-video/01-post-record-view.html">Ghi nhận lượt xem video</a><div class="rt"><code>POST /api/v1/videos/:id/views</code></div></td><td>Ghi watch-time của người xem và cộng viewCount đúng 1 lần khi xem đủ ngưỡng, kể cả khi nhiều request đến cùng lúc.</td><td><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b></td><td><span class="org org-pushed" title="Code của trang khớp commit 49b80ba đã đẩy lên PR #84">đã đẩy · PR #84</span></td></tr>
+<tr><td class="fn"><a href="../code-10m/33-admin-broadcast/01-post-broadcast.html">Xếp hàng một broadcast</a><div class="rt"><code>POST /api/v1/admin/notifications/broadcast</code></div></td><td>Ghi một dòng broadcast ở trạng thái queued kèm audit (202); Idempotency-Key làm bấm hai lần chỉ tạo một broadcast.</td><td><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b></td><td><span class="org org-pushed" title="Code của trang khớp commit 49b80ba đã đẩy lên PR #84">đã đẩy · PR #84</span></td></tr>
+<tr><td class="fn"><a href="../code-10m/33-admin-broadcast/02-job-broadcast-dispatch-tick.html">Job gửi broadcast theo lô</a><div class="rt"><code>JOB BroadcastDispatchJob.runOnce (mỗi ADMIN_BROADCAST_JOB_INTERVAL_MS)</code></div></td><td>Nhặt broadcast queued/running cũ nhất, đọc một trang user theo keyset, tạo thông báo và đẩy cursor trong CÙNG transaction, rồi push sau commit.</td><td><b class="lg tg-worker">WORKER</b><b class="lg tg-postgres">POSTGRES</b></td><td><span class="org org-pushed" title="Code của trang khớp commit 49b80ba đã đẩy lên PR #84">đã đẩy · PR #84</span></td></tr>
+<tr><td class="fn"><a href="../code-10m/33-admin-broadcast/03-post-broadcast-cancel.html">Huỷ một broadcast đang xếp hàng hoặc đang gửi</a><div class="rt"><code>POST /api/v1/admin/notifications/broadcast/:id/cancel</code></div></td><td>Một UPDATE có điều kiện đổi queued/running thành cancelled và là chốt chặn nguyên tử; audit chỉ ghi khi thật sự chuyển trạng thái nên huỷ lặp là idempotent; lô đã commit không thu hồi được.</td><td><b class="lg tg-controller">CONTROLLER</b><b class="lg tg-service">SERVICE</b><b class="lg tg-postgres">POSTGRES</b></td><td><span class="org org-pushed" title="Code của trang khớp commit 49b80ba đã đẩy lên PR #84">đã đẩy · PR #84</span></td></tr>
+<tr><td class="fn"><a href="../code-10m/34-video-ranking/01-job-video-ranking-tick.html">Tính lại điểm hạng các video đến hạn</a><div class="rt"><code>JOB VideoRankingService.runOnce (mỗi VIDEO_RANKING_JOB_INTERVAL_MS)</code></div></td><td>Mỗi tick chạy vài lô: mỗi lô là một câu UPDATE chọn các video published đến hạn (SKIP LOCKED), tính điểm mới và đặt hạn tính lại kế tiếp.</td><td><b class="lg tg-worker">WORKER</b><b class="lg tg-postgres">POSTGRES</b></td><td><span class="org org-pushed" title="Code của trang khớp commit 49b80ba đã đẩy lên PR #84">đã đẩy · PR #84</span></td></tr>
+    </tbody></table>
+    <h2>Liên kết</h2>
+    <ul><li><a href="../../index.html#22-support-va-admin-operations">Sơ đồ sản phẩm của tính năng này (kiến trúc và luồng cơ bản, trước đợt 10M)</a></li><li><a href="../code-10m/index.html#20-short-video">Mục 20-short-video trong tổng quan code 10M</a></li><li><a href="../code-10m/index.html#33-admin-broadcast">Mục 33-admin-broadcast trong tổng quan code 10M</a></li><li><a href="../code-10m/index.html#34-video-ranking">Mục 34-video-ranking trong tổng quan code 10M</a></li><li><a href="index.html">Tổng quan kiến trúc 10M</a></li></ul>
+    <h2>Nguồn tài liệu</h2>
+<ul><li>docs/plans/2026-10-17-realtime-matching-chat-scale-plan.md</li><li>docs/services/admin-service.md, docs/services/short-video-service.md</li></ul>
+    <p class="sum">Tài liệu nằm trong repo litmatch (PR <a href="https://github.com/ducmanh001/litmatch/pull/84">#84</a> hoặc cây làm việc local); mục ghi "local, chưa commit" chưa có trên GitHub.</p>
+  </div>
+</div>
+</main>
+<script>(function(){
+var root=document.documentElement,key='litmatch-code-theme',btn=document.getElementById('theme'),labels={auto:'Tự động',light:'Sáng',dark:'Tối'};
+var mode='auto';try{var s=localStorage.getItem(key);if(s==='light'||s==='dark')mode=s}catch(e){}
+function apply(){if(mode==='auto')root.removeAttribute('data-theme');else root.setAttribute('data-theme',mode);btn.textContent='Theme: '+labels[mode]}
+apply();
+btn.addEventListener('click',function(){mode=mode==='auto'?'light':mode==='light'?'dark':'auto';try{if(mode==='auto')localStorage.removeItem(key);else localStorage.setItem(key,mode)}catch(e){}apply()});
+})();</script>
+</body>
+</html>

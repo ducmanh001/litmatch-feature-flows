@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1280 820" width="1280" height="820" role="img" aria-label="Sổ cái: đối soát phân trang, checkpoint, outbox relay" font-family="-apple-system,Segoe UI,Noto Sans,Helvetica,Arial,sans-serif">
+<title>Sổ cái: đối soát phân trang, checkpoint, outbox relay</title>
+<style>
+:root{--bg:#ffffff;--fg:#1f2328;--muted:#59636e;--border:#d1d9e0;--subtle:#f6f8fa;--accent:#0969da;--ok:#1a7f37;--warn:#bc4c00;
+--t-controller:#1a7f37;--t-service:#bc4c00;--t-worker:#8250df;--t-postgres:#0969da;--t-redis:#cf222e;--t-kafka:#57606a;--t-external:#0a7a6b;--t-gateway:#9a6700}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--border:#30363d;--subtle:#161b22;--accent:#4493f8;--ok:#56d364;--warn:#ffa657;
+--t-controller:#56d364;--t-service:#ffa657;--t-worker:#d2a8ff;--t-postgres:#58a6ff;--t-redis:#ff7b72;--t-kafka:#c9d1d9;--t-external:#39d0bb;--t-gateway:#e3b341}}
+.bg{fill:var(--bg)}
+.ttl{font:700 17px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--fg)}
+.sub{font:12px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.nt{font:700 13px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--fg)}
+.nl{font:11.5px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.gt{font:600 12px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.el{font:600 11px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--fg)}
+.lg{font:11.5px -apple-system,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--muted)}
+.node{fill:var(--subtle);stroke-width:1.6}
+.node.ops{stroke-dasharray:5 4}
+.grp{fill:none;stroke:var(--border);stroke-width:1.2;stroke-dasharray:6 4}
+.edge{fill:none;stroke-width:1.6;stroke-linejoin:round}
+.edge.async{stroke-dasharray:6 4}
+.pill{fill:var(--bg);stroke-width:1}
+.tag{font:700 10px -apple-system,"Segoe UI",sans-serif}
+.tagbg{stroke-width:1}
+a:hover .nt{text-decoration:underline}</style>
+<defs>
+<marker id="ah-client" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+<marker id="ah-gateway" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-gateway)"/></marker>
+<marker id="ah-service" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-service)"/></marker>
+<marker id="ah-worker" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-worker)"/></marker>
+<marker id="ah-postgres" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-postgres)"/></marker>
+<marker id="ah-redis" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-redis)"/></marker>
+<marker id="ah-kafka" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-kafka)"/></marker>
+<marker id="ah-external" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--t-external)"/></marker>
+<marker id="ah-ops" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+</defs>
+<rect class="bg" x="0" y="0" width="1280" height="820"/>
+<text class="ttl" x="24" y="30">Sổ cái: đối soát phân trang, checkpoint, outbox relay</text>
+<text class="sub" x="24" y="50">Job chỉ ĐỌC bảng tài chính và chỉ GHI metadata chẩn đoán; sửa lệch thật luôn đi qua reversal entry ở đường ghi sổ chuẩn.</text>
+<path class="edge" d="M230,250 L230,160" stroke="var(--muted)" marker-end="url(#ah-client)"/>
+<path class="edge async" d="M1060,250 L1060,178" stroke="var(--t-kafka)" marker-end="url(#ah-kafka)"/>
+<path class="edge" d="M230,440 L230,470 Q230,475 235,475 L235,475 Q240,475 240,480 L240,510" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+<path class="edge" d="M650,440 L650,470 Q650,475 645,475 L645,475 Q640,475 640,480 L640,510" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+<path class="edge" d="M1060,440 L1060,467 Q1060,475 1052,475 L1048,475 Q1040,475 1040,483 L1040,510" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+<path class="edge" d="M640,710 L640,650" stroke="var(--t-postgres)" marker-end="url(#ah-postgres)"/>
+
+<rect class="node ops" stroke="var(--muted)" x="40" y="84" width="380" height="76" rx="9"/>
+<text class="nt" text-anchor="middle" x="230" y="108">Cảnh báo (Prometheus)</text>
+<text class="nl" text-anchor="middle" x="230" y="126">economy_reconciliation_last_run_status{tier}</text>
+<text class="nl" text-anchor="middle" x="230" y="142">economy_reconciliation_mismatch_total{check,currency}</text>
+
+
+<path class="node" stroke="var(--t-kafka)" d="M880,86 a180,8 0 0 1 360,0 v84 a180,8 0 0 1 -360,0 z"/>
+<path class="node" stroke="var(--t-kafka)" fill="none" d="M880,86 a180,8 0 0 0 360,0"/>
+<text class="nt" text-anchor="middle" x="1060" y="110">Kafka</text>
+<text class="nl" text-anchor="middle" x="1060" y="128">chưa có consumer đăng ký</text>
+<text class="nl" text-anchor="middle" x="1060" y="144">relay TẮT ở mọi profile K8s</text>
+
+<a href="../code-10m/35-ledger-reconciliation/01-job-ledger-reconciliation-fast.html">
+<rect class="node" stroke="var(--t-worker)" x="40" y="250" width="380" height="190" rx="9"/>
+<text class="nt" text-anchor="middle" x="230" y="274">Đối soát nhanh (60 s, singleton)</text>
+<text class="nl" text-anchor="middle" x="230" y="292">kiểm Σ(Nợ − Có) = 0 theo currency + receipt mồ côi</text>
+<text class="nl" text-anchor="middle" x="230" y="308">trang transaction theo (created_at, id), cũ hơn LAG</text>
+<text class="nl" text-anchor="middle" x="230" y="324">tổng + cursor commit CÙNG NHAU → pod mới tiếp tục</text>
+<text class="nl" text-anchor="middle" x="230" y="340">rebase phân trang định kỳ: bắt commit muộn/backdate</text>
+<text class="nl" text-anchor="middle" x="230" y="356">quét dở (complete=false) KHÔNG báo là sạch</text>
+</a>
+<rect class="tagbg" x="372" y="242" width="42" height="16" rx="8" fill="var(--bg)" stroke="var(--warn)"/>
+<text class="tag" text-anchor="middle" x="393" y="253.5" fill="var(--warn)">local</text>
+<a href="../code-10m/35-ledger-reconciliation/02-job-wallet-reconciliation-deep.html">
+<rect class="node" stroke="var(--t-worker)" x="460" y="250" width="380" height="190" rx="9"/>
+<text class="nt" text-anchor="middle" x="650" y="274">Đối soát sâu (300 s, singleton)</text>
+<text class="nl" text-anchor="middle" x="650" y="292">mẫu 100 ví mỗi lần, keyset theo wallets.user_id</text>
+<text class="nl" text-anchor="middle" x="650" y="308">cursor ở checkpoint, wrap trong cùng lượt</text>
+<text class="nl" text-anchor="middle" x="650" y="324">snapshot ví và ledger cùng MVCC snapshot</text>
+<text class="nl" text-anchor="middle" x="650" y="340">ok chỉ nói về mẫu vừa kiểm tra, không về mọi ví</text>
+</a>
+<rect class="tagbg" x="792" y="242" width="42" height="16" rx="8" fill="var(--bg)" stroke="var(--warn)"/>
+<text class="tag" text-anchor="middle" x="813" y="253.5" fill="var(--warn)">local</text>
+<a href="../code-10m/37-outbox-relay/01-job-outbox-relay-tick.html">
+<rect class="node" stroke="var(--t-worker)" x="880" y="250" width="360" height="190" rx="9"/>
+<text class="nt" text-anchor="middle" x="1060" y="274">Outbox relay (TẮT mặc định)</text>
+<text class="nl" text-anchor="middle" x="1060" y="292">≤ 10 lô × 100 event mỗi tick, ngân sách 1 s</text>
+<text class="nl" text-anchor="middle" x="1060" y="308">không bắt đầu gọi mạng mới khi hết ngân sách</text>
+<text class="nl" text-anchor="middle" x="1060" y="324">lỗi broker đầu tiên kết thúc lô (không giữ lock DB)</text>
+<text class="nl" text-anchor="middle" x="1060" y="340">không tự bật Kafka, không xoá event chưa publish</text>
+</a>
+<rect class="tagbg" x="1192" y="242" width="42" height="16" rx="8" fill="var(--bg)" stroke="var(--warn)"/>
+<text class="tag" text-anchor="middle" x="1213" y="253.5" fill="var(--warn)">local</text>
+
+<path class="node" stroke="var(--t-postgres)" d="M40,518 a600,8 0 0 1 1200,0 v124 a600,8 0 0 1 -1200,0 z"/>
+<path class="node" stroke="var(--t-postgres)" fill="none" d="M40,518 a600,8 0 0 0 1200,0"/>
+<text class="nt" text-anchor="middle" x="640" y="542">PostgreSQL</text>
+<text class="nl" text-anchor="middle" x="640" y="560">transactions · ledger_entries · wallets · iap_receipts: job CHỈ ĐỌC (không sửa, không xoá)</text>
+<text class="nl" text-anchor="middle" x="640" y="576">runtime_job_checkpoints: cursor + tổng cộng dồn, metadata chẩn đoán dựng lại được, không thay thế sổ cái</text>
+<text class="nl" text-anchor="middle" x="640" y="592">outbox_events: relay đọc theo lô và đánh dấu đã publish</text>
+<text class="nl" text-anchor="middle" x="640" y="608">index mới chỉ phục vụ keyset scan, không nới unique idempotency</text>
+
+
+<rect class="node" stroke="var(--t-service)" x="340" y="710" width="600" height="76" rx="9"/>
+<text class="nt" text-anchor="middle" x="640" y="734">Ghi sổ (không đổi): LedgerService</text>
+<text class="nl" text-anchor="middle" x="640" y="752">append-only, double-entry, Transaction.idempotencyKey unique ở DB</text>
+<text class="nl" text-anchor="middle" x="640" y="768">Wallet.balance chỉ là snapshot; sửa sai bằng reversal entry</text>
+
+<rect class="pill" x="160" y="195" width="140" height="20" rx="10" stroke="var(--muted)"/>
+<text class="el" text-anchor="middle" x="230" y="209">lệch → log + metric</text>
+<rect class="pill" x="1029.5" y="204" width="61" height="20" rx="10" stroke="var(--t-kafka)"/>
+<text class="el" text-anchor="middle" x="1060" y="218">publish</text>
+<rect class="pill" x="135.5" y="465" width="199" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="235" y="479">SELECT trang + UPSERT cursor</text>
+<rect class="pill" x="542" y="465" width="206" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="645" y="479">SELECT keyset + UPSERT cursor</text>
+<rect class="pill" x="970" y="465" width="160" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="1050" y="479">SKIP LOCKED + đánh dấu</text>
+<rect class="pill" x="573.5" y="670" width="133" height="20" rx="10" stroke="var(--t-postgres)"/>
+<text class="el" text-anchor="middle" x="640" y="684">INSERT append-only</text>
+<rect x="24" y="788" width="14" height="14" rx="4" fill="none" stroke="var(--t-kafka)" stroke-width="1.6"/>
+<text class="lg" x="44" y="799">KAFKA</text>
+<rect x="98" y="788" width="14" height="14" rx="4" fill="none" stroke="var(--t-postgres)" stroke-width="1.6"/>
+<text class="lg" x="118" y="799">POSTGRES</text>
+<rect x="191" y="788" width="14" height="14" rx="4" fill="none" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="3 2"/>
+<text class="lg" x="211" y="799">hạ tầng ngoài code (ghi để đối chiếu)</text>
+<rect x="468" y="788" width="14" height="14" rx="4" fill="none" stroke="var(--t-worker)" stroke-width="1.6"/>
+<text class="lg" x="488" y="799">job nền (WORKER)</text>
+<rect x="612" y="788" width="14" height="14" rx="4" fill="none" stroke="var(--t-service)" stroke-width="1.6"/>
+<text class="lg" x="632" y="799">core-api (SERVICE)</text>
+<line x1="768" y1="795" x2="794" y2="795" stroke="var(--muted)" stroke-width="1.6"/><text class="lg" x="800" y="799">gọi đồng bộ</text>
+<line x1="888" y1="795" x2="914" y2="795" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="6 4"/><text class="lg" x="920" y="799">bất đồng bộ / best-effort</text>
+<rect x="1097" y="787" width="34" height="16" rx="8" fill="var(--bg)" stroke="var(--warn)"/><text class="tag" text-anchor="middle" x="1114" y="798.5" fill="var(--warn)">local</text><text class="lg" x="1137" y="799">code chưa commit</text>
+</svg>
